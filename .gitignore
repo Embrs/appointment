@@ -1,0 +1,34 @@
+# Nuxt dev/build outputs
+.output
+.data
+.nuxt
+.nitro
+.cache
+dist
+test.html
+.stylelintcache
+test.html
+
+# Node dependencies
+node_modules
+
+# TinyMCE self-hosted assets (auto-copied via postinstall)
+public/tinymce
+
+# Playwright MCP test artifacts
+.playwright-mcp/
+/*.png
+
+# Logs
+logs
+*.log
+
+# Misc
+.DS_Store
+.fleet
+.idea
+
+.stylelintcache
+# Local env files
+.env
+!.env.dev
