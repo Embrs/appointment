@@ -25,11 +25,11 @@ npx prisma studio        # 開啟 Prisma Studio 視覺化資料庫
 - 環境需求：Node.js >= 24.13.0
 - 測試框架：**Vitest**（設定檔 `vitest.config.ts`，測試位於 `server/__tests__/`）
 - `npm run dev` 會載入 `.env.dev`；新環境需先自行建立該檔（可參考 `.env.example`）
-- `postinstall` 會自動執行 `prisma generate` 與 `nuxt prepare`
+- `postinstall` 會自動執行 `prisma generate` + `nuxt prepare` + `node scripts/copy-tinymce.mjs`
 
 ## 專案架構
 
-多商家預約平台 SaaS：Nuxt 4 全端應用，前端使用 Vue 3 Composition API + TypeScript + Element Plus + Pinia，後端使用 Nitro Server + Prisma ORM + PostgreSQL。
+多商家預約平台 SaaS：Nuxt 4 全端應用，前端 Vue 3 Composition API + TypeScript + Element Plus + Pinia，後端 Nitro Server + Prisma ORM + PostgreSQL，部署目標 Docker / Railway。
 
 ### 目錄結構
 
@@ -67,148 +67,22 @@ npx prisma studio        # 開啟 Prisma Studio 視覺化資料庫
 | `@@` | `./server` |
 | `~shared` | `./shared` |
 
-### 自動導入
-
-以下目錄的模組會自動導入，**無需 import**：
-- `app/stores/` — Pinia stores
-- `app/utils/` — 工具函式（`$api`、`$dayjs`、`$tool`、`$lodash`、`$encrypt`、`$enum`、`$open`）
-- `app/composables/**` — Composition API
-- `app/components/` — 全局組件（排除 `loading/page.vue` 和 `open/group/index.vue`）
-- Vue 核心函式（`ref`、`computed`、`watch` 等不需從 vue 匯入）
-
-### 全局 SCSS 工具
-
-以下 SCSS 檔案已透過 Vite 自動注入，可在任何組件中直接使用 mixin/變數：
-- `config.scss`、`colors.scss`、`fn.scss`、`mixin.scss`、`font-size.scss`、`rwd.scss`、`element-plus/index.scss`
-
-## 前端編碼規範
-
-### SFC 結構順序
-
-模板語言使用 **Pug**，樣式使用 **SCSS scoped**：
-
-```vue
-<script setup lang="ts">
-// 1. Imports
-// 2. Props/Refs/State
-// 3. Watch/Event Handlers（Click* 前綴）
-// 4. Flow Control（*Flow 後綴）
-// 5. Helpers
-// 6. API Requests（Api* 前綴）
-// 7. Lifecycle
-// 8. Emits
-// 9. Expose
-</script>
-
-<template lang="pug">
-.ComponentName
-  //- 內容
-</template>
-
-<style lang="scss" scoped>
-.ComponentName { }
-</style>
-```
-
-### 函式命名慣例
-
-| 類型 | 命名 | 範例 |
-|------|------|------|
-| 點擊事件 | `Click*` | `ClickSave`, `ClickDelete` |
-| 流程控制 | `*Flow` | `SaveFlow`, `DeleteFlow` |
-| API 呼叫 | `Api*` | `ApiSave`, `ApiGetList` |
-
-### SCSS 規範
-
-- 類名使用 BEM 變體：`.ComponentName`、`.ComponentName__element`、`.ComponentName__element--modifier`
-- **禁止** `&__` 嵌套寫法，必須展平寫
-- **禁止** `!important`、內聯樣式、`@import`
-- 覆蓋 Element Plus 樣式只能在 scoped 內用 `:deep()`
-
-### Element Plus 注意事項
-
-- **禁止** `ElMessageBox.confirm/prompt`，使用 `UseAsk()` composable
-- `ElInput` 必須加 `maxlength`
-- `ElSelect` 搭配 `clearable` 時必須加 `value-on-clear=""`
-- 數字輸入必須加 `inputmode="numeric"`
-
-## 後端編碼規範（Server API）
-
-### API 路由結構
-
-```
-server/routes/nuxt-api/{資源}/
-  index.get.ts    — 列表
-  index.post.ts   — 新增
-  [id].get.ts     — 詳情
-  [id].put.ts     — 更新
-  [id].delete.ts  — 刪除
-```
-
-### 錯誤處理
-
-- **使用 `return` 回傳錯誤，禁止 `throw`**
-- 使用 `@@/utils/response` 的工具函式：`successResponse`、`notFoundError`、`badRequestError`、`forbiddenError` 等
-- 錯誤訊息必須提供三語言（zh_tw、en、ja）
-- 後端返回資料中的 null 值應轉為空字串
-
-### 統一響應格式
-
-```typescript
-{ data: T, status: { code: number, message: { zh_tw, en, ja } } }
-```
-
-## 狀態管理（Pinia）
-
-Store 檔案以數字前綴排序初始化順序，直接以函式形式使用：
-- `StoreEnv()` — 環境變數
-- `StoreTool()` — RWD、滾動偵測
-- `StoreTheme()` — 主題色
-- `StoreSelf()` — 使用者認證、Token、權限檢查 `HasRule()`、impersonate 支援
-- `StoreCustomerSession()` — 顧客端 session（手機 / Email 對應）
-- `StoreOpen()` — 彈窗管理（`OnOpen`、`OnClose`）
-- `StoreQueueRealtime()` — 號碼牌 WebSocket 即時狀態
-
-## 資料層（Prisma）
-
-- Schema：`prisma/schema.prisma`，包含 Merchant、Staff、Service、Resource、Schedule、Appointment、Queue 等核心模型
-- 遷移檔：`prisma/migrations/`
-- Seed：`prisma/seed-customer-booking.ts`
-- 後端透過 `@@/utils/prisma` 取得共用 client，避免重複建立連線
-
-## Layouts 與中介層
-
-- Layouts：`default`、`front-desk`（顧客端 `m/[slug]/*`）、`back-desk`（商家後台 `admin/*` 與平台後台 `sys/*`）
-- 中介層：
-  - `admin.ts` — 平台管理員存取守衛（`sys/*`）
-  - `merchant.ts` — 商家後台存取守衛（`admin/*`）
-
-## 彈窗系統
-
-使用 `$open` 全局工具開啟業務彈窗，組件位於 `app/components/open/`：
-- 命名規則：`OpenDialog{業務名稱}{模式}.vue`（Info/Edit/Create）
-- 確認對話框使用 `UseAsk()` composable
-
-## API 請求
-
-API 定義在 `app/protocol/fetch-api/api/` 下，按業務模組分目錄。已內建 Token 注入、錯誤處理、401 自動跳轉登入。
-
-```typescript
-const res = await $api.GetUserList({ page: 1 });
-if (res.status.code !== $enum.apiStatus.success) return false;
-```
-
-## 多語系
-
-三語系支援（繁中 zh、英文 en、日文 ja），預設繁中。路由策略 `prefix_except_default`（預設語言不加 URL 前綴）。翻譯檔位於 `i18n/locales/`。
-
 ## 知識庫
 
 詳細規範與技術知識存放於 `.claude/knowledge/`，按需讀取以減少上下文消耗：
 
 | 文件 | 內容 | 建議閱讀時機 |
 |------|------|-------------|
-| [frontend-conventions.md](.claude/knowledge/frontend-conventions.md) | SFC 結構、命名慣例、SCSS BEM、Element Plus 限制、自動導入、彈窗系統、TinyEditor 富文本編輯器 | 撰寫或修改 Vue 組件、頁面、SCSS 樣式時 |
-| [backend-conventions.md](.claude/knowledge/backend-conventions.md) | API 路由結構、錯誤處理（`return` 非 `throw`）、統一響應格式、三語言錯誤訊息 | 撰寫 `server/routes/nuxt-api/*` 端點時 |
+| [frontend-conventions.md](.claude/knowledge/frontend-conventions.md) | SFC 結構、Pug/SCSS BEM、Element Plus 限制、客製指令、TinyEditor | 撰寫或修改 Vue 組件、頁面、SCSS 樣式時 |
+| [backend-conventions.md](.claude/knowledge/backend-conventions.md) | API 路由結構、`return` 非 `throw` 錯誤處理、ApiResponse 格式、三語訊息 | 撰寫 `server/routes/nuxt-api/*` 端點時 |
+| [stores-and-globals.md](.claude/knowledge/stores-and-globals.md) | Pinia stores 清單、composables、自動導入、彈窗系統、`$api` 範式 | 操作 store、使用 `Use*()` / `$*` 全局工具、開啟業務彈窗時 |
+| [data-and-routing.md](.claude/knowledge/data-and-routing.md) | Layouts、middleware 守衛、頁面路由結構、i18n 策略、Nitro 設定 | 改動頁面/layout/middleware、處理 i18n、調整 Nitro 設定時 |
+| [data-model.md](.claude/knowledge/data-model.md) | Prisma 模型分群、enum 取值、軟刪除約定、顧客三元組識別 | 查詢/修改 schema、改動任何 Prisma model 操作時 |
+| [api-modules.md](.claude/knowledge/api-modules.md) | 13 個 `nuxt-api/` 資源目錄職責、認證需求、與 spec 對應 | 找端點位置、新增 API、判斷該掛哪支守衛時 |
+| [availability-and-booking.md](.claude/knowledge/availability-and-booking.md) | `availability.ts` 純函式設計、BookingMode 分流、`createAppointment` advisory lock、取消政策 | 改動預約流程、可用時段算法、`booking.ts` / `availability.ts` 時 |
+| [queue-realtime.md](.claude/knowledge/queue-realtime.md) | QueueTicket/Window/Counter 三表協作、WebSocket 廣播、前端 WS+輪詢雙軌 | 改動號碼牌相關（領號、叫號、ws、StoreQueueRealtime）時 |
+| [auth-and-rbac.md](.claude/knowledge/auth-and-rbac.md) | JWT 簽發/驗證、bcrypt、三身分、`HasRule` 規則、impersonation 代理鏈防護 | 改動登入、權限檢查、impersonate、`requireAdmin/Merchant` 時 |
+| [deploy-and-env.md](.claude/knowledge/deploy-and-env.md) | Dockerfile multi-stage、環境變數清單、cron jobs、R2、JobLock / RateLimit | 部署、環境變數調整、cron 排程、R2 上傳、排程互斥時 |
 
+> 知識庫結構：fact-context-layered-v1
 > 最後更新時間：2026-05-18
