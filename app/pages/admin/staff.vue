@@ -10,7 +10,8 @@ const useAsk = UseAsk();
 const isOwner = computed(() => storeSelf.role === 'OWNER');
 
 const items = ref<MerchantStaffItem[]>([]);
-const loading = ref(true);
+// 初值 false：避免 v-loading 在 page transition mount 階段就建立 mask 而卡住
+const loading = ref(false);
 
 const ApiLoad = async () => {
   if (!isOwner.value) return;
@@ -54,10 +55,10 @@ onMounted(() => {
 
 <template lang="pug">
 .PageAdminStaff
-  .PageAdminStaff__header
-    h1.PageAdminStaff__title 成員管理
-    ElButton(v-if="isOwner" type="primary" @click="ClickCreate") + 新增成員
-  .PageAdminStaff__no-permission(v-if="!isOwner")
+  BizPageHeader(title="成員管理" subtitle="管理商家內部員工與權限")
+    template(#actions)
+      ElButton(v-if="isOwner" type="primary" @click="ClickCreate") + 新增成員
+  .PageAdminStaff__noPermission(v-if="!isOwner")
     | 此頁僅限 OWNER 操作；目前帳號為 STAFF。
   ElTable(
     v-else
@@ -86,29 +87,13 @@ onMounted(() => {
 </template>
 
 <style lang="scss" scoped>
-.PageAdminStaff {
-  padding: 8px;
-}
-
-.PageAdminStaff__header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: 16px;
-}
-
-.PageAdminStaff__title {
-  margin: 0;
-  font-size: 20px;
-  font-weight: 600;
-  color: #303133;
-}
-
-.PageAdminStaff__no-permission {
-  background-color: #fff;
+.PageAdminStaff__noPermission {
+  background-color: $white;
   padding: 24px;
-  border-radius: 8px;
-  color: #e6a23c;
+  border-radius: 14px;
+  border: 1px solid rgba(235, 139, 45, 0.25);
+  color: $tertiary;
   font-size: 14px;
+  text-align: center;
 }
 </style>

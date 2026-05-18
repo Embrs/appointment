@@ -8,7 +8,9 @@ definePageMeta({
 const useAsk = UseAsk();
 const items = ref<ServiceItem[]>([]);
 const resources = ref<ResourceItem[]>([]);
-const loading = ref(true);
+// 初值 false：避免 v-loading 在 page transition mount 階段就建立 mask，
+// 導致 transitionend 事件與頁面 enter transition 衝突而卡住載入動畫
+const loading = ref(false);
 
 const resourceMap = computed(() => {
   const m: Record<string, string> = {};
@@ -79,9 +81,9 @@ onMounted(() => {
 
 <template lang="pug">
 .PageAdminServices
-  .PageAdminServices__header
-    h1.PageAdminServices__title 服務管理
-    ElButton(type="primary" @click="ClickCreate") + 新增服務
+  BizPageHeader(title="服務管理" subtitle="管理可被預約的服務項目、模式與時長")
+    template(#actions)
+      ElButton(type="primary" @click="ClickCreate") + 新增服務
   ElTable(
     :data="items"
     v-loading="loading"
@@ -121,26 +123,8 @@ onMounted(() => {
 </template>
 
 <style lang="scss" scoped>
-.PageAdminServices {
-  padding: 8px;
-}
-
-.PageAdminServices__header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: 16px;
-}
-
-.PageAdminServices__title {
-  margin: 0;
-  font-size: 20px;
-  font-weight: 600;
-  color: #303133;
-}
-
 .PageAdminServices__inactive {
-  color: #909399;
+  color: rgba(69, 69, 69, 0.5);
   font-size: 12px;
 }
 </style>

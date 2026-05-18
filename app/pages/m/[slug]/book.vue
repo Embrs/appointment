@@ -134,6 +134,10 @@ const ClickPickService = (id: string) => {
   if (!needRes) ApiLoadSlots();
 };
 
+const ClickQueueFromBook = (_serviceId: string) => {
+  navigateTo(`/m/${slug.value}/queue`);
+};
+
 const ClickPickResource = (id: string) => {
   form.resourceId = id;
   if (!form.date) form.date = TodayStr(1);
@@ -214,32 +218,38 @@ onMounted(ApiLoad);
 
 <template lang="pug">
 .PageBook
-  .PageBook__loading(v-if="loading") …
+  .PageBook__loading(v-if="loading") 載入中…
   template(v-else)
+    //- 步驟條
     .PageBook__steps
       .PageBook__step(
         v-for="(s, i) of stepOrder"
         :key="s"
-        :class="{ 'is-active': s === currentStep, 'is-done': i < stepIndex }"
+        :class="{ 'PageBook__step--active': s === currentStep, 'PageBook__step--done': i < stepIndex }"
       )
-        .PageBook__step-num {{ i + 1 }}
-        .PageBook__step-label {{ $t(`booking.steps.${s}`) }}
+        .PageBook__stepNum
+          span.PageBook__stepNumInner
+            template(v-if="i < stepIndex") ✓
+            template(v-else) {{ i + 1 }}
+        .PageBook__stepLabel {{ $t(`booking.steps.${s}`) }}
 
+    //- 內容面板
     .PageBook__panel
       //- Step: service
       template(v-if="currentStep === 'service'")
-        h3.PageBook__panel-title 選擇服務
-        .PageBook__service-grid
+        h3.PageBook__panelTitle 選擇服務
+        .PageBook__serviceGrid
           BizServiceCard(
             v-for="s in services"
             :key="s.id"
             :service="s"
             @click-book="ClickPickService"
+            @click-queue="ClickQueueFromBook"
           )
 
       //- Step: resource
       template(v-else-if="currentStep === 'resource'")
-        h3.PageBook__panel-title 選擇資源
+        h3.PageBook__panelTitle 選擇資源
         BizResourcePicker(
           :model-value="form.resourceId"
           :resources="availableResources"
@@ -250,25 +260,17 @@ onMounted(ApiLoad);
 
       //- Step: date
       template(v-else-if="currentStep === 'date'")
-        h3.PageBook__panel-title 選擇日期
-        BizDatePickerStrip(
-          v-model="form.date"
-          :days="14"
-          :start-offset="0"
-        )
+        h3.PageBook__panelTitle 選擇日期
+        BizDatePickerCalendar(v-model="form.date")
         .PageBook__nav
           ElButton(@click="ClickBack") 上一步
           ElButton(type="primary" @click="ClickNextFromDate") 下一步
 
       //- Step: slot
       template(v-else-if="currentStep === 'slot'")
-        h3.PageBook__panel-title 選擇時段
-        BizDatePickerStrip(
-          v-model="form.date"
-          :days="14"
-          :start-offset="0"
-        )
-        .PageBook__slot-block
+        h3.PageBook__panelTitle 選擇時段
+        BizDatePickerCalendar(v-model="form.date")
+        .PageBook__slotBlock
           BizSlotPicker(
             :model-value="form.startAt"
             :slots="slots"
@@ -281,26 +283,24 @@ onMounted(ApiLoad);
 
       //- Step: info
       template(v-else-if="currentStep === 'info'")
-        h3.PageBook__panel-title 填寫聯絡資訊
+        h3.PageBook__panelTitle 填寫聯絡資訊
         ElForm(label-position="top")
           ElFormItem(label="姓氏" required)
-            ElInput(v-model="form.lastName" maxlength="20" placeholder="例：王")
+            ElInput(v-model="form.lastName" maxlength="20" size="large" placeholder="例：王")
           ElFormItem(label="稱謂" required)
-            ElSelect(v-model="form.title" style="width: 100%;")
+            ElSelect(v-model="form.title" size="large" style="width: 100%;")
               ElOption(v-for="opt in titleOptions" :key="opt.value" :label="opt.label" :value="opt.value")
           ElFormItem(label="手機號碼" required)
-            ElInput(v-model="form.phone" maxlength="20" inputmode="numeric" placeholder="0912345678")
+            ElInput(v-model="form.phone" maxlength="20" inputmode="numeric" size="large" placeholder="0912345678")
           ElFormItem(label="備註（選填）")
             ElInput(v-model="form.note" type="textarea" :rows="2" maxlength="200" show-word-limit)
         .PageBook__nav
-          ElButton(@click="ClickBack") 上一步
-          ElButton(type="primary" :disabled="!isFormValid" @click="ConfirmFlow") 預約確認
+          ElButton(size="large" @click="ClickBack") 上一步
+          ElButton(type="primary" size="large" :disabled="!isFormValid" @click="ConfirmFlow") 預約確認
 </template>
 
 <style lang="scss" scoped>
 .PageBook {
-  max-width: 720px;
-  margin: 0 auto;
   display: flex;
   flex-direction: column;
   gap: 16px;
@@ -309,16 +309,18 @@ onMounted(ApiLoad);
 .PageBook__loading {
   padding: 32px;
   text-align: center;
-  color: #909399;
+  color: rgba(69, 69, 69, 0.55);
+  font-size: 14px;
 }
 
+// 步驟條 ----
 .PageBook__steps {
   display: flex;
   gap: 4px;
-  background: #fff;
-  padding: 8px;
-  border-radius: 8px;
-  box-shadow: 0 1px 2px rgb(0 0 0 / 4%);
+  background-color: $white;
+  padding: 10px;
+  border-radius: 14px;
+  border: 1px solid rgba(53, 77, 123, 0.08);
   overflow-x: auto;
 }
 
@@ -326,72 +328,132 @@ onMounted(ApiLoad);
   flex: 1;
   display: flex;
   align-items: center;
-  gap: 6px;
-  padding: 6px 8px;
-  font-size: 12px;
-  color: #909399;
-  border-radius: 4px;
-  min-width: 80px;
+  gap: 8px;
+  padding: 8px 12px;
+  font-size: 12.5px;
+  color: rgba(69, 69, 69, 0.5);
+  border-radius: 8px;
+  min-width: 90px;
+  transition: background-color 0.15s ease, color 0.15s ease;
 }
 
-.PageBook__step.is-active {
-  color: #409eff;
-  background: #ecf5ff;
+.PageBook__step--active {
+  color: $primary;
+  background-color: rgba(53, 77, 123, 0.08);
   font-weight: 600;
 }
 
-.PageBook__step.is-done {
-  color: #67c23a;
+.PageBook__step--done {
+  color: $secondary;
 }
 
-.PageBook__step-num {
-  width: 20px;
-  height: 20px;
+.PageBook__stepNum {
+  width: 22px;
+  height: 22px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  background: currentColor;
-  color: #fff !important; // override inline color for badge text
+  background-color: currentColor;
   border-radius: 50%;
   font-size: 11px;
   font-weight: 700;
   flex-shrink: 0;
 }
 
+.PageBook__stepNumInner {
+  color: $white;
+  line-height: 1;
+}
+
+.PageBook__step:not(.PageBook__step--active):not(.PageBook__step--done) .PageBook__stepNum {
+  background-color: rgba(53, 77, 123, 0.18);
+}
+
+// 內容面板 ----
 .PageBook__panel {
-  background: #fff;
-  border-radius: 12px;
-  padding: 16px;
-  box-shadow: 0 1px 3px rgb(0 0 0 / 6%);
+  background-color: $white;
+  border-radius: 16px;
+  padding: 24px;
+  border: 1px solid rgba(53, 77, 123, 0.08);
+  box-shadow: 0 4px 16px -8px rgba(31, 42, 68, 0.1);
   display: flex;
   flex-direction: column;
+  gap: 14px;
+}
+
+.PageBook__panelTitle {
+  margin: 0 0 4px;
+  font-size: 17px;
+  font-weight: 700;
+  color: $primary;
+  letter-spacing: -0.005em;
+  position: relative;
+  padding-left: 12px;
+}
+
+.PageBook__panelTitle::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 4px;
+  height: 18px;
+  border-radius: 2px;
+  background: linear-gradient(180deg, $primary, $secondary);
+}
+
+.PageBook__serviceGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
   gap: 12px;
 }
 
-.PageBook__panel-title {
-  margin: 0 0 4px;
-  font-size: 16px;
-  font-weight: 600;
-  color: #303133;
-}
-
-.PageBook__service-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
-  gap: 10px;
-}
-
-.PageBook__slot-block {
+.PageBook__slotBlock {
   margin-top: 4px;
 }
 
 .PageBook__nav {
   display: flex;
-  gap: 8px;
-  margin-top: 8px;
+  gap: 10px;
+  margin-top: 12px;
 }
 
 .PageBook__nav > * {
   flex: 1;
+}
+
+:deep(.el-input__wrapper),
+:deep(.el-select .el-select__wrapper),
+:deep(.el-textarea__inner) {
+  border-radius: 10px;
+}
+
+@media (max-width: 640px) {
+  .PageBook__steps {
+    gap: 6px;
+  }
+
+  .PageBook__step {
+    flex: 0 0 auto;
+    min-width: 0;
+    padding: 6px 10px;
+    font-size: 12px;
+  }
+
+  .PageBook__step--active {
+    flex: 1 1 auto;
+  }
+
+  .PageBook__stepLabel {
+    font-size: 11.5px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .PageBook__step:not(.PageBook__step--active) .PageBook__stepLabel {
+    display: none;
+  }
 }
 </style>

@@ -54,125 +54,335 @@ onMounted(() => {
 
 <template lang="pug">
 .PageAdminIndex
-  h1.PageAdminIndex__title 商家後台
-  p.PageAdminIndex__welcome 歡迎，{{ merchantInfo?.name || storeSelf.userName }}
+  //- 頁首
+  header.PageAdminIndex__head
+    .PageAdminIndex__headMain
+      .PageAdminIndex__eyebrow 商家後台
+      h1.PageAdminIndex__title 歡迎，{{ merchantInfo?.name || storeSelf.userName }}
+      p.PageAdminIndex__lead 管理服務、資源、員工與排班，所有預約一站式搞定。
+    .PageAdminIndex__headActions
+      NuxtLink.PageAdminIndex__headAction(to="/admin/services") 管理服務
+      NuxtLink.PageAdminIndex__headAction.PageAdminIndex__headAction--ghost(to="/admin/share-link") 對外連結
+
+  //- 統計卡片
   .PageAdminIndex__cards
     NuxtLink.PageAdminIndex__card.PageAdminIndex__card--service(to="/admin/services")
-      span.PageAdminIndex__card-label 啟用服務
-      span.PageAdminIndex__card-value {{ loading ? '—' : serviceCount }}
-      span.PageAdminIndex__card-hint 點擊管理服務
+      .PageAdminIndex__cardHeader
+        .PageAdminIndex__cardBadge 服務
+        .PageAdminIndex__cardArrow →
+      .PageAdminIndex__cardValue {{ loading ? '–' : serviceCount }}
+      .PageAdminIndex__cardLabel 啟用服務
+      .PageAdminIndex__cardHint 點擊管理服務
+
     NuxtLink.PageAdminIndex__card.PageAdminIndex__card--resource(to="/admin/resources")
-      span.PageAdminIndex__card-label 啟用資源
-      span.PageAdminIndex__card-value {{ loading ? '—' : resourceCount }}
-      span.PageAdminIndex__card-hint 點擊管理資源
+      .PageAdminIndex__cardHeader
+        .PageAdminIndex__cardBadge 資源
+        .PageAdminIndex__cardArrow →
+      .PageAdminIndex__cardValue {{ loading ? '–' : resourceCount }}
+      .PageAdminIndex__cardLabel 啟用資源
+      .PageAdminIndex__cardHint 點擊管理資源
+
     .PageAdminIndex__card.PageAdminIndex__card--placeholder
-      span.PageAdminIndex__card-label 今日預約
-      span.PageAdminIndex__card-value —
-      span.PageAdminIndex__card-hint 將於下一階段（預約核心）開放
-  .PageAdminIndex__section
-    h2.PageAdminIndex__section-title 最近編輯的服務
+      .PageAdminIndex__cardHeader
+        .PageAdminIndex__cardBadge 即將推出
+      .PageAdminIndex__cardValue —
+      .PageAdminIndex__cardLabel 今日預約
+      .PageAdminIndex__cardHint 將於下一階段開放
+
+  //- 最近編輯的服務
+  section.PageAdminIndex__section
+    header.PageAdminIndex__sectionHead
+      h2.PageAdminIndex__sectionTitle 最近編輯的服務
+      NuxtLink.PageAdminIndex__sectionMore(to="/admin/services") 查看全部 →
     .PageAdminIndex__empty(v-if="!loading && recentServices.length === 0")
       | 尚未建立服務 ·
-      NuxtLink(to="/admin/services") 建立第一個服務
+      NuxtLink.PageAdminIndex__emptyLink(to="/admin/services")  建立第一個服務 →
     ul.PageAdminIndex__list(v-else)
-      li.PageAdminIndex__list-item(v-for="s in recentServices" :key="s.id")
-        NuxtLink.PageAdminIndex__list-link(to="/admin/services")
-          span.PageAdminIndex__list-name {{ s.name }}
-          ElTag(size="small" type="info") {{ BookingModeLabel(s.bookingMode) }}
-          span.PageAdminIndex__list-meta {{ s.durationMinutes }} 分鐘
+      li.PageAdminIndex__listItem(v-for="s in recentServices" :key="s.id")
+        NuxtLink.PageAdminIndex__listLink(to="/admin/services")
+          .PageAdminIndex__listAvatar {{ (s.name || '?').charAt(0).toUpperCase() }}
+          .PageAdminIndex__listInfo
+            .PageAdminIndex__listName {{ s.name }}
+            .PageAdminIndex__listMeta {{ s.durationMinutes }} 分鐘
+          ElTag(size="small" type="info" effect="light") {{ BookingModeLabel(s.bookingMode) }}
 </template>
 
 <style lang="scss" scoped>
 .PageAdminIndex {
-  padding: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+// 頁首 ----
+.PageAdminIndex__head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  gap: 24px;
+  padding: 24px 28px;
+  background: linear-gradient(135deg, $primary 0%, #2a3d62 60%, #1d2c4a 100%);
+  color: $white;
+  border-radius: 16px;
+  position: relative;
+  overflow: hidden;
+}
+
+.PageAdminIndex__head::before {
+  content: '';
+  position: absolute;
+  top: -80px;
+  right: -60px;
+  width: 280px;
+  height: 280px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(0, 173, 169, 0.28), transparent 60%);
+  pointer-events: none;
+}
+
+.PageAdminIndex__head::after {
+  content: '';
+  position: absolute;
+  bottom: -100px;
+  left: -40px;
+  width: 240px;
+  height: 240px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(235, 139, 45, 0.2), transparent 60%);
+  pointer-events: none;
+}
+
+.PageAdminIndex__headMain {
+  position: relative;
+  max-width: 560px;
+}
+
+.PageAdminIndex__eyebrow {
+  display: inline-flex;
+  padding: 5px 12px;
+  border-radius: 999px;
+  background-color: rgba(255, 255, 255, 0.14);
+  color: rgba(255, 255, 255, 0.9);
+  font-size: 11.5px;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  margin-bottom: 14px;
 }
 
 .PageAdminIndex__title {
-  margin: 0 0 4px 0;
-  font-size: 20px;
-  font-weight: 600;
-  color: #303133;
+  margin: 0 0 8px;
+  font-size: 26px;
+  font-weight: 700;
+  letter-spacing: -0.005em;
 }
 
-.PageAdminIndex__welcome {
-  margin: 0 0 20px 0;
+.PageAdminIndex__lead {
+  margin: 0;
   font-size: 14px;
-  color: #606266;
+  line-height: 1.6;
+  color: rgba(255, 255, 255, 0.75);
 }
 
+.PageAdminIndex__headActions {
+  position: relative;
+  display: flex;
+  gap: 10px;
+  flex-shrink: 0;
+}
+
+.PageAdminIndex__headAction {
+  display: inline-flex;
+  align-items: center;
+  padding: 9px 16px;
+  border-radius: 8px;
+  background-color: $white;
+  color: $primary;
+  font-size: 13px;
+  font-weight: 600;
+  text-decoration: none;
+  transition: transform 0.12s ease, box-shadow 0.15s ease;
+}
+
+.PageAdminIndex__headAction:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 8px 20px -10px rgba(0, 0, 0, 0.35);
+}
+
+.PageAdminIndex__headAction--ghost {
+  background-color: rgba(255, 255, 255, 0.12);
+  color: $white;
+  border: 1px solid rgba(255, 255, 255, 0.25);
+}
+
+.PageAdminIndex__headAction--ghost:hover {
+  background-color: rgba(255, 255, 255, 0.22);
+}
+
+// 統計卡片 ----
 .PageAdminIndex__cards {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
-  gap: 12px;
-  margin-bottom: 28px;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 16px;
 }
 
 .PageAdminIndex__card {
+  position: relative;
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  padding: 16px;
-  background-color: #fff;
-  border-radius: 8px;
-  border-left: 4px solid #909399;
-  box-shadow: 0 1px 4px rgb(0 0 0 / 6%);
+  gap: 6px;
+  padding: 22px 22px 20px;
+  background-color: $white;
+  border-radius: 14px;
+  border: 1px solid rgba(53, 77, 123, 0.08);
   text-decoration: none;
   color: inherit;
-  transition: box-shadow 0.15s ease;
+  overflow: hidden;
+  transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease;
+}
+
+.PageAdminIndex__card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 4px;
+  height: 100%;
+  background: $primary;
 }
 
 .PageAdminIndex__card:hover {
-  box-shadow: 0 4px 12px rgb(0 0 0 / 10%);
+  transform: translateY(-3px);
+  box-shadow: 0 16px 32px -16px rgba(31, 42, 68, 0.2);
+  border-color: rgba(53, 77, 123, 0.18);
 }
 
-.PageAdminIndex__card--service {
-  border-left-color: #409eff;
+.PageAdminIndex__card--service::before {
+  background: linear-gradient(180deg, $primary, #2a3d62);
 }
 
-.PageAdminIndex__card--resource {
-  border-left-color: #67c23a;
+.PageAdminIndex__card--resource::before {
+  background: linear-gradient(180deg, $secondary, #5fc6c3);
 }
 
 .PageAdminIndex__card--placeholder {
-  border-left-color: #909399;
-  opacity: 0.7;
+  opacity: 0.6;
   cursor: default;
 }
 
-.PageAdminIndex__card-label {
-  font-size: 13px;
-  color: #606266;
+.PageAdminIndex__card--placeholder::before {
+  background: rgba(53, 77, 123, 0.25);
 }
 
-.PageAdminIndex__card-value {
-  font-size: 28px;
+.PageAdminIndex__card--placeholder:hover {
+  transform: none;
+  box-shadow: none;
+  border-color: rgba(53, 77, 123, 0.08);
+}
+
+.PageAdminIndex__cardHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 6px;
+}
+
+.PageAdminIndex__cardBadge {
+  font-size: 11px;
   font-weight: 600;
-  color: #303133;
+  letter-spacing: 0.06em;
+  padding: 3px 10px;
+  border-radius: 999px;
+  background-color: rgba(53, 77, 123, 0.08);
+  color: $primary;
 }
 
-.PageAdminIndex__card-hint {
+.PageAdminIndex__card--resource .PageAdminIndex__cardBadge {
+  background-color: rgba(0, 173, 169, 0.12);
+  color: $secondary;
+}
+
+.PageAdminIndex__cardArrow {
+  font-size: 16px;
+  color: rgba(53, 77, 123, 0.3);
+  transition: transform 0.15s ease, color 0.15s ease;
+}
+
+.PageAdminIndex__card:hover .PageAdminIndex__cardArrow {
+  transform: translateX(3px);
+  color: $primary;
+}
+
+.PageAdminIndex__cardValue {
+  font-size: 36px;
+  font-weight: 700;
+  color: $primary;
+  line-height: 1.1;
+  letter-spacing: -0.01em;
+}
+
+.PageAdminIndex__cardLabel {
+  font-size: 14px;
+  font-weight: 600;
+  color: $font;
+  margin-top: 2px;
+}
+
+.PageAdminIndex__cardHint {
   font-size: 12px;
-  color: #909399;
+  color: rgba(69, 69, 69, 0.55);
+  margin-top: 2px;
 }
 
+// 區塊 ----
 .PageAdminIndex__section {
-  background-color: #fff;
-  border-radius: 8px;
-  padding: 16px;
-  box-shadow: 0 1px 4px rgb(0 0 0 / 6%);
+  background-color: $white;
+  border-radius: 14px;
+  border: 1px solid rgba(53, 77, 123, 0.08);
+  padding: 24px 28px;
 }
 
-.PageAdminIndex__section-title {
-  margin: 0 0 12px 0;
-  font-size: 15px;
-  font-weight: 600;
-  color: #303133;
+.PageAdminIndex__sectionHead {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+}
+
+.PageAdminIndex__sectionTitle {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 700;
+  color: $primary;
+}
+
+.PageAdminIndex__sectionMore {
+  font-size: 12.5px;
+  color: $primary;
+  text-decoration: none;
+  font-weight: 500;
+  transition: color 0.15s ease;
+}
+
+.PageAdminIndex__sectionMore:hover {
+  color: $secondary;
 }
 
 .PageAdminIndex__empty {
-  color: #909399;
+  color: rgba(69, 69, 69, 0.6);
   font-size: 13px;
-  padding: 12px 0;
+  padding: 24px 0;
+  text-align: center;
+}
+
+.PageAdminIndex__emptyLink {
+  color: $primary;
+  text-decoration: none;
+  font-weight: 600;
+  margin-left: 4px;
+}
+
+.PageAdminIndex__emptyLink:hover {
+  color: $secondary;
 }
 
 .PageAdminIndex__list {
@@ -181,31 +391,80 @@ onMounted(() => {
   padding: 0;
 }
 
-.PageAdminIndex__list-item {
-  border-bottom: 1px solid #ebeef5;
+.PageAdminIndex__listItem {
+  border-bottom: 1px solid rgba(53, 77, 123, 0.06);
 }
 
-.PageAdminIndex__list-item:last-child {
+.PageAdminIndex__listItem:last-child {
   border-bottom: 0;
 }
 
-.PageAdminIndex__list-link {
+.PageAdminIndex__listLink {
   display: flex;
   align-items: center;
-  gap: 12px;
-  padding: 10px 0;
+  gap: 14px;
+  padding: 12px 0;
   text-decoration: none;
   color: inherit;
+  transition: padding 0.12s ease;
 }
 
-.PageAdminIndex__list-name {
-  flex: 1;
+.PageAdminIndex__listLink:hover {
+  padding-left: 4px;
+}
+
+.PageAdminIndex__listAvatar {
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  background: linear-gradient(135deg, $primary, $secondary);
+  color: $white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
   font-size: 14px;
-  color: #303133;
+  flex-shrink: 0;
 }
 
-.PageAdminIndex__list-meta {
+.PageAdminIndex__listInfo {
+  flex: 1;
+  min-width: 0;
+}
+
+.PageAdminIndex__listName {
+  font-size: 14px;
+  font-weight: 600;
+  color: $font;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.PageAdminIndex__listMeta {
   font-size: 12px;
-  color: #909399;
+  color: rgba(69, 69, 69, 0.55);
+  margin-top: 2px;
+}
+
+// RWD ----
+@media (max-width: 760px) {
+  .PageAdminIndex__head {
+    flex-direction: column;
+    align-items: stretch;
+    padding: 20px;
+  }
+
+  .PageAdminIndex__title {
+    font-size: 22px;
+  }
+
+  .PageAdminIndex__headActions {
+    flex-direction: column;
+  }
+
+  .PageAdminIndex__section {
+    padding: 20px;
+  }
 }
 </style>

@@ -6,7 +6,8 @@ definePageMeta({
 });
 
 const useAsk = UseAsk();
-const loading = ref(true);
+// 初值 false：避免 v-loading 在 page transition mount 階段就建立 mask 而卡住
+const loading = ref(false);
 const saving = ref(false);
 const resources = ref<ResourceItem[]>([]);
 const allRules = ref<ScheduleRuleItem[]>([]);
@@ -115,7 +116,7 @@ onMounted(() => {
 
 <template lang="pug">
 .PageAdminSchedule
-  h1.PageAdminSchedule__title 時段管理
+  BizPageHeader(title="時段管理" subtitle="設定整店或個別資源的週期性可預約時段與特殊覆寫")
   .PageAdminSchedule__scope
     span.PageAdminSchedule__scope-label 套用對象：
     ElSelect(
@@ -170,66 +171,59 @@ onMounted(() => {
 </template>
 
 <style lang="scss" scoped>
-.PageAdminSchedule {
-  padding: 8px;
-}
-
-.PageAdminSchedule__title {
-  margin: 0 0 16px 0;
-  font-size: 20px;
-  font-weight: 600;
-  color: #303133;
-}
-
 .PageAdminSchedule__scope {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 10px;
   margin-bottom: 16px;
-  background-color: #fff;
-  padding: 12px;
-  border-radius: 8px;
-  box-shadow: 0 1px 4px rgb(0 0 0 / 6%);
+  background-color: $white;
+  padding: 14px 18px;
+  border-radius: 14px;
+  border: 1px solid rgba(53, 77, 123, 0.08);
 }
 
 .PageAdminSchedule__scope-label {
   font-size: 14px;
-  color: #606266;
+  font-weight: 600;
+  color: $primary;
 }
 
 .PageAdminSchedule__editor {
-  background-color: #fff;
-  padding: 16px;
-  border-radius: 8px;
-  box-shadow: 0 1px 4px rgb(0 0 0 / 6%);
+  background-color: $white;
+  padding: 20px;
+  border-radius: 14px;
+  border: 1px solid rgba(53, 77, 123, 0.08);
+  box-shadow: 0 4px 16px -10px rgba(31, 42, 68, 0.08);
   margin-bottom: 16px;
 }
 
 .PageAdminSchedule__editor-actions {
   display: flex;
   justify-content: flex-end;
-  margin-top: 12px;
-  border-top: 1px solid #ebeef5;
-  padding-top: 12px;
+  margin-top: 14px;
+  border-top: 1px solid rgba(53, 77, 123, 0.08);
+  padding-top: 14px;
 }
 
 .PageAdminSchedule__overrides {
-  background-color: #fff;
-  padding: 16px;
-  border-radius: 8px;
-  box-shadow: 0 1px 4px rgb(0 0 0 / 6%);
+  background-color: $white;
+  padding: 20px;
+  border-radius: 14px;
+  border: 1px solid rgba(53, 77, 123, 0.08);
+  box-shadow: 0 4px 16px -10px rgba(31, 42, 68, 0.08);
 }
 
 .PageAdminSchedule__overrides-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-bottom: 12px;
+  margin-bottom: 14px;
 }
 
 .PageAdminSchedule__overrides-title {
   margin: 0;
-  font-size: 15px;
-  font-weight: 600;
+  font-size: 16px;
+  font-weight: 700;
+  color: $primary;
 }
 </style>

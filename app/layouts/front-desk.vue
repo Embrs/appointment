@@ -1,21 +1,57 @@
 <script setup lang="ts">
 // LayoutFrontDesk — 顧客面 layout
-// 由 /m/{slug}/* 顧客頁面使用；header 顯示商家名（之後接 store/SSR data）
-// 不含登出按鈕（顧客匿名），語系切換暫為按鈕殼（Change 8 接邏輯）
-const merchantName = ref(''); // 由頁面或 route data 注入；MVP 階段先空字串
-const ClickSwitchLocale = () => {
-  // TODO: Change 8 接 useI18n().setLocale
+// /m/{slug}/* 顧客頁面共用；header 顯示商家名（之後接 store/SSR data）
+// 不含登出按鈕（顧客匿名），語系切換使用 ElDropdown + useI18n().setLocale
+const merchantName = ref('');
+
+const { locale, locales, setLocale } = useI18n();
+
+interface LocaleOption {
+  code: string;
+  name?: string;
+  iso?: string;
+}
+
+const localeOptions = computed<LocaleOption[]>(() => (locales.value as LocaleOption[]) ?? []);
+
+const CurrentLocaleName = computed(() => {
+  const found = localeOptions.value.find((l) => l.code === locale.value);
+  return found?.name ?? locale.value;
+});
+
+const ClickSetLocale = async (code: string) => {
+  if (code === locale.value) return;
+  await setLocale(code as 'zh' | 'en' | 'ja');
 };
 </script>
 
 <template lang="pug">
 .LayoutFrontDesk
   header.LayoutFrontDesk__header
-    .LayoutFrontDesk__brand {{ merchantName || '預約服務' }}
-    .LayoutFrontDesk__actions
-      button.LayoutFrontDesk__locale-btn(type="button" @click="ClickSwitchLocale") 語系
+    .LayoutFrontDesk__headerInner
+      .LayoutFrontDesk__brand
+        .LayoutFrontDesk__brandMark A
+        .LayoutFrontDesk__brandName {{ merchantName || '預約服務' }}
+      .LayoutFrontDesk__actions
+        ElDropdown(trigger="click" @command="ClickSetLocale")
+          button.LayoutFrontDesk__localeBtn(
+            type="button"
+            data-testid="locale-switch-btn"
+            :aria-label="$t('booking.actions.switchLocale')"
+          )
+            NuxtIcon.LayoutFrontDesk__localeIcon(name="mdi:translate")
+            span.LayoutFrontDesk__localeName {{ CurrentLocaleName }}
+          template(#dropdown)
+            ElDropdownMenu
+              ElDropdownItem(
+                v-for="l in localeOptions"
+                :key="l.code"
+                :command="l.code"
+                :disabled="l.code === locale"
+              ) {{ l.name }}
   main.LayoutFrontDesk__main
-    slot
+    .LayoutFrontDesk__container
+      slot
 </template>
 
 <style lang="scss" scoped>
@@ -23,26 +59,58 @@ const ClickSwitchLocale = () => {
   min-height: 100vh;
   display: flex;
   flex-direction: column;
-  background-color: #f7f8fa;
+  background-color: $bg;
 }
 
 .LayoutFrontDesk__header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  height: 56px;
-  padding: 0 16px;
-  background-color: #fff;
-  border-bottom: 1px solid #ebeef5;
+  height: 60px;
+  background-color: rgba(255, 255, 255, 0.92);
+  backdrop-filter: saturate(180%) blur(12px);
+  border-bottom: 1px solid rgba(53, 77, 123, 0.08);
   position: sticky;
   top: 0;
   z-index: 10;
 }
 
+.LayoutFrontDesk__headerInner {
+  max-width: 960px;
+  margin: 0 auto;
+  height: 100%;
+  padding: 0 20px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
 .LayoutFrontDesk__brand {
-  font-size: 16px;
-  font-weight: 600;
-  color: #303133;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.LayoutFrontDesk__brandMark {
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
+  background: linear-gradient(135deg, $primary, $secondary);
+  color: $white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  font-size: 14px;
+  flex-shrink: 0;
+}
+
+.LayoutFrontDesk__brandName {
+  font-size: 15px;
+  font-weight: 700;
+  color: $primary;
+  letter-spacing: 0.01em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .LayoutFrontDesk__actions {
@@ -51,18 +119,54 @@ const ClickSwitchLocale = () => {
   gap: 8px;
 }
 
-.LayoutFrontDesk__locale-btn {
-  border: 1px solid #dcdfe6;
-  background: #fff;
-  padding: 4px 10px;
-  border-radius: 4px;
+.LayoutFrontDesk__localeBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: 1px solid rgba(53, 77, 123, 0.15);
+  background-color: $white;
+  padding: 6px 12px;
+  border-radius: 8px;
   cursor: pointer;
-  font-size: 13px;
-  color: #606266;
+  font-size: 12.5px;
+  color: $primary;
+  font-weight: 500;
+  transition: border-color 0.15s ease, background-color 0.15s ease;
+}
+
+.LayoutFrontDesk__localeBtn:hover {
+  border-color: $primary;
+  background-color: rgba(53, 77, 123, 0.04);
+}
+
+.LayoutFrontDesk__localeIcon {
+  font-size: 16px;
+  display: inline-flex;
+  align-items: center;
+  color: $secondary;
+}
+
+.LayoutFrontDesk__localeName {
+  line-height: 1.2;
 }
 
 .LayoutFrontDesk__main {
   flex: 1;
-  padding: 16px;
+}
+
+.LayoutFrontDesk__container {
+  max-width: 960px;
+  margin: 0 auto;
+  padding: 24px 20px 48px;
+}
+
+@media (max-width: 640px) {
+  .LayoutFrontDesk__headerInner {
+    padding: 0 16px;
+  }
+
+  .LayoutFrontDesk__container {
+    padding: 16px 16px 32px;
+  }
 }
 </style>

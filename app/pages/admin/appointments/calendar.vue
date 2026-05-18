@@ -70,9 +70,9 @@ onMounted(ApiLoad);
 
 <template lang="pug">
 .PageAdminAppointmentsCalendar
-  .PageAdminAppointmentsCalendar__head
-    h2.PageAdminAppointmentsCalendar__title 行事曆
-    ElButton(plain @click="ClickBackToList") 切換為列表
+  BizPageHeader(title="行事曆" subtitle="以週/日視圖檢視預約安排")
+    template(#actions)
+      ElButton(plain @click="ClickBackToList") 切換為列表
 
   .PageAdminAppointmentsCalendar__nav
     ElRadioGroup(v-model="mode")
@@ -94,32 +94,19 @@ onMounted(ApiLoad);
 
 <style lang="scss" scoped>
 .PageAdminAppointmentsCalendar {
-  padding: 16px;
   display: flex;
   flex-direction: column;
-  gap: 12px;
-}
-
-.PageAdminAppointmentsCalendar__head {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
-
-.PageAdminAppointmentsCalendar__title {
-  margin: 0;
-  font-size: 18px;
-  font-weight: 600;
+  gap: 14px;
 }
 
 .PageAdminAppointmentsCalendar__nav {
   display: flex;
   align-items: center;
   gap: 12px;
-  background: #fff;
-  padding: 10px 12px;
-  border-radius: 8px;
-  border: 1px solid #ebeef5;
+  background-color: $white;
+  padding: 14px 18px;
+  border-radius: 14px;
+  border: 1px solid rgba(53, 77, 123, 0.08);
 }
 
 .PageAdminAppointmentsCalendar__date-nav {
@@ -129,7 +116,8 @@ onMounted(ApiLoad);
 
 .PageAdminAppointmentsCalendar__anchor {
   margin-left: auto;
-  font-size: 13px;
-  color: #606266;
+  font-size: 13.5px;
+  font-weight: 600;
+  color: $primary;
 }
 </style>

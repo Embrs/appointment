@@ -502,7 +502,7 @@ export const UseWS = (initialURL: string, options: UseWSOptions = {}) => {
     if (!isSupported.value) return;
     if (canDispose) {
       Dispose();
-    };
+    }
   });
 
   // -----------------------------------------------------------------------------------------------

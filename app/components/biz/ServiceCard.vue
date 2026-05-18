@@ -12,8 +12,17 @@ const props = withDefaults(defineProps<ServiceCardProps>(), {
 
 const { t } = useI18n();
 
-type Emit = { 'click-book': [serviceId: string] };
+type Emit = {
+  'click-book': [serviceId: string];
+  'click-queue': [serviceId: string];
+};
 const emit = defineEmits<Emit>();
+
+const IsQueue = computed(() => props.service.bookingMode === 'QUEUE');
+const ClickPrimary = () => {
+  if (IsQueue.value) emit('click-queue', props.service.id);
+  else emit('click-book', props.service.id);
+};
 
 const ModeLabel = computed(() => {
   switch (props.service.bookingMode) {
@@ -43,9 +52,8 @@ const PriceLabel = computed(() => {
   .BizServiceCard__footer
     ElButton.BizServiceCard__btn(
       type="primary"
-      :disabled="service.bookingMode === 'QUEUE'"
-      @click="emit('click-book', service.id)"
-    ) {{ service.bookingMode === 'QUEUE' ? $t('admin.bookingMode.QUEUE') : $t('booking.nav.bookNow') }}
+      @click="ClickPrimary"
+    ) {{ IsQueue ? $t('admin.bookingMode.QUEUE') : $t('booking.nav.bookNow') }}
 </template>
 
 <style lang="scss" scoped>
@@ -58,6 +66,7 @@ const PriceLabel = computed(() => {
   display: flex;
   flex-direction: column;
   gap: 8px;
+  height: 100%;
 }
 
 .BizServiceCard__head {
@@ -102,7 +111,8 @@ const PriceLabel = computed(() => {
 }
 
 .BizServiceCard__footer {
-  margin-top: 4px;
+  margin-top: auto;
+  padding-top: 4px;
   display: flex;
   justify-content: flex-end;
 }

@@ -109,9 +109,8 @@ onMounted(() => {
 
 <template lang="pug">
 .PageAdminAppointments
-  .PageAdminAppointments__head
-    h2.PageAdminAppointments__title 預約管理
-    .PageAdminAppointments__actions
+  BizPageHeader(title="預約管理" subtitle="查詢、處理與代客預約")
+    template(#actions)
       ElButton(plain @click="ClickGoCalendar") 行事曆檢視
       ElButton(plain @click="ClickGoArchive") 歷史紀錄
       ElButton(type="primary" @click="ClickCreate") 代客預約
@@ -186,38 +185,20 @@ onMounted(() => {
 
 <style lang="scss" scoped>
 .PageAdminAppointments {
-  padding: 16px;
   display: flex;
   flex-direction: column;
-  gap: 12px;
-}
-
-.PageAdminAppointments__head {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
-
-.PageAdminAppointments__title {
-  margin: 0;
-  font-size: 18px;
-  font-weight: 600;
-}
-
-.PageAdminAppointments__actions {
-  display: flex;
-  gap: 8px;
+  gap: 14px;
 }
 
 .PageAdminAppointments__filter {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px;
+  gap: 10px;
   align-items: center;
-  padding: 12px;
-  background: #fff;
-  border-radius: 8px;
-  border: 1px solid #ebeef5;
+  padding: 16px 18px;
+  background-color: $white;
+  border-radius: 14px;
+  border: 1px solid rgba(53, 77, 123, 0.08);
 }
 
 .PageAdminAppointments__pager {

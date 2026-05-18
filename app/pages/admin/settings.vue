@@ -114,8 +114,8 @@ onMounted(() => {
 
 <template lang="pug">
 .PageAdminSettings
-  h1.PageAdminSettings__title 商家設定
-  .PageAdminSettings__no-permission(v-if="!isOwner")
+  BizPageHeader(title="商家設定" subtitle="基本資訊、外觀與取消政策")
+  .PageAdminSettings__noPermission(v-if="!isOwner")
     | 此頁僅限 OWNER 操作；目前帳號為 STAFF。
   template(v-else)
     ElForm(
@@ -196,30 +196,25 @@ onMounted(() => {
 
 <style lang="scss" scoped>
 .PageAdminSettings {
-  padding: 8px;
   max-width: 800px;
 }
 
-.PageAdminSettings__title {
-  margin: 0 0 16px 0;
-  font-size: 20px;
-  font-weight: 600;
-  color: #303133;
-}
-
-.PageAdminSettings__no-permission {
-  background-color: #fff;
+.PageAdminSettings__noPermission {
+  background-color: $white;
   padding: 24px;
-  border-radius: 8px;
-  color: #e6a23c;
+  border-radius: 14px;
+  border: 1px solid rgba(235, 139, 45, 0.25);
+  color: $tertiary;
   font-size: 14px;
+  text-align: center;
 }
 
 .PageAdminSettings__form {
-  background-color: #fff;
-  padding: 20px;
-  border-radius: 8px;
-  box-shadow: 0 1px 4px rgb(0 0 0 / 6%);
+  background-color: $white;
+  padding: 24px;
+  border-radius: 14px;
+  border: 1px solid rgba(53, 77, 123, 0.08);
+  box-shadow: 0 4px 16px -10px rgba(31, 42, 68, 0.08);
 }
 
 .PageAdminSettings__section {
@@ -231,12 +226,12 @@ onMounted(() => {
 }
 
 .PageAdminSettings__section-title {
-  margin: 0 0 12px 0;
+  margin: 0 0 14px 0;
   font-size: 15px;
-  font-weight: 600;
-  color: #303133;
-  border-bottom: 1px solid #ebeef5;
-  padding-bottom: 6px;
+  font-weight: 700;
+  color: $primary;
+  border-bottom: 1px solid rgba(53, 77, 123, 0.08);
+  padding-bottom: 8px;
 }
 
 .PageAdminSettings__images {
@@ -248,13 +243,13 @@ onMounted(() => {
 .PageAdminSettings__slug-hint {
   margin-top: 4px;
   font-size: 12px;
-  color: #909399;
+  color: rgba(69, 69, 69, 0.55);
 }
 
 .PageAdminSettings__actions {
   display: flex;
   justify-content: flex-end;
-  border-top: 1px solid #ebeef5;
-  padding-top: 12px;
+  border-top: 1px solid rgba(53, 77, 123, 0.08);
+  padding-top: 14px;
 }
 </style>

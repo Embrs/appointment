@@ -47,7 +47,7 @@ export default defineEventHandler(async (event) => {
     // 3. 批次搬 Appointment → AppointmentArchive
     const cutoff = new Date(Date.now() - APPOINTMENT_RETENTION_DAYS * 86400_000);
 
-    // eslint-disable-next-line no-constant-condition
+     
     while (true) {
       // 抓一批過期 Appointment
       const batch = await prisma.appointment.findMany({

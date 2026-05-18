@@ -1,4 +1,4 @@
-/* eslint-disable no-console */
+ 
 // Seed for customer-booking-flow Playwright scenarios
 // 用法：set -a && source .env.dev && set +a && npx tsx prisma/seed-customer-booking.ts
 import { PrismaClient } from '@prisma/client';

@@ -7,7 +7,8 @@ definePageMeta({
 
 const useAsk = UseAsk();
 const items = ref<HolidayItem[]>([]);
-const loading = ref(true);
+// 初值 false：避免 v-loading 在 page transition mount 階段就建立 mask 而卡住
+const loading = ref(false);
 const year = ref<number>(new Date().getFullYear());
 
 const ApiLoad = async () => {
@@ -50,9 +51,8 @@ onMounted(() => {
 
 <template lang="pug">
 .PageAdminHolidays
-  .PageAdminHolidays__header
-    h1.PageAdminHolidays__title 休假日
-    .PageAdminHolidays__actions
+  BizPageHeader(title="休假日" subtitle="設定整店休假日期，當天不接受預約")
+    template(#actions)
       ElInput(
         :model-value="String(year)"
         type="number"
@@ -77,27 +77,6 @@ onMounted(() => {
 
 <style lang="scss" scoped>
 .PageAdminHolidays {
-  padding: 8px;
-}
-
-.PageAdminHolidays__header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: 16px;
-  gap: 8px;
-}
-
-.PageAdminHolidays__title {
-  margin: 0;
-  font-size: 20px;
-  font-weight: 600;
-  color: #303133;
-}
-
-.PageAdminHolidays__actions {
-  display: flex;
-  align-items: center;
-  gap: 8px;
+  // 內部樣式由 ElTable 與 BizPageHeader 提供
 }
 </style>

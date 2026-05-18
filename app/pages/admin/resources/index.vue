@@ -7,7 +7,8 @@ definePageMeta({
 
 const useAsk = UseAsk();
 const items = ref<ResourceItem[]>([]);
-const loading = ref(true);
+// 初值 false：避免 v-loading 在 page transition mount 階段就建立 mask 而卡住
+const loading = ref(false);
 
 const ApiLoad = async () => {
   loading.value = true;
@@ -49,9 +50,9 @@ onMounted(() => {
 
 <template lang="pug">
 .PageAdminResources
-  .PageAdminResources__header
-    h1.PageAdminResources__title 資源管理
-    ElButton(type="primary" @click="ClickCreate") + 新增資源
+  BizPageHeader(title="資源管理" subtitle="管理技師、座位、設備等可被分配的資源")
+    template(#actions)
+      ElButton(type="primary" @click="ClickCreate") + 新增資源
   ElTable(
     :data="items"
     v-loading="loading"
@@ -73,26 +74,8 @@ onMounted(() => {
 </template>
 
 <style lang="scss" scoped>
-.PageAdminResources {
-  padding: 8px;
-}
-
-.PageAdminResources__header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: 16px;
-}
-
-.PageAdminResources__title {
-  margin: 0;
-  font-size: 20px;
-  font-weight: 600;
-  color: #303133;
-}
-
 .PageAdminResources__inactive {
-  color: #909399;
+  color: rgba(69, 69, 69, 0.5);
   font-size: 12px;
 }
 </style>

@@ -6,7 +6,8 @@ definePageMeta({
 });
 
 const merchant = ref<SelfMerchantFull | null>(null);
-const loading = ref(true);
+// 初值 false：避免 v-loading 在 page transition mount 階段就建立 mask 而卡住
+const loading = ref(false);
 
 const origin = computed(() => {
   if (typeof window === 'undefined') return '';
@@ -53,7 +54,7 @@ onMounted(() => {
 
 <template lang="pug">
 .PageAdminShareLink
-  h1.PageAdminShareLink__title 對外連結
+  BizPageHeader(title="對外連結" subtitle="把連結傳給顧客，或印 QR code 張貼於店面")
   .PageAdminShareLink__card(v-loading="loading")
     template(v-if="merchant && merchant.slug")
       p.PageAdminShareLink__hint 把以下連結傳給顧客，或印 QR code 張貼於店面：
@@ -75,48 +76,39 @@ onMounted(() => {
 </template>
 
 <style lang="scss" scoped>
-.PageAdminShareLink {
-  padding: 8px;
-}
-
-.PageAdminShareLink__title {
-  margin: 0 0 16px 0;
-  font-size: 20px;
-  font-weight: 600;
-  color: #303133;
-}
-
 .PageAdminShareLink__card {
-  background-color: #fff;
-  border-radius: 8px;
-  padding: 24px;
-  box-shadow: 0 1px 4px rgb(0 0 0 / 6%);
-  max-width: 480px;
+  background-color: $white;
+  border-radius: 14px;
+  padding: 28px;
+  border: 1px solid rgba(53, 77, 123, 0.08);
+  box-shadow: 0 4px 16px -10px rgba(31, 42, 68, 0.08);
+  max-width: 520px;
 }
 
 .PageAdminShareLink__hint {
-  margin: 0 0 12px 0;
-  font-size: 13px;
-  color: #606266;
+  margin: 0 0 14px 0;
+  font-size: 13.5px;
+  color: rgba(69, 69, 69, 0.7);
+  line-height: 1.6;
 }
 
 .PageAdminShareLink__url-row {
   display: flex;
-  gap: 8px;
-  margin-bottom: 16px;
+  gap: 10px;
+  margin-bottom: 20px;
 }
 
 .PageAdminShareLink__qr-wrap {
   display: flex;
   justify-content: center;
-  padding: 16px;
-  background-color: #fafafa;
-  border-radius: 4px;
+  padding: 20px;
+  background-color: $bg;
+  border-radius: 10px;
 }
 
 .PageAdminShareLink__empty {
   margin: 0;
-  color: #909399;
+  color: rgba(69, 69, 69, 0.6);
   font-size: 14px;
   display: flex;
   gap: 6px;

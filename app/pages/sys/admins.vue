@@ -60,9 +60,9 @@ onMounted(() => {
 
 <template lang="pug">
 .PageSysAdmins
-  .PageSysAdmins__header
-    h1.PageSysAdmins__title 平台管理員
-    ElButton(type="primary" @click="ClickCreate") + 新增管理員
+  BizPageHeader(title="平台管理員" subtitle="新增、編輯與停用平台管理員帳號")
+    template(#actions)
+      ElButton(type="primary" @click="ClickCreate") + 新增管理員
   ElTable(
     :data="items"
     v-loading="loading"
@@ -91,24 +91,6 @@ onMounted(() => {
 </template>
 
 <style lang="scss" scoped>
-.PageSysAdmins {
-  padding: 8px;
-}
-
-.PageSysAdmins__header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: 16px;
-}
-
-.PageSysAdmins__title {
-  margin: 0;
-  font-size: 20px;
-  font-weight: 600;
-  color: #303133;
-}
-
 .PageSysAdmins__actions {
   display: flex;
   gap: 4px;

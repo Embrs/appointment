@@ -145,7 +145,7 @@ onMounted(() => {
 
 <template lang="pug">
 .PageSysMerchantsIndex
-  h1.PageSysMerchantsIndex__title 商家管理
+  BizPageHeader(title="商家管理" subtitle="審核、查看、停用商家帳號")
   .PageSysMerchantsIndex__bar
     ElTabs(:model-value="status" @tab-change="ClickTab")
       ElTabPane(label="全部" name="ALL")
@@ -202,40 +202,31 @@ onMounted(() => {
 </template>
 
 <style lang="scss" scoped>
-.PageSysMerchantsIndex {
-  padding: 8px;
-}
-
-.PageSysMerchantsIndex__title {
-  margin: 0 0 16px 0;
-  font-size: 20px;
-  font-weight: 600;
-  color: #303133;
-}
-
 .PageSysMerchantsIndex__bar {
-  background-color: #fff;
-  border-radius: 8px;
-  padding: 0 12px 12px 12px;
-  margin-bottom: 12px;
-  box-shadow: 0 1px 4px rgb(0 0 0 / 6%);
+  background-color: $white;
+  border-radius: 14px;
+  padding: 4px 18px 16px;
+  margin-bottom: 14px;
+  border: 1px solid rgba(53, 77, 123, 0.08);
 }
 
 .PageSysMerchantsIndex__search {
   display: flex;
-  gap: 8px;
+  gap: 10px;
   align-items: center;
   margin-top: -8px;
   max-width: 480px;
 }
 
 .PageSysMerchantsIndex__name-link {
-  color: #409eff;
+  color: $primary;
+  font-weight: 500;
   text-decoration: none;
+  transition: color 0.15s ease;
 }
 
 .PageSysMerchantsIndex__name-link:hover {
-  text-decoration: underline;
+  color: $secondary;
 }
 
 .PageSysMerchantsIndex__actions {

@@ -47,8 +47,7 @@ onMounted(ApiLoad);
 
 <template lang="pug">
 .PageArchive
-  .PageArchive__head
-    h2.PageArchive__title 歷史紀錄
+  BizPageHeader(title="歷史紀錄" subtitle="查詢已歸檔的舊預約紀錄")
 
   .PageArchive__filter
     ElDatePicker(v-model="filter.dateFrom" value-format="YYYY-MM-DD" type="date" placeholder="起始日")
@@ -88,33 +87,20 @@ onMounted(ApiLoad);
 
 <style lang="scss" scoped>
 .PageArchive {
-  padding: 16px;
   display: flex;
   flex-direction: column;
-  gap: 12px;
-}
-
-.PageArchive__head {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
-
-.PageArchive__title {
-  margin: 0;
-  font-size: 18px;
-  font-weight: 600;
+  gap: 14px;
 }
 
 .PageArchive__filter {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px;
+  gap: 10px;
   align-items: center;
-  padding: 12px;
-  background: #fff;
-  border-radius: 8px;
-  border: 1px solid #ebeef5;
+  padding: 16px 18px;
+  background-color: $white;
+  border-radius: 14px;
+  border: 1px solid rgba(53, 77, 123, 0.08);
 }
 
 .PageArchive__pager {
