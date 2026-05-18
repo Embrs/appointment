@@ -1,33 +1,81 @@
+// 認證流程 type 定義
+// 規範：sign-in 同端點雙身分；sign-up 僅商家，不簽 token
 
-// 登入 -----------------------------------------------------------------------------------------------
-interface SignInParams {
-  account: string // 帳號
-  password: string // 密碼
+// 共用 -------------------------------------------------------------------------------------------
+
+/** 商家成員角色 */
+type MerchantUserRoleType = 'OWNER' | 'STAFF';
+
+// SignIn -----------------------------------------------------------------------------------------
+
+interface SignInAdminParams {
+  email: string;
+  password: string;
 }
 
-interface SignInRes {
-  token: string
+interface SignInMerchantParams {
+  email: string;
+  password: string;
 }
 
-// 忘記密碼 ---------------------------------------------------------------------------------------------
-/** 忘記密碼請求參數。*/
+interface SignInAdminRes {
+  token: string;
+  type: 'admin';
+  userName: string;
+  userEmail: string;
+}
+
+interface SignInMerchantRes {
+  token: string;
+  type: 'merchant';
+  role: MerchantUserRoleType;
+  merchantId: string;
+  merchantName: string;
+  userName: string;
+  userEmail: string;
+}
+
+// SignUp（僅商家自助註冊）-------------------------------------------------------------------------
+
+interface SignUpMerchantParams {
+  email: string;
+  password: string;
+  merchantName: string;
+}
+
+interface SignUpMerchantRes {
+  /** 永遠為 true；不簽 token，前端據此顯示「待管理員審核」 */
+  pending: boolean;
+  merchantId?: string;
+}
+
+// Me ---------------------------------------------------------------------------------------------
+
+type MeInfoAdminRes = {
+  type: 'admin';
+  userName: string;
+  userEmail: string;
+};
+
+type MeInfoMerchantRes = {
+  type: 'merchant';
+  userName: string;
+  userEmail: string;
+  merchantId: string;
+  merchantName: string;
+  role: MerchantUserRoleType;
+  /** 由 Change 3 引入：當前 token 為平台管理員代理 token 時，帶 adminId */
+  impersonatedBy?: string;
+};
+
+type MeInfoRes = MeInfoAdminRes | MeInfoMerchantRes;
+
+// Forgot password ---------------------------------------------------------------------------------
+
 interface ForgotPasswordParams {
-  account: string // 帳號或 Email
+  email: string;
 }
 
-/** 忘記密碼回傳資料結構。*/
 interface ForgotPasswordRes {
-  success?: boolean
-}
-
-// 註冊 -----------------------------------------------------------------------------------------------
-/** 註冊請求參數。*/
-interface SignUpParams {
-  account: string // 帳號或 Email
-  password: string // 密碼
-}
-
-/** 註冊回傳資料結構。*/
-interface SignUpRes {
-  success?: boolean
+  sent: boolean;
 }

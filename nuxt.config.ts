@@ -206,6 +206,11 @@ export default defineNuxtConfig({
       // brotli: true
     },
 
+    // 啟用 WebSocket（號碼牌即時叫號用）
+    experimental: {
+      websocket: true
+    },
+
     // 開發模式戶端代理
     // devProxy: {
     //   '/api': {

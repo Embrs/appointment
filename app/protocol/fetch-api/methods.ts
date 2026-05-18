@@ -1,12 +1,4 @@
-// 登出
-const SignOut = () => {
-  // TODO
-  navigateTo('/sign-in');
-  // const localePath = useLocalePath(); // 語系路徑
-  // setTimeout(() => {
-  //   navigateTo(localePath('/sign-in'));
-  // }, 1000);
-};
+// 401 自動跳轉：由 StoreSelf.SignOut() 依 selfType 決定跳 /sys/sign-in 或 /sign-in；guest 不跳
 
 // 回傳調整
 const FilterRes = (response: any, errCode = 9999, _showErr = true) => {
@@ -18,6 +10,13 @@ const FilterRes = (response: any, errCode = 9999, _showErr = true) => {
     // TODO show error
   }
   return _res as ApiRes<any>;
+};
+
+// 401 自動處理：清除身分並依 selfType 跳轉登入頁
+const HandleUnauthorized = () => {
+  const storeSelf = StoreSelf();
+  if (storeSelf.selfType === 'guest') return; // 顧客頁面不跳轉
+  storeSelf.SignOut();
 };
 
 // 預設請求
@@ -39,18 +38,19 @@ const Fetch = <T>(url: string, option: AnyObject, _showErr = true): Promise<ApiR
           options.headers.set('Authorization', `Bearer ${storeSelf.apiToken}`);
         },
 
-        // 響應攔截
+        // 響應攔截（2xx）— 維持原樣 reject 走 .catch((err) => err) 統一出口
         onResponse({ response }) {
           const _res = FilterRes(response, 9997, _showErr);
-
-          // TODO 確認登出情境
-          // SignOut();
           return Promise.reject(_res);
         },
 
-        // 錯誤處理
+        // 錯誤處理（非 2xx）
         onResponseError({ response }) {
           const _res = FilterRes(response, 9998, _showErr);
+          // 401 自動清除身分並依 selfType 跳轉登入頁
+          if (response?.status === 401) {
+            HandleUnauthorized();
+          }
           return Promise.reject(_res);
         }
       }
@@ -103,6 +103,7 @@ export default {
         xhr.addEventListener('loadend', (e: any) => {
           let _res: ApiRes<T> = JSON.parse(e?.currentTarget?.responseText || '') || {};
           _res = FilterRes({ _data: _res }, 9996, _showErr);
+          if (xhr.status === 401) HandleUnauthorized();
           resolve(_res);
         });
         xhr.open('POST', url, true);

@@ -1,11 +1,33 @@
 import * as file from './api/file';
 import * as auth from './api/auth';
 import * as tinymce from './api/tinymce';
+import * as admin from './api/admin';
+import * as merchant from './api/merchant';
+import * as service from './api/service';
+import * as resource from './api/resource';
+import * as schedule from './api/schedule';
+import * as holiday from './api/holiday';
+import * as upload from './api/upload';
+import * as availability from './api/availability';
+import * as appointment from './api/appointment';
+import * as customer from './api/customer';
+import * as queue from './api/queue';
 
 export default {
   ...file,
   ...auth,
-  ...tinymce
+  ...tinymce,
+  ...admin,
+  ...merchant,
+  ...service,
+  ...resource,
+  ...schedule,
+  ...holiday,
+  ...upload,
+  ...availability,
+  ...appointment,
+  ...customer,
+  ...queue
 };
 
 

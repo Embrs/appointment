@@ -20,5 +20,11 @@ const storeOpen = StoreOpen();
 // 佈局 ----
 #OpenGroup {
   @include fixed("fill");
+  z-index: 2000;
+  pointer-events: none;
+}
+
+#OpenGroup > * {
+  pointer-events: auto;
 }
 </style>

@@ -1,0 +1,418 @@
+// 預約平台資料模型
+// 由 OpenSpec change `setup-foundation` 一次落地，後續 changes 不再大改 schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ====== Enums ======
+
+/// 商家審核狀態
+enum MerchantStatus {
+  PENDING
+  ACTIVE
+  SUSPENDED
+  REJECTED
+}
+
+/// 商家成員角色
+enum MerchantUserRole {
+  OWNER
+  STAFF
+}
+
+/// 預約模式（綁在 Service 上）
+enum BookingMode {
+  TIME_SLOT
+  TIME_CAPACITY
+  RESOURCE
+  QUEUE
+}
+
+/// 時段規則作用範圍
+enum ScheduleScope {
+  MERCHANT
+  RESOURCE
+}
+
+/// 預約紀錄模式（同 BookingMode 但 QUEUE 不會進 Appointment）
+enum AppointmentMode {
+  TIME_SLOT
+  TIME_CAPACITY
+  RESOURCE
+}
+
+/// 預約狀態
+enum AppointmentStatus {
+  CONFIRMED
+  CANCELED
+  NO_SHOW
+  COMPLETED
+}
+
+/// 取消發起方
+enum CanceledBy {
+  CUSTOMER
+  MERCHANT
+  SYSTEM
+}
+
+/// 號碼牌狀態
+enum QueueTicketStatus {
+  WAITING
+  CALLED
+  DONE
+  SKIPPED
+  CANCELED
+}
+
+/// 顧客稱謂
+enum CustomerTitle {
+  MR
+  MRS
+  MISS
+  MX
+}
+
+// ====== Models ======
+
+/// 平台管理員
+model AdminUser {
+  id           String    @id @default(cuid())
+  email        String    @unique
+  passwordHash String
+  name         String
+  isActive     Boolean   @default(true)
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  deletedAt    DateTime?
+}
+
+/// 商家
+model Merchant {
+  id           String         @id @default(cuid())
+  slug         String         @unique
+  name         String
+  description  String?
+  logoUrl      String?
+  coverUrl     String?
+  timezone     String         @default("Asia/Taipei")
+  status       MerchantStatus @default(PENDING)
+  /// 取消政策（含 hoursBeforeCannotCancel 等欄位，由業務層決定 JSON 結構）
+  cancelPolicy Json           @default("{}")
+  contactPhone String?
+  contactEmail String?
+  address      String?
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
+  deletedAt    DateTime?
+
+  users               MerchantUser[]
+  services            Service[]
+  resources           Resource[]
+  scheduleRules       ScheduleRule[]
+  scheduleOverrides   ScheduleOverride[]
+  holidays            MerchantHoliday[]
+  queueWindows        QueueWindow[]
+  queueTickets        QueueTicket[]
+  queueCounters       QueueCounter[]
+  appointments        Appointment[]
+  appointmentArchives AppointmentArchive[]
+  customerOtps        CustomerOtp[]
+}
+
+/// 商家成員（OWNER / STAFF）
+model MerchantUser {
+  id           String           @id @default(cuid())
+  merchantId   String
+  email        String
+  passwordHash String
+  name         String
+  role         MerchantUserRole @default(STAFF)
+  isActive     Boolean          @default(true)
+  createdAt    DateTime         @default(now())
+  updatedAt    DateTime         @updatedAt
+  deletedAt    DateTime?
+
+  merchant Merchant @relation(fields: [merchantId], references: [id], onDelete: Cascade)
+
+  @@unique([merchantId, email])
+  @@index([merchantId])
+}
+
+/// 服務（每個服務綁一種 BookingMode）
+model Service {
+  id                  String      @id @default(cuid())
+  merchantId          String
+  name                String
+  description         String?
+  bookingMode         BookingMode
+  durationMinutes     Int         @default(30)
+  slotIntervalMinutes Int         @default(30)
+  capacityPerSlot     Int         @default(1)
+  priceCents          Int?
+  isActive            Boolean     @default(true)
+  displayOrder        Int         @default(0)
+  createdAt           DateTime    @default(now())
+  updatedAt           DateTime    @updatedAt
+  deletedAt           DateTime?
+
+  merchant      Merchant          @relation(fields: [merchantId], references: [id], onDelete: Cascade)
+  resources     ServiceResource[]
+  appointments  Appointment[]
+  queueWindows  QueueWindow[]
+  queueTickets  QueueTicket[]
+  queueCounters QueueCounter[]
+
+  @@index([merchantId])
+}
+
+/// 資源（例如：醫師、設備、包廂）
+model Resource {
+  id           String    @id @default(cuid())
+  merchantId   String
+  name         String
+  description  String?
+  isActive     Boolean   @default(true)
+  displayOrder Int       @default(0)
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  deletedAt    DateTime?
+
+  merchant          Merchant           @relation(fields: [merchantId], references: [id], onDelete: Cascade)
+  services          ServiceResource[]
+  scheduleRules     ScheduleRule[]
+  scheduleOverrides ScheduleOverride[]
+  appointments      Appointment[]
+
+  @@index([merchantId])
+}
+
+/// 服務 ↔ 資源 多對多
+model ServiceResource {
+  serviceId  String
+  resourceId String
+
+  service  Service  @relation(fields: [serviceId], references: [id], onDelete: Cascade)
+  resource Resource @relation(fields: [resourceId], references: [id], onDelete: Cascade)
+
+  @@id([serviceId, resourceId])
+  @@index([resourceId])
+}
+
+/// 每週時段規則
+model ScheduleRule {
+  id         String        @id @default(cuid())
+  merchantId String
+  scope      ScheduleScope
+  resourceId String?
+  /// 0=週日 .. 6=週六
+  weekday    Int
+  /// HH:mm 24h
+  startTime  String
+  endTime    String
+  isActive   Boolean       @default(true)
+  createdAt  DateTime      @default(now())
+  updatedAt  DateTime      @updatedAt
+
+  merchant Merchant  @relation(fields: [merchantId], references: [id], onDelete: Cascade)
+  resource Resource? @relation(fields: [resourceId], references: [id], onDelete: Cascade)
+
+  @@index([merchantId, weekday])
+  @@index([resourceId])
+}
+
+/// 特定日期時段覆寫
+model ScheduleOverride {
+  id         String        @id @default(cuid())
+  merchantId String
+  scope      ScheduleScope
+  resourceId String?
+  date       DateTime      @db.Date
+  startTime  String?
+  endTime    String?
+  isClosed   Boolean       @default(false)
+  note       String?
+  createdAt  DateTime      @default(now())
+  updatedAt  DateTime      @updatedAt
+
+  merchant Merchant  @relation(fields: [merchantId], references: [id], onDelete: Cascade)
+  resource Resource? @relation(fields: [resourceId], references: [id], onDelete: Cascade)
+
+  @@index([merchantId, date])
+  @@index([resourceId])
+}
+
+/// 整店休假日
+model MerchantHoliday {
+  id         String   @id @default(cuid())
+  merchantId String
+  date       DateTime @db.Date
+  name       String
+  createdAt  DateTime @default(now())
+
+  merchant Merchant @relation(fields: [merchantId], references: [id], onDelete: Cascade)
+
+  @@unique([merchantId, date])
+  @@index([merchantId])
+}
+
+/// 號碼牌每日領號時間窗（按 weekday 設）
+model QueueWindow {
+  id         String   @id @default(cuid())
+  merchantId String
+  serviceId  String
+  weekday    Int
+  startTime  String
+  endTime    String
+  maxTickets Int      @default(0)
+  isActive   Boolean  @default(true)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  merchant Merchant @relation(fields: [merchantId], references: [id], onDelete: Cascade)
+  service  Service  @relation(fields: [serviceId], references: [id], onDelete: Cascade)
+
+  @@index([merchantId, serviceId, weekday])
+}
+
+/// 當日號碼牌
+model QueueTicket {
+  id               String            @id @default(cuid())
+  merchantId       String
+  serviceId        String
+  ticketDate       DateTime          @db.Date
+  ticketNumber     Int
+  status           QueueTicketStatus @default(WAITING)
+  customerLastName String
+  customerTitle    CustomerTitle
+  customerPhone    String
+  takenAt          DateTime          @default(now())
+  calledAt         DateTime?
+  doneAt           DateTime?
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
+
+  merchant Merchant @relation(fields: [merchantId], references: [id], onDelete: Cascade)
+  service  Service  @relation(fields: [serviceId], references: [id], onDelete: Cascade)
+
+  @@unique([merchantId, serviceId, ticketDate, ticketNumber])
+  @@index([merchantId, customerPhone])
+  @@index([merchantId, ticketDate, status])
+}
+
+/// 叫號游標（row lock 用）
+model QueueCounter {
+  id               String   @id @default(cuid())
+  merchantId       String
+  serviceId        String
+  counterDate      DateTime @db.Date
+  lastTicketNumber Int      @default(0)
+  lastCalledNumber Int      @default(0)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  merchant Merchant @relation(fields: [merchantId], references: [id], onDelete: Cascade)
+  service  Service  @relation(fields: [serviceId], references: [id], onDelete: Cascade)
+
+  @@unique([merchantId, serviceId, counterDate])
+}
+
+/// 預約紀錄
+model Appointment {
+  id               String            @id @default(cuid())
+  merchantId       String
+  serviceId        String
+  resourceId       String?
+  mode             AppointmentMode
+  status           AppointmentStatus @default(CONFIRMED)
+  startAt          DateTime
+  endAt            DateTime
+  customerLastName String
+  customerTitle    CustomerTitle
+  customerPhone    String
+  note             String?
+  cancelReason     String?
+  canceledAt       DateTime?
+  canceledBy       CanceledBy?
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
+
+  merchant Merchant  @relation(fields: [merchantId], references: [id], onDelete: Cascade)
+  service  Service   @relation(fields: [serviceId], references: [id], onDelete: Cascade)
+  resource Resource? @relation(fields: [resourceId], references: [id], onDelete: SetNull)
+
+  @@index([merchantId, startAt])
+  @@index([merchantId, customerPhone])
+  @@index([merchantId, status])
+  @@index([resourceId, startAt])
+}
+
+/// 預約歸檔（schema 同 Appointment）
+model AppointmentArchive {
+  id               String            @id
+  merchantId       String
+  serviceId        String
+  resourceId       String?
+  mode             AppointmentMode
+  status           AppointmentStatus
+  startAt          DateTime
+  endAt            DateTime
+  customerLastName String
+  customerTitle    CustomerTitle
+  customerPhone    String
+  note             String?
+  cancelReason     String?
+  canceledAt       DateTime?
+  canceledBy       CanceledBy?
+  createdAt        DateTime
+  updatedAt        DateTime
+  archivedAt       DateTime          @default(now())
+
+  merchant Merchant @relation(fields: [merchantId], references: [id], onDelete: Cascade)
+
+  @@index([merchantId, startAt])
+  @@index([merchantId, customerPhone])
+}
+
+/// 速率限制計數
+model RateLimitBucket {
+  id          String   @id @default(cuid())
+  bucketKey   String
+  windowStart DateTime
+  count       Int      @default(0)
+  updatedAt   DateTime @updatedAt
+
+  @@unique([bucketKey, windowStart])
+  @@index([windowStart])
+}
+
+/// 排程互斥鎖
+model JobLock {
+  id        String   @id @default(cuid())
+  jobName   String   @unique
+  lockedAt  DateTime @default(now())
+  lockedBy  String
+  expiresAt DateTime
+}
+
+/// 顧客 OTP（預留，本 change 不接邏輯）
+model CustomerOtp {
+  id         String    @id @default(cuid())
+  merchantId String
+  phone      String
+  otpHash    String
+  expiresAt  DateTime
+  consumedAt DateTime?
+  attempts   Int       @default(0)
+  createdAt  DateTime  @default(now())
+
+  merchant Merchant @relation(fields: [merchantId], references: [id], onDelete: Cascade)
+
+  @@index([merchantId, phone])
+}

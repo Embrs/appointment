@@ -1,5 +1,10 @@
 /** 日期工具 */
 import dayjs from 'dayjs';
+import utc from 'dayjs/plugin/utc';
+import timezone from 'dayjs/plugin/timezone';
+
+dayjs.extend(utc);
+dayjs.extend(timezone);
 
 /** 格式化日期 */
 const FormatDate = (date: string, format: string = 'YYYY-MM-DD') => {

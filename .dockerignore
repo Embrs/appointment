@@ -1,0 +1,29 @@
+# 開發環境檔案
+node_modules
+.nuxt
+.output
+.cache
+
+# 環境變數（部署用 Railway 注入，不打包進 image）
+.env
+.env.dev
+.env.local
+
+# 版本控制
+.git
+.gitignore
+
+# IDE / 編輯器
+.vscode
+.idea
+*.swp
+
+# 測試與覆蓋率
+coverage
+*.log
+npm-debug.log*
+
+# Claude / OpenSpec 工具產物（不需要進 image）
+.claude
+openspec
+CLAUDE.md

@@ -2,7 +2,7 @@
 const Open = <T>(componentName: OpenComponent, params: any = {}): Promise<T> => {
   const storeOpen = StoreOpen();
   return new Promise<T>((resolve) => {
-    storeOpen.OnOpen<T>({ 
+    storeOpen.OnOpen<T>({
       uuid: `open-${$tool.CreateUUID()}`,  // uuid
       componentName, // 組件
       params, // 參數
@@ -57,6 +57,53 @@ export default {
   /** 影片錄製 */
   DialogVideoRecording: () => Open<File>('OpenDialogVideoRecording'),
   /** 圖片選擇 */
-  DialogImageEdit: () => Open<File>('OpenDialogImageSelect')
-  // TODO 組件加完後，要設定
+  DialogImageEdit: () => Open<File>('OpenDialogImageSelect'),
+  /** 商家審核通過 / 拒絕（二合一） */
+  DialogMerchantApprove: (params: DialogMerchantApproveParams) =>
+    Open<{ done: boolean }>('OpenDialogMerchantApprove', params),
+  /** 平台管理員新增 / 編輯 */
+  DialogAdminEdit: (params: DialogAdminEditParams) =>
+    Open<{ done: boolean }>('OpenDialogAdminEdit', params),
+  /** 商家服務新增 / 編輯 */
+  DialogServiceEdit: (params: DialogServiceEditParams) =>
+    Open<{ done: boolean }>('OpenDialogServiceEdit', params),
+  /** 商家資源新增 / 編輯 */
+  DialogResourceEdit: (params: DialogResourceEditParams) =>
+    Open<{ done: boolean }>('OpenDialogResourceEdit', params),
+  /** 每週時段段落新增 */
+  DialogScheduleRuleEdit: (params: DialogScheduleRuleEditParams) =>
+    Open<{ done: boolean; rule?: { weekday: number; startTime: string; endTime: string } }>(
+      'OpenDialogScheduleRuleEdit',
+      params
+    ),
+  /** 特定日期覆寫 */
+  DialogScheduleOverrideEdit: (params: DialogScheduleOverrideEditParams) =>
+    Open<{ done: boolean }>('OpenDialogScheduleOverrideEdit', params),
+  /** 休假日新增 */
+  DialogHolidayEdit: () =>
+    Open<{ done: boolean }>('OpenDialogHolidayEdit', {}),
+  /** 商家成員新增 / 編輯（OWNER） */
+  DialogStaffEdit: (params: DialogStaffEditParams) =>
+    Open<{ done: boolean }>('OpenDialogStaffEdit', params),
+  /** 顧客三元組表單 */
+  DialogCustomerForm: (params: DialogCustomerFormParams) =>
+    Open<{ done: boolean; triplet?: { lastName: string; title: CustomerTitleType; phone: string } }>(
+      'OpenDialogCustomerForm',
+      params
+    ),
+  /** 預約最終確認 drawer */
+  DrawerBookingConfirm: (params: DrawerBookingConfirmParams) =>
+    Open<{ done: boolean; appointmentId?: string }>('OpenDrawerBookingConfirm', params),
+  /** 預約成功通知 */
+  DialogBookingSuccess: (params: DialogBookingSuccessParams) =>
+    Open<{ done: boolean }>('OpenDialogBookingSuccess', params),
+  /** 商家預約詳情 drawer */
+  DrawerAppointmentInfo: (params: DrawerAppointmentInfoParams) =>
+    Open<{ done: boolean; canceled?: boolean }>('OpenDrawerAppointmentInfo', params),
+  /** 商家代客建立預約 */
+  DialogAppointmentCreate: (params: DialogAppointmentCreateParams) =>
+    Open<{ done: boolean }>('OpenDialogAppointmentCreate', params),
+  /** 商家取消預約理由 */
+  DialogCancelReason: (params: DialogCancelReasonParams) =>
+    Open<{ done: boolean; reason?: string }>('OpenDialogCancelReason', params)
 };

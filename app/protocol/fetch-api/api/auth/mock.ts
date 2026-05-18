@@ -1,31 +1,42 @@
-import * as mockRes from '@/protocol/fetch-api/mock-res';
+// 認證 API Mock（NUXT_PUBLIC_TEST_MODE='T' 時走此路）
+// 預設 code=200 與真實 server 對齊，避免 caller 對 status.code 判斷分裂
 
-// 預設回傳 -------------------------------------------------------------------------------------------------
-export const Default = () => mockRes.CreateRes({});
-
-// -------------------------------------------------------------------------------------------------
-// 登入
-export const SignIn = () => {
-  const data: SignInRes = {
-    token: 'abc123'
-  };
-  return mockRes.CreateRes(data);
-};
+const SuccessRes = <T>(data: T, wait = 200) => new Promise<ApiRes<T>>((resolve) => {
+  const res = { data, status: { code: 200, message: { zh_tw: '', en: '', ja: '' } } } as ApiRes<T>;
+  setTimeout(() => { resolve(res); }, wait);
+});
 
 // -------------------------------------------------------------------------------------------------
-// 忘記密碼
-export const ForgotPassword = () => {
-  const data: ForgotPasswordRes = {
-    success: true
-  };
-  return mockRes.CreateRes(data);
-};
 
-// -------------------------------------------------------------------------------------------------
-// 註冊
-export const SignUp = () => {
-  const data: SignUpRes = {
-    success: true
-  };
-  return mockRes.CreateRes(data);
-};
+export const SignInAdmin = () => SuccessRes<SignInAdminRes>({
+  token: 'mock-admin-token',
+  type: 'admin',
+  userName: 'Mock Admin',
+  userEmail: 'admin@mock.local'
+});
+
+export const SignInMerchant = () => SuccessRes<SignInMerchantRes>({
+  token: 'mock-merchant-token',
+  type: 'merchant',
+  role: 'OWNER',
+  merchantId: 'mock-merchant-id',
+  merchantName: 'Mock Merchant',
+  userName: 'Mock Owner',
+  userEmail: 'owner@mock.local'
+});
+
+export const SignUpMerchant = () => SuccessRes<SignUpMerchantRes>({
+  pending: true,
+  merchantId: 'mock-merchant-id'
+});
+
+export const MeInfo = () => SuccessRes<MeInfoRes>({
+  type: 'merchant',
+  userName: 'Mock Owner',
+  userEmail: 'owner@mock.local',
+  merchantId: 'mock-merchant-id',
+  merchantName: 'Mock Merchant',
+  role: 'OWNER'
+});
+
+export const ForgotPassword = () => SuccessRes<ForgotPasswordRes>({ sent: true });

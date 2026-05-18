@@ -1,6 +1,5 @@
 <script setup lang="ts">
-// LayoutDefault 請填寫功能描述👈
-const storeEnv = StoreEnv();
+// LayoutDefault — 簡潔通用 layout（登入頁、登出後、靜態介紹頁用）
 </script>
 
 <template lang="pug">
@@ -9,10 +8,9 @@ const storeEnv = StoreEnv();
 </template>
 
 <style lang="scss" scoped>
-// 佈局 ----
 .LayoutDefault {
-  // TODO
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
 }
-
-// 組件 ----
 </style>

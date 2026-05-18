@@ -4,14 +4,14 @@
 
 <template lang="pug">
 .PageIndex
-  p PageIndex
-  ElButton(@click="$open.DialogDemo({demo: 'test'})") OpenDialogDemo
+  //- p PageIndex
+  //- ElButton(@click="$open.DialogDemo({demo: 'test'})") OpenDialogDemo
 
-  .PageIndex__demos
-    h3.PageIndex__demosTitle Demo 頁面
-    ul.PageIndex__demoList
-      li
-        NuxtLink.PageIndex__demoLink(to="/demo/tinymce-editor") TinyMCE 富文本編輯器 Demo
+  //- .PageIndex__demos
+  //-   h3.PageIndex__demosTitle Demo 頁面
+  //-   ul.PageIndex__demoList
+  //-     li
+  //-       NuxtLink.PageIndex__demoLink(to="/demo/tinymce-editor") TinyMCE 富文本編輯器 Demo
 </template>
 
 <style lang="scss" scoped>
