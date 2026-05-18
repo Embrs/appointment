@@ -86,27 +86,31 @@ const ClickCancel = async (id: string) => {
 
 <template lang="pug">
 .PageLookup
+  BizCustomerPageHeader(
+    :title="$t('booking.queryTitle')"
+    :back-to="`/m/${slug}`"
+  )
   .PageLookup__panel
-    h2.PageLookup__title {{ $t('booking.queryTitle') }}
-    p.PageLookup__hint {{ $t('booking.customer.lastName') }} / {{ $t('booking.customer.titleField') }} / {{ $t('booking.customer.phone') }}
-    ElForm(label-position="top" @submit.prevent="QueryFlow")
+    .PageLookup__head
+      p.PageLookup__hint 輸入下方三項資訊查詢您的預約紀錄
+    ElForm.PageLookup__form(label-position="top" @submit.prevent="QueryFlow")
       ElFormItem(:label="$t('booking.customer.lastName')" required)
-        ElInput(v-model="form.lastName" maxlength="20")
+        ElInput(v-model="form.lastName" maxlength="20" size="large")
       ElFormItem(:label="$t('booking.customer.titleField')" required)
-        ElSelect(v-model="form.title" style="width: 100%;")
+        ElSelect(v-model="form.title" size="large" style="width: 100%;")
           ElOption(v-for="opt in titleOptions" :key="opt.value" :label="opt.label" :value="opt.value")
       ElFormItem(:label="$t('booking.customer.phone')" required)
-        ElInput(v-model="form.phone" maxlength="20" inputmode="numeric" placeholder="0912345678")
-      ElButton(
+        ElInput(v-model="form.phone" maxlength="20" inputmode="numeric" size="large" placeholder="0912345678")
+      ElButton.PageLookup__submit(
         type="primary"
+        size="large"
         :loading="submitting"
         :disabled="!isFormValid"
         @click="QueryFlow"
-        style="width: 100%;"
       ) {{ $t('booking.querySubmit') }}
 
   template(v-if="queried")
-    .PageLookup__results-head {{ merchantName }}
+    .PageLookup__resultsHead {{ merchantName }}
     .PageLookup__empty(v-if="appointments.length === 0") {{ $t('booking.messages.emptyList') }}
     .PageLookup__list(v-else)
       BizBookingCard(
@@ -128,41 +132,75 @@ const ClickCancel = async (id: string) => {
 }
 
 .PageLookup__panel {
-  background: #fff;
-  border-radius: 12px;
-  padding: 16px;
-  box-shadow: 0 1px 3px rgb(0 0 0 / 6%);
+  background-color: $white;
+  border-radius: 16px;
+  padding: 24px;
+  border: 1px solid rgba(53, 77, 123, 0.08);
+  box-shadow: 0 4px 16px -8px rgba(31, 42, 68, 0.1);
+}
+
+.PageLookup__head {
+  margin-bottom: 20px;
+}
+
+.PageLookup__eyebrow {
+  display: inline-flex;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background-color: rgba(53, 77, 123, 0.08);
+  color: $primary;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  margin-bottom: 10px;
 }
 
 .PageLookup__title {
-  margin: 0 0 4px;
-  font-size: 18px;
-  font-weight: 600;
+  margin: 0 0 6px;
+  font-size: 20px;
+  font-weight: 700;
+  color: $primary;
+  letter-spacing: -0.005em;
 }
 
 .PageLookup__hint {
-  margin: 0 0 12px;
+  margin: 0;
   font-size: 13px;
-  color: #909399;
+  color: rgba(69, 69, 69, 0.65);
+  line-height: 1.6;
 }
 
-.PageLookup__results-head {
-  font-size: 14px;
-  color: #606266;
+.PageLookup__submit {
+  width: 100%;
+  margin-top: 4px;
+  border-radius: 10px;
+  font-weight: 600;
+}
+
+.PageLookup__resultsHead {
+  font-size: 13px;
+  color: rgba(69, 69, 69, 0.6);
   padding: 0 4px;
 }
 
 .PageLookup__empty {
   padding: 32px;
   text-align: center;
-  color: #909399;
-  background: #fff;
-  border-radius: 8px;
+  color: rgba(69, 69, 69, 0.55);
+  font-size: 14px;
+  background-color: $white;
+  border-radius: 14px;
+  border: 1px solid rgba(53, 77, 123, 0.08);
 }
 
 .PageLookup__list {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 10px;
+}
+
+:deep(.el-input__wrapper),
+:deep(.el-select .el-select__wrapper) {
+  border-radius: 10px;
 }
 </style>

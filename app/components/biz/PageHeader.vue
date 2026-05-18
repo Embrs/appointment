@@ -4,16 +4,47 @@
 //   BizPageHeader(title="服務管理" subtitle="管理你提供的服務項目")
 //     template(#actions)
 //       ElButton(type="primary") + 新增
+//
+// 二級詳情頁可加上 back-to 提供回到列表的入口（不傳則行為與既有相同）：
+//   BizPageHeader(title="商家詳情" :back-to="/sys/merchants")
 
-defineProps<{
-  title: string;
-  subtitle?: string;
-  eyebrow?: string;
-}>();
+const { t } = useI18n();
+
+const props = withDefaults(
+  defineProps<{
+    title: string;
+    subtitle?: string;
+    eyebrow?: string;
+    backTo?: string | null;
+    backLabel?: string;
+  }>(),
+  {
+    subtitle: '',
+    eyebrow: '',
+    backTo: null,
+    backLabel: ''
+  }
+);
+
+const BackLabelText = computed(() => props.backLabel || t('common.back'));
+
+const ClickBack = () => {
+  if (!props.backTo) return;
+  navigateTo(props.backTo);
+};
 </script>
 
 <template lang="pug">
 header.BizPageHeader
+  button.BizPageHeader__back(
+    v-if="backTo"
+    type="button"
+    data-testid="page-header-back"
+    :aria-label="BackLabelText"
+    @click="ClickBack"
+  )
+    span.BizPageHeader__backIcon ←
+    span.BizPageHeader__backText {{ BackLabelText }}
   .BizPageHeader__main
     .BizPageHeader__eyebrow(v-if="eyebrow") {{ eyebrow }}
     h1.BizPageHeader__title {{ title }}
@@ -31,6 +62,38 @@ header.BizPageHeader
   margin-bottom: 20px;
   padding-bottom: 16px;
   border-bottom: 1px solid rgba(53, 77, 123, 0.08);
+}
+
+.BizPageHeader__back {
+  align-self: center;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background-color: transparent;
+  border: 1px solid rgba(53, 77, 123, 0.15);
+  color: $primary;
+  font-size: 13px;
+  font-weight: 500;
+  padding: 7px 12px;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: border-color 0.15s ease, background-color 0.15s ease;
+  min-height: 36px;
+  flex-shrink: 0;
+}
+
+.BizPageHeader__back:hover {
+  border-color: $primary;
+  background-color: rgba(53, 77, 123, 0.04);
+}
+
+.BizPageHeader__backIcon {
+  font-size: 14px;
+  line-height: 1;
+}
+
+.BizPageHeader__backText {
+  line-height: 1;
 }
 
 .BizPageHeader__main {
@@ -91,6 +154,10 @@ header.BizPageHeader
   .BizPageHeader {
     flex-direction: column;
     align-items: stretch;
+  }
+
+  .BizPageHeader__back {
+    align-self: flex-start;
   }
 
   .BizPageHeader__title {

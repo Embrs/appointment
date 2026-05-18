@@ -8,11 +8,11 @@ definePageMeta({
 });
 
 const route = useRoute();
-const router = useRouter();
 const useAsk = UseAsk();
 const merchantId = computed(() => String(route.params.id ?? ''));
 
-const loading = ref(true);
+// 初值 false：避免 v-loading 在 page transition mount 階段就建立 mask 而卡住
+const loading = ref(false);
 const saving = ref(false);
 const merchant = ref<SysMerchantFull | null>(null);
 const owner = ref<SysMerchantOwner | null>(null);
@@ -181,22 +181,23 @@ onMounted(() => {
 
 <template lang="pug">
 .PageSysMerchantsDetail(v-loading="loading")
-  .PageSysMerchantsDetail__header
-    ElButton(link @click="router.push('/sys/merchants')") ‹ 返回列表
-    template(v-if="merchant")
-      h1.PageSysMerchantsDetail__title {{ merchant.name }}
-      ElTag(:type="StatusTagType(merchant.status)" size="small") {{ StatusLabel(merchant.status) }}
   template(v-if="merchant")
-    .PageSysMerchantsDetail__actions
-      template(v-if="merchant.status === 'PENDING'")
-        ElButton(type="primary" @click="ClickApprove") 審核通過
-        ElButton(type="danger" plain @click="ClickReject") 拒絕
-      template(v-else-if="merchant.status === 'ACTIVE'")
-        NuxtLink(:to="`/sys/impersonate/${merchant.id}`")
-          ElButton(type="primary") 進入該商家後台
-        ElButton(type="warning" plain @click="ClickSuspend") 停用
-      template(v-else-if="merchant.status === 'SUSPENDED'")
-        ElButton(type="success" plain @click="ClickActivate") 啟用
+    BizPageHeader(
+      :title="merchant.name"
+      subtitle="檢視商家基本資料、OWNER 帳號與審核狀態"
+      :back-to="'/sys/merchants'"
+    )
+      template(#actions)
+        ElTag.PageSysMerchantsDetail__statusTag(:type="StatusTagType(merchant.status)" size="default") {{ StatusLabel(merchant.status) }}
+        template(v-if="merchant.status === 'PENDING'")
+          ElButton(type="primary" @click="ClickApprove") 審核通過
+          ElButton(type="danger" plain @click="ClickReject") 拒絕
+        template(v-else-if="merchant.status === 'ACTIVE'")
+          NuxtLink(:to="`/sys/impersonate/${merchant.id}`")
+            ElButton(type="primary") 進入該商家後台
+          ElButton(type="warning" plain @click="ClickSuspend") 停用
+        template(v-else-if="merchant.status === 'SUSPENDED'")
+          ElButton(type="success" plain @click="ClickActivate") 啟用
     .PageSysMerchantsDetail__section
       h2.PageSysMerchantsDetail__section-title OWNER 帳號
       ElDescriptions(:column="2" border)
@@ -244,52 +245,33 @@ onMounted(() => {
 </template>
 
 <style lang="scss" scoped>
-.PageSysMerchantsDetail {
-  padding: 8px;
-}
-
-.PageSysMerchantsDetail__header {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  margin-bottom: 16px;
-}
-
-.PageSysMerchantsDetail__title {
-  margin: 0;
-  font-size: 20px;
-  font-weight: 600;
-  color: #303133;
-}
-
-.PageSysMerchantsDetail__actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  margin-bottom: 16px;
+.PageSysMerchantsDetail__statusTag {
+  margin-right: 4px;
 }
 
 .PageSysMerchantsDetail__section {
-  background-color: #fff;
-  border-radius: 8px;
-  padding: 16px;
+  background-color: $white;
+  border-radius: 14px;
+  padding: 22px 24px;
   margin-bottom: 16px;
-  box-shadow: 0 1px 4px rgb(0 0 0 / 6%);
+  border: 1px solid rgba(53, 77, 123, 0.08);
+  box-shadow: 0 4px 16px -10px rgba(31, 42, 68, 0.08);
 }
 
 .PageSysMerchantsDetail__section-title {
-  margin: 0 0 12px 0;
+  margin: 0 0 14px 0;
   font-size: 15px;
-  font-weight: 600;
-  color: #303133;
+  font-weight: 700;
+  color: $primary;
 }
 
 .PageSysMerchantsDetail__reject {
   margin: 0;
-  padding: 8px 12px;
-  background-color: #fef0f0;
-  color: #f56c6c;
-  border-radius: 4px;
+  padding: 12px 16px;
+  background-color: rgba(238, 81, 81, 0.08);
+  color: #d63a3a;
+  border-radius: 10px;
   font-size: 14px;
+  border-left: 3px solid #ee5151;
 }
 </style>

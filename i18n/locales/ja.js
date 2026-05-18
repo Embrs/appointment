@@ -5,6 +5,7 @@ export default {
     description: 'これは会社概要ページです'
   },
   common: {
+    back: '戻る',
     goHome: 'ホームに戻る',
     backToSignIn: 'ログインに戻る',
     save: '保存',
@@ -287,6 +288,7 @@ export default {
       success: '予約完了',
       lookup: '照会',
       switchIdentity: '別の方として照会',
+      switchLocale: '言語切替',
       goCalendar: 'カレンダー',
       goArchive: '履歴',
       delegate: '代理予約'
@@ -307,7 +309,10 @@ export default {
       prev: '前の',
       next: '次の',
       day: '日',
-      week: '週'
+      week: '週',
+      prevMonth: '前月',
+      nextMonth: '翌月',
+      today: '今日'
     }
   },
   enum: {

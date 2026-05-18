@@ -5,6 +5,7 @@ export default {
     description: '這是關於我們頁面'
   },
   common: {
+    back: '返回',
     goHome: '回到首頁',
     backToSignIn: '返回登入',
     save: '儲存',
@@ -287,6 +288,7 @@ export default {
       success: '預約成功',
       lookup: '查詢',
       switchIdentity: '切換身分',
+      switchLocale: '切換語系',
       goCalendar: '行事曆檢視',
       goArchive: '歷史紀錄',
       delegate: '代客預約'
@@ -307,7 +309,10 @@ export default {
       prev: '上一',
       next: '下一',
       day: '日',
-      week: '週'
+      week: '週',
+      prevMonth: '上個月',
+      nextMonth: '下個月',
+      today: '今'
     }
   },
   queue: {

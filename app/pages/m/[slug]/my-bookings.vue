@@ -76,14 +76,20 @@ onMounted(() => {
 
 <template lang="pug">
 .PageMyBookings
-  .PageMyBookings__loading(v-if="loading") …
+  BizCustomerPageHeader(
+    :title="$t('booking.nav.myBookings')"
+    :subtitle="merchantName || ''"
+    :back-to="`/m/${slug}`"
+  )
+    template(#actions)
+      button.PageMyBookings__switch(type="button" @click="PromptTripletFlow")
+        span.PageMyBookings__switchIcon ⇄
+        span {{ $t('booking.actions.switchIdentity') }}
+  .PageMyBookings__loading(v-if="loading") 載入中…
   template(v-else)
-    .PageMyBookings__head
-      div
-        h2.PageMyBookings__title {{ $t('booking.nav.myBookings') }}
-        p.PageMyBookings__sub {{ merchantName }}
-      ElButton(plain size="small" @click="PromptTripletFlow") {{ $t('booking.actions.switchIdentity') }}
-    .PageMyBookings__empty(v-if="appointments.length === 0") {{ $t('booking.messages.emptyList') }}
+    .PageMyBookings__empty(v-if="appointments.length === 0")
+      .PageMyBookings__emptyIcon ○
+      .PageMyBookings__emptyText {{ $t('booking.messages.emptyList') }}
     template(v-else)
       .PageMyBookings__list
         template(v-for="(a, idx) in appointments" :key="a.id")
@@ -101,14 +107,14 @@ onMounted(() => {
   margin: 0 auto;
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 16px;
 }
 
-.PageMyBookings__loading,
-.PageMyBookings__empty {
+.PageMyBookings__loading {
   padding: 32px;
   text-align: center;
-  color: #909399;
+  color: rgba(69, 69, 69, 0.55);
+  font-size: 14px;
 }
 
 .PageMyBookings__head {
@@ -116,24 +122,98 @@ onMounted(() => {
   justify-content: space-between;
   align-items: flex-end;
   gap: 12px;
-  padding: 0 4px;
+  padding: 4px 4px 0;
+}
+
+.PageMyBookings__headLeft {
+  min-width: 0;
+  flex: 1;
+}
+
+.PageMyBookings__eyebrow {
+  display: inline-flex;
+  padding: 3px 10px;
+  border-radius: 999px;
+  background-color: rgba(53, 77, 123, 0.08);
+  color: $primary;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  margin-bottom: 6px;
 }
 
 .PageMyBookings__title {
   margin: 0;
-  font-size: 18px;
-  font-weight: 600;
+  font-size: 22px;
+  font-weight: 700;
+  color: $primary;
+  letter-spacing: -0.005em;
 }
 
 .PageMyBookings__sub {
-  margin: 2px 0 0;
-  font-size: 12px;
-  color: #909399;
+  margin: 4px 0 0;
+  font-size: 12.5px;
+  color: rgba(69, 69, 69, 0.6);
+}
+
+.PageMyBookings__switch {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background-color: $white;
+  border: 1px solid rgba(53, 77, 123, 0.15);
+  color: $primary;
+  font-size: 12.5px;
+  font-weight: 500;
+  padding: 7px 12px;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: border-color 0.15s ease, background-color 0.15s ease;
+  flex-shrink: 0;
+}
+
+.PageMyBookings__switch:hover {
+  border-color: $primary;
+  background-color: rgba(53, 77, 123, 0.04);
+}
+
+.PageMyBookings__switchIcon {
+  font-size: 13px;
+  opacity: 0.7;
+}
+
+.PageMyBookings__empty {
+  padding: 40px 24px;
+  text-align: center;
+  background-color: $white;
+  border-radius: 14px;
+  border: 1px solid rgba(53, 77, 123, 0.08);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+}
+
+.PageMyBookings__emptyIcon {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  background-color: rgba(53, 77, 123, 0.06);
+  color: rgba(53, 77, 123, 0.4);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 22px;
+}
+
+.PageMyBookings__emptyText {
+  color: rgba(69, 69, 69, 0.6);
+  font-size: 14px;
 }
 
 .PageMyBookings__list {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 10px;
 }
 </style>

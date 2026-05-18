@@ -218,6 +218,10 @@ onMounted(ApiLoad);
 
 <template lang="pug">
 .PageBook
+  BizCustomerPageHeader(
+    :title="$t('booking.nav.bookNow')"
+    :back-to="`/m/${slug}`"
+  )
   .PageBook__loading(v-if="loading") 載入中…
   template(v-else)
     //- 步驟條

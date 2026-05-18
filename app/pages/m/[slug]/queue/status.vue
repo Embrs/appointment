@@ -54,7 +54,7 @@ const ClickRefresh = async () => {
   await queueStore.RefreshMyTicket();
 };
 
-const ClickBackHome = () => navigateTo(`/m/${slug.value}`);
+const ClickBackQueue = () => navigateTo(`/m/${slug.value}/queue`);
 
 onMounted(ApiLoad);
 
@@ -66,15 +66,24 @@ onBeforeUnmount(() => {
 
 <template lang="pug">
 .PageQueueStatus
-  .PageQueueStatus__loading(v-if="loading") …
+  BizCustomerPageHeader(
+    :title="$t('queue.page.statusYourNumber')"
+    :back-to="`/m/${slug}/queue`"
+  )
+  .PageQueueStatus__loading(v-if="loading") 載入中…
   .PageQueueStatus__empty(v-else-if="initError")
-    p {{ initError }}
-    ElButton(@click="ClickBackHome") {{ $t('common.goHome') }}
+    .PageQueueStatus__emptyIcon !
+    p.PageQueueStatus__emptyText {{ initError }}
+    ElButton(type="primary" @click="ClickBackQueue") {{ $t('common.back') }}
   template(v-else-if="MyTicket")
+    //- 狀態 bar
     .PageQueueStatus__bar
-      span.PageQueueStatus__bar-service {{ ServiceName }}
-      span.PageQueueStatus__bar-conn(:class="{ 'PageQueueStatus__bar-conn--off': !queueStore.isWsConnected }")
-        | {{ queueStore.isWsConnected ? `● ${$t('queue.page.connLive')}` : `○ ${$t('queue.page.connFallback')}` }}
+      .PageQueueStatus__barService
+        .PageQueueStatus__barEyebrow 號碼牌服務
+        .PageQueueStatus__barName {{ ServiceName }}
+      .PageQueueStatus__barConn(:class="{ 'PageQueueStatus__barConn--off': !queueStore.isWsConnected }")
+        span.PageQueueStatus__barConnDot
+        span {{ queueStore.isWsConnected ? $t('queue.page.connLive') : $t('queue.page.connFallback') }}
 
     BizQueueDisplay.PageQueueStatus__display(
       :primary-label="$t('queue.page.statusYourNumber')"
@@ -89,54 +98,120 @@ onBeforeUnmount(() => {
     BizAdSlot(name="queue-status-below")
 
     .PageQueueStatus__actions
-      ElButton(plain @click="ClickRefresh") {{ $t('common.search') }}
-      ElButton(plain @click="ClickBackHome") {{ $t('common.goHome') }}
+      ElButton(size="large" @click="ClickRefresh") {{ $t('common.search') }}
 </template>
 
 <style lang="scss" scoped>
 .PageQueueStatus {
-  max-width: 600px;
-  margin: 0 auto;
-  padding: 16px;
   display: flex;
   flex-direction: column;
   gap: 16px;
 }
 
-.PageQueueStatus__loading,
-.PageQueueStatus__empty {
+.PageQueueStatus__loading {
   padding: 32px;
   text-align: center;
-  color: #909399;
+  color: rgba(69, 69, 69, 0.55);
+  font-size: 14px;
+}
+
+.PageQueueStatus__empty {
+  padding: 40px 24px;
+  text-align: center;
+  background-color: $white;
+  border-radius: 14px;
+  border: 1px solid rgba(53, 77, 123, 0.08);
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 12px;
+  gap: 14px;
 }
 
+.PageQueueStatus__emptyIcon {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  background-color: rgba(238, 81, 81, 0.1);
+  color: #ee5151;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 22px;
+  font-weight: 700;
+}
+
+.PageQueueStatus__emptyText {
+  margin: 0;
+  color: rgba(69, 69, 69, 0.7);
+  font-size: 14px;
+}
+
+// 狀態 bar ----
 .PageQueueStatus__bar {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  background: #fff;
-  padding: 10px 14px;
-  border-radius: 8px;
-  border: 1px solid #ebeef5;
+  gap: 12px;
+  background-color: $white;
+  padding: 14px 18px;
+  border-radius: 14px;
+  border: 1px solid rgba(53, 77, 123, 0.08);
+  box-shadow: 0 4px 12px -8px rgba(31, 42, 68, 0.08);
 }
 
-.PageQueueStatus__bar-service {
-  font-size: 14px;
+.PageQueueStatus__barService {
+  min-width: 0;
+  flex: 1;
+}
+
+.PageQueueStatus__barEyebrow {
+  font-size: 11px;
   font-weight: 600;
-  color: #303133;
+  letter-spacing: 0.08em;
+  color: rgba(69, 69, 69, 0.5);
+  margin-bottom: 2px;
 }
 
-.PageQueueStatus__bar-conn {
+.PageQueueStatus__barName {
+  font-size: 15px;
+  font-weight: 700;
+  color: $primary;
+}
+
+.PageQueueStatus__barConn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
   font-size: 12px;
-  color: #67c23a;
+  font-weight: 500;
+  color: $secondary;
+  background-color: rgba(0, 173, 169, 0.1);
+  padding: 6px 12px;
+  border-radius: 999px;
+  flex-shrink: 0;
 }
 
-.PageQueueStatus__bar-conn--off {
-  color: #e6a23c;
+.PageQueueStatus__barConnDot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background-color: $secondary;
+  animation: pageQueueStatusPulse 1.6s ease-in-out infinite;
+}
+
+.PageQueueStatus__barConn--off {
+  color: $tertiary;
+  background-color: rgba(235, 139, 45, 0.1);
+}
+
+.PageQueueStatus__barConn--off .PageQueueStatus__barConnDot {
+  background-color: $tertiary;
+  animation: none;
+}
+
+@keyframes pageQueueStatusPulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.5; transform: scale(0.85); }
 }
 
 .PageQueueStatus__actions {
@@ -145,10 +220,8 @@ onBeforeUnmount(() => {
   justify-content: center;
 }
 
-.PageQueueStatus__ad-slot {
-  // 預留廣告插槽：無內容時不佔空間
-  &:empty {
-    display: none;
-  }
+.PageQueueStatus__actions > * {
+  flex: 1;
+  max-width: 200px;
 }
 </style>

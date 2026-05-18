@@ -5,6 +5,7 @@ export default {
     description: 'This is About Page'
   },
   common: {
+    back: 'Back',
     goHome: 'Back Home',
     backToSignIn: 'Back to sign-in',
     save: 'Save',
@@ -287,6 +288,7 @@ export default {
       success: 'Booked',
       lookup: 'Search',
       switchIdentity: 'Switch identity',
+      switchLocale: 'Switch language',
       goCalendar: 'Calendar',
       goArchive: 'History',
       delegate: 'Book on behalf'
@@ -307,7 +309,10 @@ export default {
       prev: 'Prev',
       next: 'Next',
       day: 'day',
-      week: 'week'
+      week: 'week',
+      prevMonth: 'Previous month',
+      nextMonth: 'Next month',
+      today: 'Today'
     }
   },
   enum: {
