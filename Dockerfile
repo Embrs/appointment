@@ -5,14 +5,16 @@ FROM node:24.11-alpine AS builder
 WORKDIR /app
 
 # 先複製 package & prisma schema 利於 layer cache
+# scripts/ 必須在 npm ci 之前複製，因為 postinstall 會執行 scripts/copy-tinymce.mjs
 COPY package*.json ./
 COPY prisma ./prisma
+COPY scripts ./scripts
 
 ENV NODE_OPTIONS="--max-old-space-size=8192"
 RUN npm cache clean --force
 RUN npm ci
 
-# 生成 Prisma Client（需在 build 前；build 階段會 import @prisma/client）
+# postinstall 已執行 prisma generate；此處保留作為保險（冪等）
 RUN npx prisma generate
 
 # 複製其餘原始碼並構建

@@ -14,7 +14,7 @@ Dockerfile、環境變數、cron 觸發、Cloudflare R2、排程互斥鎖。
 
 | Stage | 基礎映像 | 動作 |
 |-------|---------|------|
-| `builder` | `node:24.11-alpine` | `npm ci` → `prisma generate` → `npm run build` → 驗 `.output/server/index.mjs` 存在 |
+| `builder` | `node:24.11-alpine` | 先複製 `package*.json`、`prisma/`、`scripts/`（postinstall 依賴 `scripts/copy-tinymce.mjs`）→ `npm ci` → `prisma generate`（冪等保險）→ 複製其餘原始碼 → `npm run build` → 驗 `.output/server/index.mjs` 存在 |
 | `runner` | `node:24.11-alpine` | 複製 `.output/`、`prisma/`、`node_modules/{.prisma,@prisma,prisma}` |
 
 啟動指令（在 runner stage）：
