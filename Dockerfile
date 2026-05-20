@@ -49,5 +49,6 @@ ENV NUXT_PORT=3000
 EXPOSE 3000
 
 # 啟動前先跑 prisma migrate deploy（冪等，只套未套用的 migrations）
+# 直接用 node 執行 prisma 入口，避開 node_modules/.bin 軟連結未複製的問題
 # 失敗則容器啟動失敗，由 Railway 自動 rollback
-CMD ["sh", "-c", "npx prisma migrate deploy && node ./.output/server/index.mjs"]
+CMD ["sh", "-c", "node ./node_modules/prisma/build/index.js migrate deploy && node ./.output/server/index.mjs"]

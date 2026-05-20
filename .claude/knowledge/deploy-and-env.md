@@ -19,9 +19,10 @@ Dockerfile、環境變數、cron 觸發、Cloudflare R2、排程互斥鎖。
 
 啟動指令（在 runner stage）：
 ```sh
-npx prisma migrate deploy && node ./.output/server/index.mjs
+node ./node_modules/prisma/build/index.js migrate deploy && node ./.output/server/index.mjs
 ```
 
+- 直接以 `node` 執行 prisma 入口，避開 `node_modules/.bin` 軟連結未複製到 runner 的問題（不再依賴 `npx`）
 - `prisma migrate deploy` 冪等，只套未套用的 migrations
 - 失敗則容器啟動失敗（部署 platform 會自動 rollback）
 - `EXPOSE 3000`、`NUXT_HOST=0.0.0.0`
