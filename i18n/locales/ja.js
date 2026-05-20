@@ -154,6 +154,7 @@ export default {
       TIME_SLOT: '固定枠',
       TIME_CAPACITY: '枠+定員',
       RESOURCE: 'リソース指定',
+      RESOURCE_OPTIONAL: 'リソース選択（任意）',
       QUEUE: '整理券'
     },
     settings: {
@@ -341,6 +342,10 @@ export default {
       pickService: 'サービスを選択',
       pickResource: 'リソースを選択',
       pickDateTime: '日付と時間を選択'
+    },
+    resource: {
+      anyLabel: '指定なし（自動割り当て）',
+      anyDescription: 'システムが空きリソースから自動で選択します'
     },
     fields: {
       date: '日付',
@@ -564,7 +569,37 @@ export default {
       detail: '詳細',
       cancel: 'キャンセル',
       complete: '完了にする',
-      noShow: '未来店にする'
+      noShow: '未来店にする',
+      reschedule: '予約変更'
+    },
+    confirm: {
+      complete: 'この予約を完了にしますか？',
+      noShow: 'この予約を未来店にしますか？'
+    },
+    reschedule: {
+      title: '予約変更',
+      origin: '元の予約',
+      success: '予約を更新しました',
+      loadingSlots: '時間帯を読み込み中…',
+      forceHint: '過去時間補登が有効：過去の時間帯を選択でき、リソースのシフトチェックをスキップします。ダブルブッキング防止は引き続き有効です。',
+      forcePromptOnPastSlot: '選択した時間は過去のため、「過去時間補登」を有効にしてから送信してください',
+      fields: {
+        date: '新しい日付',
+        time: '新しい時間',
+        timePlaceholder: 'HH:mm',
+        timeRequired: '時間を選択してください',
+        resource: '新しいリソース',
+        resourceAny: '指定しない（自動割り当て）',
+        resourceRequired: 'リソースを選択してください',
+        force: '過去時間補登（過去時間帯を許可）'
+      },
+      actions: {
+        confirm: '変更を確定',
+        cancel: 'キャンセル'
+      }
     }
+  },
+  service: {
+    durationLabel: '{n} 分'
   }
 };

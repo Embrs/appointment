@@ -154,6 +154,7 @@ export default {
       TIME_SLOT: 'Fixed slot',
       TIME_CAPACITY: 'Slot + capacity',
       RESOURCE: 'Per resource',
+      RESOURCE_OPTIONAL: 'Optional resource',
       QUEUE: 'Queue ticket'
     },
     settings: {
@@ -341,6 +342,10 @@ export default {
       pickService: 'Select a service',
       pickResource: 'Select a resource',
       pickDateTime: 'Select date & time'
+    },
+    resource: {
+      anyLabel: 'Any available (auto-assign)',
+      anyDescription: 'The system will pick an available resource for you'
     },
     fields: {
       date: 'Date',
@@ -564,7 +569,37 @@ export default {
       detail: 'Detail',
       cancel: 'Cancel',
       complete: 'Mark completed',
-      noShow: 'Mark no-show'
+      noShow: 'Mark no-show',
+      reschedule: 'Reschedule'
+    },
+    confirm: {
+      complete: 'Mark this appointment as completed?',
+      noShow: 'Mark this appointment as no-show?'
+    },
+    reschedule: {
+      title: 'Reschedule',
+      origin: 'Original',
+      success: 'Appointment updated',
+      loadingSlots: 'Loading slots…',
+      forceHint: 'Past-slot override enabled: allows selecting past time and skips resource on-duty check; double-booking conflict is still enforced to prevent operational incidents.',
+      forcePromptOnPastSlot: 'Slot is in the past — please enable "Past-slot override" before submitting',
+      fields: {
+        date: 'New date',
+        time: 'New time',
+        timePlaceholder: 'HH:mm',
+        timeRequired: 'Please select a time',
+        resource: 'New resource',
+        resourceAny: 'Any (auto assigned)',
+        resourceRequired: 'Please select a resource',
+        force: 'Past-slot override'
+      },
+      actions: {
+        confirm: 'Confirm',
+        cancel: 'Cancel'
+      }
     }
+  },
+  service: {
+    durationLabel: '{n} min'
   }
 };

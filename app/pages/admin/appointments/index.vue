@@ -1,5 +1,9 @@
 <script setup lang="ts">
 // PageAdminAppointments — 商家後台預約管理（行事曆 / 列表 同頁 toggle）
+// 兩視圖獨立 filter：列表完整 filter（即時搜尋 + 400ms 防抖）；行事曆精簡為「服務 / 資源 / 隱藏已取消」
+// 所有狀態操作（取消/完成/未到/修改）統一由 DrawerAppointmentInfo 提供
+import { debounce } from 'lodash-es';
+
 definePageMeta({
   layout: 'back-desk',
   middleware: ['merchant']
@@ -8,7 +12,6 @@ definePageMeta({
 const route = useRoute();
 const router = useRouter();
 const localePath = useLocalePath();
-const storeSelf = StoreSelf();
 
 type AdminViewMode = 'calendar' | 'list';
 
@@ -53,6 +56,7 @@ interface CalendarOverride {
   endTime: string | null;
 }
 
+// 列表用完整 filter
 const filter = reactive({
   dateFrom: $dayjs().format('YYYY-MM-DD'),
   dateTo: $dayjs().add(14, 'day').format('YYYY-MM-DD'),
@@ -64,9 +68,8 @@ const filter = reactive({
   pageSize: 50
 });
 
-// 列表 view 是否顯示已結案紀錄（CANCELED / COMPLETED / NO_SHOW）
-// 預設關閉 → 列表只顯示 CONFIRMED + 今日起
-// 開啟 → 清空 status 篩選、dateFrom 擴展至 90 天前
+// 列表 view 是否顯示已結案紀錄
+// 改值後由 filter watcher 統一觸發 debounced ApiLoad（400ms），無需手動呼叫
 const showArchived = ref(false);
 watch(showArchived, (next) => {
   if (next) {
@@ -76,19 +79,60 @@ watch(showArchived, (next) => {
     filter.status = 'CONFIRMED';
     filter.dateFrom = $dayjs().format('YYYY-MM-DD');
   }
-  filter.page = 1;
-  ApiLoad();
 });
 
-// view 切換時重新載入，避免兩 view 顯示策略不一致
+// 行事曆獨立 filter
+const calendarFilter = reactive({
+  serviceId: '',
+  resourceId: '',
+  hideCanceled: true
+});
+
+// view 切換時重新載入
 watch(view, () => {
   filter.page = 1;
   ApiLoad();
 });
 
-// 行事曆 anchor（與 filter.dateFrom 解耦：行事曆自己一個 anchor）
+// 列表 filter 即時搜尋（防抖 400ms）：任何欄位變動 → 重置 page=1 並重打 API
+const ApiLoadDebounced = debounce(() => {
+  filter.page = 1;
+  ApiLoad();
+}, 400);
+
+watch(
+  () => [
+    filter.dateFrom,
+    filter.dateTo,
+    filter.status,
+    filter.serviceId,
+    filter.resourceId,
+    filter.customerPhone
+  ],
+  () => {
+    if (view.value === 'list') ApiLoadDebounced();
+  }
+);
+
+onBeforeUnmount(() => {
+  ApiLoadDebounced.cancel();
+});
+
+// 行事曆 anchor 對齊 ISO 週一
 const calendarMode = ref<'week' | 'day'>('week');
-const calendarAnchor = ref(filter.dateFrom);
+const calendarAnchor = ref($dayjs().startOf('isoWeek').format('YYYY-MM-DD'));
+
+// 行事曆篩選即時觸發
+watch([() => calendarFilter.serviceId, () => calendarFilter.resourceId], () => {
+  if (view.value === 'calendar') ApiLoad();
+});
+// 行事曆 anchor 變動觸發
+watch(calendarAnchor, () => {
+  if (view.value === 'calendar') ApiLoad();
+});
+watch(calendarMode, () => {
+  if (view.value === 'calendar') ApiLoad();
+});
 
 const ApiLoadServices = async () => {
   const res = await $api.GetServiceList();
@@ -104,7 +148,7 @@ const ApiLoadResources = async () => {
 };
 
 const ApiLoadCalendarMeta = async () => {
-  // 取商家主規則（用於判斷營業時段斜紋）
+  // 商家主規則
   const rulesRes = await $api.GetScheduleRules({ scope: 'MERCHANT' });
   if (rulesRes.status.code === $enum.apiStatus.success) {
     merchantSchedule.value = rulesRes.data.rules
@@ -116,15 +160,15 @@ const ApiLoadCalendarMeta = async () => {
         isActive: r.isActive
       }));
   }
-  // 取休假
+  // 休假
   const holidayRes = await $api.GetHolidayList();
   const holidayDates = holidayRes.status.code === $enum.apiStatus.success
     ? holidayRes.data.items.map((h) => $dayjs(h.date).format('YYYY-MM-DD'))
     : [];
-  // 取 override（取一個夠寬的區間）
+  // override
   const ovRes = await $api.GetScheduleOverrides({
-    from: $dayjs(filter.dateFrom).subtract(7, 'day').format('YYYY-MM-DD'),
-    to: $dayjs(filter.dateTo).add(7, 'day').format('YYYY-MM-DD'),
+    from: $dayjs(calendarAnchor.value).subtract(7, 'day').format('YYYY-MM-DD'),
+    to: $dayjs(calendarAnchor.value).add(21, 'day').format('YYYY-MM-DD'),
     scope: 'MERCHANT'
   });
   const ovs: Record<string, CalendarOverride> = {};
@@ -144,20 +188,36 @@ const ApiLoadCalendarMeta = async () => {
   overridesByDate.value = ovs;
 };
 
+// 行事曆視圖：依 anchor + mode 推算 dateFrom / dateTo
+const CalendarRange = (): { dateFrom: string; dateTo: string } => {
+  if (calendarMode.value === 'day') {
+    return {
+      dateFrom: calendarAnchor.value,
+      dateTo: calendarAnchor.value
+    };
+  }
+  const start = $dayjs(calendarAnchor.value).startOf('isoWeek');
+  const end = start.add(6, 'day');
+  return {
+    dateFrom: start.format('YYYY-MM-DD'),
+    dateTo: end.format('YYYY-MM-DD')
+  };
+};
+
 const ApiLoad = async () => {
   loading.value = true;
   try {
-    // 行事曆 view 一律顯示所有狀態（避免格子空白），列表 view 套用 filter.status
     const inListView = view.value === 'list';
+    const range = inListView ? null : CalendarRange();
     const res = await $api.GetAppointmentList({
-      dateFrom: filter.dateFrom || undefined,
-      dateTo: filter.dateTo || undefined,
+      dateFrom: inListView ? (filter.dateFrom || undefined) : (range?.dateFrom),
+      dateTo: inListView ? (filter.dateTo || undefined) : (range?.dateTo),
       status: inListView ? (filter.status || undefined) : undefined,
-      serviceId: filter.serviceId || undefined,
-      resourceId: filter.resourceId || undefined,
-      customerPhone: filter.customerPhone || undefined,
-      page: filter.page,
-      pageSize: filter.pageSize
+      serviceId: inListView ? (filter.serviceId || undefined) : (calendarFilter.serviceId || undefined),
+      resourceId: inListView ? (filter.resourceId || undefined) : (calendarFilter.resourceId || undefined),
+      customerPhone: inListView ? (filter.customerPhone || undefined) : undefined,
+      page: inListView ? filter.page : 1,
+      pageSize: inListView ? filter.pageSize : 200
     });
     if (res.status.code !== $enum.apiStatus.success) {
       ElMessage.error(res.status.message?.zh_tw || '查詢失敗');
@@ -170,13 +230,28 @@ const ApiLoad = async () => {
   }
 };
 
+// 行事曆視圖：套用「隱藏已取消」前端過濾，避免重打 API
+const displayedItems = computed(() => {
+  if (view.value !== 'calendar') return items.value;
+  if (calendarFilter.hideCanceled) {
+    return items.value.filter((a) => a.status !== 'CANCELED');
+  }
+  return items.value;
+});
+
 const ClickResetFilter = () => {
-  // 重設保留「列表預設過濾」語意：未開 showArchived 時 status 回到 CONFIRMED
+  // 清回初始狀態：日期區間、狀態、服務、資源、手機、頁碼全部重置
+  filter.dateFrom = showArchived.value
+    ? $dayjs().subtract(90, 'day').format('YYYY-MM-DD')
+    : $dayjs().format('YYYY-MM-DD');
+  filter.dateTo = $dayjs().add(14, 'day').format('YYYY-MM-DD');
   filter.status = showArchived.value ? '' : 'CONFIRMED';
   filter.serviceId = '';
   filter.resourceId = '';
   filter.customerPhone = '';
   filter.page = 1;
+  // 強制立即送出（避免值與初始相同時 watch 不觸發、或值雖變但 debounce 還沒到時間）
+  ApiLoadDebounced.cancel();
   ApiLoad();
 };
 
@@ -206,64 +281,15 @@ const ClickEmptyCell = (payload: { date: string; startAt?: string }) => {
 const ClickInfo = async (a: AppointmentItem) => {
   const result = await $open.DrawerAppointmentInfo({
     appointment: a,
-    timezone: 'Asia/Taipei'
+    timezone: 'Asia/Taipei',
+    slug: merchantSlug.value
   });
-  if (result.done && result.canceled) ApiLoad();
-};
-
-const ClickCancel = async (a: AppointmentItem) => {
-  const result = await $open.DialogCancelReason({});
-  if (!result.done) return;
-  const res = await $api.CancelAppointment({ id: a.id, reason: result.reason });
-  if (res.status.code !== $enum.apiStatus.success) {
-    ElMessage.error(res.status.message?.zh_tw || '取消失敗');
-    return;
-  }
-  ElMessage.success('已取消預約');
-  ApiLoad();
-};
-
-const ClickComplete = async (a: AppointmentItem) => {
-  try {
-    await ElMessageBox.confirm('確定將此預約標記為已完成？', '標記完成', {
-      confirmButtonText: '確認',
-      cancelButtonText: '取消',
-      type: 'success'
-    });
-  } catch {
-    return;
-  }
-  const res = await $api.CompleteAppointment({ id: a.id });
-  if (res.status.code !== $enum.apiStatus.success) {
-    ElMessage.error(res.status.message?.zh_tw || '標記失敗');
-    return;
-  }
-  ElMessage.success('已標記為完成');
-  ApiLoad();
-};
-
-const ClickNoShow = async (a: AppointmentItem) => {
-  try {
-    await ElMessageBox.confirm('確定將此預約標記為未到？', '標記未到', {
-      confirmButtonText: '確認',
-      cancelButtonText: '取消',
-      type: 'warning'
-    });
-  } catch {
-    return;
-  }
-  const res = await $api.NoShowAppointment({ id: a.id });
-  if (res.status.code !== $enum.apiStatus.success) {
-    ElMessage.error(res.status.message?.zh_tw || '標記失敗');
-    return;
-  }
-  ElMessage.success('已標記為未到');
-  ApiLoad();
+  if (result.done) ApiLoad();
 };
 
 const ClickGoArchive = () => router.push(localePath('/admin/appointments/archive'));
 
-// 行事曆導覽
+// 行事曆導覽：anchor 永遠對齊 ISO 週一（week 模式）或單日（day 模式）
 const ClickCalPrev = () => {
   const step = calendarMode.value === 'day' ? 1 : 7;
   calendarAnchor.value = $dayjs(calendarAnchor.value).subtract(step, 'day').format('YYYY-MM-DD');
@@ -273,8 +299,17 @@ const ClickCalNext = () => {
   calendarAnchor.value = $dayjs(calendarAnchor.value).add(step, 'day').format('YYYY-MM-DD');
 };
 const ClickCalToday = () => {
-  calendarAnchor.value = $dayjs().format('YYYY-MM-DD');
+  calendarAnchor.value = calendarMode.value === 'week'
+    ? $dayjs().startOf('isoWeek').format('YYYY-MM-DD')
+    : $dayjs().format('YYYY-MM-DD');
 };
+
+// 切換 week ↔ day：切回 week 時自動 normalize 回該週週一
+watch(calendarMode, (next) => {
+  if (next === 'week') {
+    calendarAnchor.value = $dayjs(calendarAnchor.value).startOf('isoWeek').format('YYYY-MM-DD');
+  }
+});
 
 onMounted(() => {
   ApiLoadSelfMerchant();
@@ -297,7 +332,8 @@ onMounted(() => {
         ElButton(plain @click="ClickGoArchive") 歷史紀錄
       ElButton(type="primary" @click="ClickCreate") 代客預約
 
-  .PageAdminAppointments__filter
+  //- 列表視圖：完整 filter
+  .PageAdminAppointments__filter(v-if="view === 'list'")
     ElDatePicker(
       v-model="filter.dateFrom"
       value-format="YYYY-MM-DD"
@@ -345,8 +381,29 @@ onMounted(() => {
       inputmode="numeric"
       style="width: 140px;"
     )
-    ElButton(@click="ApiLoad") 查詢
     ElButton(plain @click="ClickResetFilter") 重設
+
+  //- 行事曆視圖：精簡 filter（服務 / 資源 / 隱藏已取消）
+  .PageAdminAppointments__filter.is-calendar(v-else)
+    ElSelect(
+      v-model="calendarFilter.serviceId"
+      placeholder="服務"
+      clearable
+      value-on-clear=""
+      style="width: 160px;"
+    )
+      ElOption(v-for="s in services" :key="s.id" :label="s.name" :value="s.id")
+    ElSelect(
+      v-model="calendarFilter.resourceId"
+      placeholder="資源"
+      clearable
+      value-on-clear=""
+      style="width: 140px;"
+    )
+      ElOption(v-for="r in resources" :key="r.id" :label="r.name" :value="r.id")
+    .PageAdminAppointments__calSwitch
+      ElSwitch(v-model="calendarFilter.hideCanceled")
+      span.PageAdminAppointments__calSwitchLabel 隱藏已取消
 
   //- 行事曆 view
   template(v-if="view === 'calendar'")
@@ -361,7 +418,7 @@ onMounted(() => {
       .PageAdminAppointments__cal-anchor {{ calendarAnchor }}
 
     BizAppointmentCalendar(
-      :items="items"
+      :items="displayedItems"
       :mode="calendarMode"
       :anchor-date="calendarAnchor"
       :merchant-schedule="merchantSchedule"
@@ -383,16 +440,14 @@ onMounted(() => {
       :items="items"
       :loading="loading"
       @click-info="ClickInfo"
-      @click-cancel="ClickCancel"
-      @click-complete="ClickComplete"
-      @click-no-show="ClickNoShow"
     )
 
-    .PageAdminAppointments__pager(v-if="total > filter.pageSize")
+    .PageAdminAppointments__pager(v-if="total > 0")
       ElPagination(
         v-model:current-page="filter.page"
         :page-size="filter.pageSize"
         :total="total"
+        :pager-count="7"
         layout="prev, pager, next, total"
         @current-change="ApiLoad"
       )
@@ -414,6 +469,21 @@ onMounted(() => {
   background-color: $white;
   border-radius: 14px;
   border: 1px solid rgba(53, 77, 123, 0.08);
+}
+
+.PageAdminAppointments__filter.is-calendar {
+  gap: 14px;
+}
+
+.PageAdminAppointments__calSwitch {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.PageAdminAppointments__calSwitchLabel {
+  font-size: 13px;
+  color: rgba(53, 77, 123, 0.85);
 }
 
 .PageAdminAppointments__cal-nav {

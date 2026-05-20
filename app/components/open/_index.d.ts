@@ -17,6 +17,7 @@ type OpenComponent =
   | 'OpenDialogBookingSuccess' // 預約成功通知
   | 'OpenDrawerAppointmentInfo' // 商家預約詳情 drawer
   | 'OpenDialogAppointmentCreate' // 商家代客預約
+  | 'OpenDialogAppointmentReschedule' // 商家修改既有預約
   | 'OpenDialogCancelReason' // 商家取消理由
 
 // 參數群 -----------------------------------------------------------------------------------------------
@@ -35,6 +36,7 @@ type OpenParams =
   | DialogBookingSuccessParams
   | DrawerAppointmentInfoParams
   | DialogAppointmentCreateParams
+  | DialogAppointmentRescheduleParams
   | DialogCancelReasonParams
 
 // 組件參數 ---------------------------------------------------------------------------------------------
@@ -116,6 +118,8 @@ type DialogBookingSuccessParams = {
 type DrawerAppointmentInfoParams = {
   appointment: AppointmentItem
   timezone: string
+  /** 商家 slug，傳遞給 DialogAppointmentReschedule 用 */
+  slug: string
 }
 
 type DialogAppointmentCreateParams = {
@@ -129,6 +133,13 @@ type DialogAppointmentCreateParams = {
   prefillServiceId?: string
   /** 預填資源 id（限 RESOURCE 模式服務） */
   prefillResourceId?: string
+}
+
+type DialogAppointmentRescheduleParams = {
+  appointment: AppointmentItem
+  /** 商家 slug，用於 availability 查詢 */
+  slug: string
+  timezone?: string
 }
 
 type DialogCancelReasonParams = Record<string, never>

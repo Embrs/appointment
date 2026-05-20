@@ -22,8 +22,12 @@ const timezone = ref('Asia/Taipei');
 
 // 步驟狀態
 type StepName = 'service' | 'resource' | 'datetime' | 'info';
+// '__any__' 為「不指定（自動分配）」的 sentinel，僅 RESOURCE_OPTIONAL 模式會出現
+const ANY_RESOURCE = '__any__';
+const isResourceMode = (mode: string | undefined): boolean =>
+  mode === 'RESOURCE' || mode === 'RESOURCE_OPTIONAL';
 const stepOrder = computed<StepName[]>(() => {
-  const needRes = selectedService.value?.bookingMode === 'RESOURCE';
+  const needRes = isResourceMode(selectedService.value?.bookingMode);
   return needRes
     ? ['service', 'resource', 'datetime', 'info']
     : ['service', 'datetime', 'info'];
@@ -51,6 +55,17 @@ const selectedResource = computed(() =>
   resources.value.find((r) => r.id === form.resourceId) ?? null
 );
 
+// 顧客是否已在 resource 步驟做出選擇（含「不指定」）
+const hasResourcePick = computed(() => form.resourceId !== '');
+// 實際送往 API 的 resourceId：'__any__' 與空字串都不帶
+const apiResourceId = computed(() =>
+  isResourceMode(selectedService.value?.bookingMode) &&
+  form.resourceId &&
+  form.resourceId !== ANY_RESOURCE
+    ? form.resourceId
+    : undefined
+);
+
 const availableResources = computed(() => {
   if (!selectedService.value) return [];
   const ids = selectedService.value.resourceIds;
@@ -75,8 +90,9 @@ const ApiLoad = async () => {
       const s = services.value.find((x) => x.id === initialServiceId.value);
       if (s) {
         form.serviceId = s.id;
-        currentStep.value = s.bookingMode === 'RESOURCE' ? 'resource' : 'datetime';
-        if (s.bookingMode !== 'RESOURCE') {
+        const needRes = isResourceMode(s.bookingMode);
+        currentStep.value = needRes ? 'resource' : 'datetime';
+        if (!needRes) {
           form.date = TodayStr(1);
           await ApiLoadSlots();
         }
@@ -101,7 +117,11 @@ const TodayStr = (offset = 0) => {
 
 const ApiLoadSlots = async () => {
   if (!selectedService.value || !form.date) return;
-  if (selectedService.value.bookingMode === 'RESOURCE' && !form.resourceId) return;
+  const mode = selectedService.value.bookingMode;
+  // 需要選資源的模式：必須已做出選擇（具名或「不指定」）才能查時段
+  if (isResourceMode(mode) && !hasResourcePick.value) return;
+  // RESOURCE 模式：'__any__' 不合法（spec 規定必選具名）
+  if (mode === 'RESOURCE' && form.resourceId === ANY_RESOURCE) return;
   slotsLoading.value = true;
   slots.value = [];
   form.startAt = '';
@@ -110,7 +130,7 @@ const ApiLoadSlots = async () => {
     const res = await $api.GetAvailability({
       slug: slug.value,
       serviceId: form.serviceId,
-      resourceId: selectedService.value.bookingMode === 'RESOURCE' ? form.resourceId : undefined,
+      resourceId: apiResourceId.value,
       date: form.date
     });
     if (res.status.code === $enum.apiStatus.success) {
@@ -129,7 +149,7 @@ const ClickPickService = (id: string) => {
   form.resourceId = '';
   form.startAt = '';
   slots.value = [];
-  const needRes = selectedService.value?.bookingMode === 'RESOURCE';
+  const needRes = isResourceMode(selectedService.value?.bookingMode);
   currentStep.value = needRes ? 'resource' : 'datetime';
   if (!needRes && !form.date) form.date = TodayStr(1);
   if (!needRes) ApiLoadSlots();
@@ -189,7 +209,7 @@ const ConfirmFlow = async () => {
     slug: slug.value,
     serviceId: form.serviceId,
     serviceName: selectedService.value!.name,
-    resourceId: selectedService.value!.bookingMode === 'RESOURCE' ? form.resourceId : undefined,
+    resourceId: apiResourceId.value,
     resourceName: selectedResource.value?.name,
     startAt: form.startAt,
     endAt: form.endAt,
@@ -279,6 +299,9 @@ onMounted(ApiLoad);
         BizResourcePicker(
           :model-value="form.resourceId"
           :resources="availableResources"
+          :allow-any="selectedService?.bookingMode === 'RESOURCE_OPTIONAL'"
+          :any-label="$t('booking.resource.anyLabel')"
+          :any-description="$t('booking.resource.anyDescription')"
           @update:model-value="ClickPickResource"
         )
         .PageBook__nav

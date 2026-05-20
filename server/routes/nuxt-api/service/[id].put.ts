@@ -14,7 +14,7 @@ const ServiceUpdateSchema = z
   .object({
     name: z.string().trim().min(1).max(60).optional(),
     description: z.string().trim().max(1000).optional().nullable(),
-    bookingMode: z.enum(['TIME_SLOT', 'TIME_CAPACITY', 'RESOURCE', 'QUEUE']).optional(),
+    bookingMode: z.enum(['TIME_SLOT', 'TIME_CAPACITY', 'RESOURCE', 'RESOURCE_OPTIONAL', 'QUEUE']).optional(),
     durationMinutes: z.number().int().min(5).max(720).optional(),
     slotIntervalMinutes: z.number().int().min(5).max(720).optional(),
     capacityPerSlot: z.number().int().min(1).max(999).optional(),
@@ -26,9 +26,9 @@ const ServiceUpdateSchema = z
   .strict();
 
 const RESOURCE_REQUIRED = {
-  zh_tw: 'RESOURCE 模式需綁定至少一個資源',
-  en: 'RESOURCE mode requires at least one resource',
-  ja: 'RESOURCEモードでは少なくとも1つのリソースが必要です'
+  zh_tw: 'RESOURCE / RESOURCE_OPTIONAL 模式需綁定至少一個資源',
+  en: 'RESOURCE or RESOURCE_OPTIONAL mode requires at least one resource',
+  ja: 'RESOURCEまたはRESOURCE_OPTIONALモードでは少なくとも1つのリソースが必要です'
 };
 const RESOURCE_BAD = {
   zh_tw: '資源不存在或不屬於此商家',
@@ -54,7 +54,7 @@ export default defineEventHandler(async (event) => {
   const body = parsed.data;
 
   const nextMode = body.bookingMode ?? existing.bookingMode;
-  const isResourceMode = nextMode === 'RESOURCE';
+  const isResourceMode = nextMode === 'RESOURCE' || nextMode === 'RESOURCE_OPTIONAL';
 
   if (body.resourceIds !== undefined) {
     if (isResourceMode && body.resourceIds.length === 0) {

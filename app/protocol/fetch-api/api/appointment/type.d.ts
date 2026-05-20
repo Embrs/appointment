@@ -1,9 +1,10 @@
 // 預約相關 API type 定義
 
 type CustomerTitleType = 'MR' | 'MRS' | 'MISS' | 'MX';
-type AppointmentModeType = 'TIME_SLOT' | 'TIME_CAPACITY' | 'RESOURCE';
+type AppointmentModeType = 'TIME_SLOT' | 'TIME_CAPACITY' | 'RESOURCE' | 'RESOURCE_OPTIONAL';
 type AppointmentStatusType = 'CONFIRMED' | 'CANCELED' | 'NO_SHOW' | 'COMPLETED';
 type CanceledByType = 'CUSTOMER' | 'MERCHANT' | 'SYSTEM';
+type AppointmentBookingMode = 'TIME_SLOT' | 'TIME_CAPACITY' | 'RESOURCE' | 'RESOURCE_OPTIONAL' | 'QUEUE';
 
 interface CustomerTriplet {
   lastName: string;
@@ -89,7 +90,12 @@ interface AppointmentItem {
   status: AppointmentStatusType;
   startAt: string;
   endAt: string;
-  service: { id: string; name: string };
+  service: {
+    id: string;
+    name: string;
+    bookingMode: AppointmentBookingMode;
+    durationMinutes: number;
+  };
   resource: { id: string; name: string } | null;
   customerLastName: string;
   customerTitle: CustomerTitleType;
@@ -153,6 +159,22 @@ interface NoShowAppointmentParams {
 interface NoShowAppointmentRes {
   id: string;
   status: 'NO_SHOW';
+}
+
+// 商家：修改預約（reschedule） ----------------------------------------------------------------
+
+interface RescheduleAppointmentParams {
+  id: string;
+  /** ISO UTC */
+  startAt: string;
+  /** 不帶 = 沿用原資源；null = RESOURCE_OPTIONAL 改為「不指定」；TIME_SLOT/TIME_CAPACITY 不可帶 */
+  resourceId?: string | null;
+  /** true = 允許過去時段 + 跳過資源排班檢查（仍會阻擋雙開） */
+  force?: boolean;
+}
+
+interface RescheduleAppointmentRes {
+  appointment: AppointmentItem;
 }
 
 // 商家：歷史 -----------------------------------------------------------------------------------

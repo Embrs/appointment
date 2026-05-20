@@ -24,6 +24,7 @@ Vitest 測試位於 `server/__tests__/availability.test.ts`。
 | `TIME_SLOT` | 必須不帶 | 固定 1 | 同時段只能 1 人 |
 | `TIME_CAPACITY` | 必須不帶 | `service.capacityPerSlot` | 同時段多人，例如團體課 |
 | `RESOURCE` | **必須帶** | 1 / resource | 例如指定醫師、特定包廂 |
+| `RESOURCE_OPTIONAL` | **可選** | 1 / resource | 顧客可指定或不指定；不指定走 union 聚合 + auto-assign |
 | `QUEUE` | — | **不適用 availability** | `computeAvailability` 直接回 400；改走號碼牌 |
 
 公開查詢 `GET /public/availability` 與後台預約都共用同一套規則檢查。
@@ -106,3 +107,39 @@ await prisma.$transaction(async (tx) => {
 ## 顧客識別
 
 顧客沒有帳號，用 **`lastName + title + phone`** 三元組識別（見 [data-model.md](./data-model.md#顧客識別三元組)）。`normalizePhone` 寫入前去 `\s` 與 `-`。
+
+## RESOURCE_OPTIONAL 模式（可選資源）
+
+支援「顧客可指定醫師、也可不指定由系統自動分配」的場景（如牙科診所拔牙）。實作分兩條路徑：
+
+### Availability 路徑
+
+外殼 `computeAvailability` 內以單一 helper `computeSlotsForResource(resourceId | null)` 對某資源算 `Slot[]`；依模式 + 是否帶 `resourceId` 分流：
+
+- **RESOURCE_OPTIONAL + 帶 resourceId**：等同 RESOURCE，驗綁定 → `computeSlotsForResource(rid)`
+- **RESOURCE_OPTIONAL + 未帶 resourceId**：查所有 active 綁定資源 → 各自呼叫 helper → 純函式 `mergeResourceSlots(perResourceSlots[])` 做 union 聚合
+
+### `mergeResourceSlots` 純函式契約
+
+- 以 `startAt` 為 key 對齊；任一資源 `remaining>0` → 輸出 `remaining=1`
+- 全部 `remaining=0`：所有候選 `reason='past'` → `past`；否則 `taken`
+- 某 startAt 在所有資源 slots 都不存在（皆不在班）→ 不出現
+- `capacity` 恆為 1（RESOURCE_OPTIONAL 每筆預約僅佔一資源 slot）
+
+### Booking auto-assign
+
+`createAppointment` 對 `RESOURCE_OPTIONAL && !resourceId` 在 advisory lock 內呼叫 `pickAutoAssignResource(tx, params)`：
+
+1. 對每個候選資源呼叫 `isResourceOnDutyAt(tx, ...)` 檢查在班狀態（查 MerchantHoliday → ScheduleOverride → ScheduleRule scope=RESOURCE）
+2. 過濾掉在班但已被佔的資源
+3. 對剩餘候選查未來 30d CONFIRMED 預約數
+4. 純函式 `pickByLoadBalance(candidates)` 依「count 升序、id 升序」取第一個
+5. 將該 `resourceId` 寫入 `Appointment.resourceId`，`mode='RESOURCE_OPTIONAL'`
+6. 無候選 → 回 `MSG_SLOT_TAKEN`
+
+### Advisory lock key 設計
+
+- 顧客指定 resourceId：`buildLockKey(merchantId, resourceId, startAt)` = `appt:m:r:t`
+- auto-assign（無 resourceId）：`buildAutoAssignLockKey(merchantId, serviceId, startAt)` = `appt-auto:m:s:t`
+
+兩種鎖 key 前綴不同避免衝突；同 service 同時段 + 不同 auto-assign 請求會被序列化，避免分到同資源。「指定 vs auto」並發時鎖 key 不同，但 auto-assign 在 lock 內重檢 occupancy 會自然跳過已被搶走的資源。

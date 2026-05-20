@@ -6,8 +6,10 @@ import {
   composeUtc,
   getWeekdayInTz,
   hhmmToMinutes,
+  mergeResourceSlots,
   type BuildSlotsInput,
-  type BuildSlotsService
+  type BuildSlotsService,
+  type Slot
 } from '@@/utils/availability';
 
 const TZ = 'Asia/Taipei';
@@ -446,5 +448,97 @@ describe('buildSlots — Slot.reason 不可選原因', () => {
       })
     );
     expect(slots.every((s) => s.reason !== 'past')).toBe(true);
+  });
+});
+
+describe('mergeResourceSlots — RESOURCE_OPTIONAL union 聚合', () => {
+  const mkSlot = (
+    startAt: string,
+    remaining: number,
+    reason?: Slot['reason']
+  ): Slot => ({
+    startAt,
+    endAt: startAt.replace(':00:00', ':30:00'),
+    capacity: 1,
+    remaining,
+    ...(reason ? { reason } : {})
+  });
+
+  it('空輸入回空', () => {
+    expect(mergeResourceSlots([])).toEqual([]);
+    expect(mergeResourceSlots([[], []])).toEqual([]);
+  });
+
+  it('單一資源等同原 slots（但 capacity 強制為 1）', () => {
+    const slots = [mkSlot('2026-05-22T01:00:00.000Z', 1)];
+    const merged = mergeResourceSlots([slots]);
+    expect(merged).toHaveLength(1);
+    expect(merged[0].remaining).toBe(1);
+    expect(merged[0].capacity).toBe(1);
+    expect(merged[0].reason).toBeUndefined();
+  });
+
+  it('任一資源可用 → remaining=1', () => {
+    const A = [mkSlot('2026-05-22T01:00:00.000Z', 0, 'taken')];
+    const B = [mkSlot('2026-05-22T01:00:00.000Z', 1)];
+    const merged = mergeResourceSlots([A, B]);
+    expect(merged).toHaveLength(1);
+    expect(merged[0].remaining).toBe(1);
+    expect(merged[0].reason).toBeUndefined();
+  });
+
+  it('全部資源被佔 → remaining=0, reason=taken', () => {
+    const A = [mkSlot('2026-05-22T01:00:00.000Z', 0, 'taken')];
+    const B = [mkSlot('2026-05-22T01:00:00.000Z', 0, 'taken')];
+    const merged = mergeResourceSlots([A, B]);
+    expect(merged).toHaveLength(1);
+    expect(merged[0].remaining).toBe(0);
+    expect(merged[0].reason).toBe('taken');
+  });
+
+  it('全部資源 past → reason=past', () => {
+    const A = [mkSlot('2026-05-22T01:00:00.000Z', 0, 'past')];
+    const B = [mkSlot('2026-05-22T01:00:00.000Z', 0, 'past')];
+    const merged = mergeResourceSlots([A, B]);
+    expect(merged[0].reason).toBe('past');
+  });
+
+  it('混合 past + taken → reason=taken（past 優先性最低）', () => {
+    const A = [mkSlot('2026-05-22T01:00:00.000Z', 0, 'past')];
+    const B = [mkSlot('2026-05-22T01:00:00.000Z', 0, 'taken')];
+    const merged = mergeResourceSlots([A, B]);
+    expect(merged[0].reason).toBe('taken');
+  });
+
+  it('某資源在某 startAt 不存在 slot（不在班）→ 該 startAt 仍可由其他資源支撐', () => {
+    // A 只在 09:00 有 slot；B 只在 10:00 有 slot
+    const A = [mkSlot('2026-05-22T01:00:00.000Z', 1)];
+    const B = [mkSlot('2026-05-22T02:00:00.000Z', 1)];
+    const merged = mergeResourceSlots([A, B]);
+    expect(merged).toHaveLength(2);
+    expect(merged.map((s) => s.startAt)).toEqual([
+      '2026-05-22T01:00:00.000Z',
+      '2026-05-22T02:00:00.000Z'
+    ]);
+    expect(merged.every((s) => s.remaining === 1)).toBe(true);
+  });
+
+  it('全部資源不在班 → 該 startAt 不出現在輸出', () => {
+    // 沒有資源在 11:00 有 slot；A、B 都只給 09:00 / 10:00
+    const A = [mkSlot('2026-05-22T01:00:00.000Z', 1)];
+    const B = [mkSlot('2026-05-22T02:00:00.000Z', 1)];
+    const merged = mergeResourceSlots([A, B]);
+    expect(merged.find((s) => s.startAt === '2026-05-22T03:00:00.000Z')).toBeUndefined();
+  });
+
+  it('輸出依 startAt 排序', () => {
+    const A = [mkSlot('2026-05-22T05:00:00.000Z', 1)];
+    const B = [mkSlot('2026-05-22T01:00:00.000Z', 1), mkSlot('2026-05-22T03:00:00.000Z', 1)];
+    const merged = mergeResourceSlots([A, B]);
+    expect(merged.map((s) => s.startAt)).toEqual([
+      '2026-05-22T01:00:00.000Z',
+      '2026-05-22T03:00:00.000Z',
+      '2026-05-22T05:00:00.000Z'
+    ]);
   });
 });

@@ -1,6 +1,11 @@
 <script setup lang="ts">
-// OpenDrawerAppointmentInfo — 商家後台預約詳情抽屜
-// 含「商家取消」按鈕（必須填理由 → 開另一個 dialog）
+// OpenDrawerAppointmentInfo — 商家後台預約詳情抽屜（操作中樞）
+// 整合四個狀態操作：取消預約、標記未到、標記完成、修改預約
+// 規範：
+//   - CONFIRMED 未到時間：顯示「取消預約」「修改預約」
+//   - CONFIRMED 已過時間：四顆按鈕全顯示
+//   - 已結案（CANCELED / COMPLETED / NO_SHOW）：footer 不顯示任何操作
+//   - 任一操作 API 成功 → emit done=true，父頁面 ApiLoad 重新載入
 
 type Props = {
   params: DrawerAppointmentInfoParams;
@@ -9,16 +14,19 @@ type Props = {
 };
 const props = defineProps<Props>();
 
-const cancelling = ref(false);
+const { t } = useI18n();
+
+const submitting = ref(false);
 const appointment = ref<AppointmentItem>(props.params.appointment);
 
-const titleLabel = (t: string) => ({ MR: '先生', MRS: '女士', MISS: '小姐', MX: '客人' } as Record<string, string>)[t] ?? '';
 const dateLabel = computed(() =>
   $dayjs(new Date(appointment.value.startAt)).tz(props.params.timezone).format('YYYY-MM-DD HH:mm')
 );
 const endLabel = computed(() =>
   $dayjs(new Date(appointment.value.endAt)).tz(props.params.timezone).format('HH:mm')
 );
+const statusLabel = computed(() => t(`appointment.status.${appointment.value.status}`, appointment.value.status));
+const titleLabel = computed(() => t(`appointment.customerTitle.${appointment.value.customerTitle}`, ''));
 
 type Emit = { 'on-close': [] };
 const emit = defineEmits<Emit>();
@@ -28,11 +36,20 @@ const EmitClose = (done = false, canceled = false) => {
   emit('on-close');
 };
 
+const isConfirmed = computed(() => appointment.value.status === 'CONFIRMED');
+const isPastStart = computed(
+  () => new Date(appointment.value.startAt).getTime() <= Date.now()
+);
+const canCancel = computed(() => isConfirmed.value);
+const canReschedule = computed(() => isConfirmed.value);
+const canMarkDone = computed(() => isConfirmed.value && isPastStart.value);
+const hasActions = computed(() => canCancel.value || canReschedule.value || canMarkDone.value);
+
 const ClickCancel = async () => {
   const result = await $open.DialogCancelReason({});
   if (!result.done) return;
 
-  cancelling.value = true;
+  submitting.value = true;
   try {
     const res = await $api.CancelAppointment({ id: appointment.value.id, reason: result.reason });
     if (res.status.code !== $enum.apiStatus.success) {
@@ -42,11 +59,66 @@ const ClickCancel = async () => {
     ElMessage.success('已取消預約');
     EmitClose(true, true);
   } finally {
-    cancelling.value = false;
+    submitting.value = false;
   }
 };
 
-const canCancel = computed(() => appointment.value.status === 'CONFIRMED');
+const ClickComplete = async () => {
+  try {
+    await ElMessageBox.confirm(t('appointment.confirm.complete'), t('appointment.actions.complete'), {
+      confirmButtonText: t('common.confirm'),
+      cancelButtonText: t('common.cancel'),
+      type: 'success'
+    });
+  } catch {
+    return;
+  }
+  submitting.value = true;
+  try {
+    const res = await $api.CompleteAppointment({ id: appointment.value.id });
+    if (res.status.code !== $enum.apiStatus.success) {
+      ElMessage.error(res.status.message?.zh_tw || '標記失敗');
+      return;
+    }
+    ElMessage.success('已標記為完成');
+    EmitClose(true);
+  } finally {
+    submitting.value = false;
+  }
+};
+
+const ClickNoShow = async () => {
+  try {
+    await ElMessageBox.confirm(t('appointment.confirm.noShow'), t('appointment.actions.noShow'), {
+      confirmButtonText: t('common.confirm'),
+      cancelButtonText: t('common.cancel'),
+      type: 'warning'
+    });
+  } catch {
+    return;
+  }
+  submitting.value = true;
+  try {
+    const res = await $api.NoShowAppointment({ id: appointment.value.id });
+    if (res.status.code !== $enum.apiStatus.success) {
+      ElMessage.error(res.status.message?.zh_tw || '標記失敗');
+      return;
+    }
+    ElMessage.success('已標記為未到');
+    EmitClose(true);
+  } finally {
+    submitting.value = false;
+  }
+};
+
+const ClickReschedule = async () => {
+  const result = await $open.DialogAppointmentReschedule({
+    appointment: appointment.value,
+    slug: props.params.slug,
+    timezone: props.params.timezone
+  });
+  if (result.done) EmitClose(true);
+};
 </script>
 
 <template lang="pug">
@@ -55,11 +127,11 @@ const canCancel = computed(() => appointment.value.status === 'CONFIRMED');
   .OpenDrawerAppointmentInfo__panel(v-motion-slide-right)
     .OpenDrawerAppointmentInfo__header
       span.OpenDrawerAppointmentInfo__title 預約詳情
-      button.OpenDrawerAppointmentInfo__close(type="button" :disabled="cancelling" @click="EmitClose(false)") ✕
+      button.OpenDrawerAppointmentInfo__close(type="button" :disabled="submitting" @click="EmitClose(false)") ✕
     .OpenDrawerAppointmentInfo__body
       .OpenDrawerAppointmentInfo__row
         span.OpenDrawerAppointmentInfo__label 狀態
-        span.OpenDrawerAppointmentInfo__value {{ appointment.status }}
+        span.OpenDrawerAppointmentInfo__value {{ statusLabel }}
       .OpenDrawerAppointmentInfo__row
         span.OpenDrawerAppointmentInfo__label 服務
         span.OpenDrawerAppointmentInfo__value {{ appointment.service.name }}
@@ -72,7 +144,7 @@ const canCancel = computed(() => appointment.value.status === 'CONFIRMED');
       .OpenDrawerAppointmentInfo__divider
       .OpenDrawerAppointmentInfo__row
         span.OpenDrawerAppointmentInfo__label 顧客
-        span.OpenDrawerAppointmentInfo__value {{ appointment.customerLastName }}{{ titleLabel(appointment.customerTitle) }}
+        span.OpenDrawerAppointmentInfo__value {{ appointment.customerLastName }}{{ titleLabel }}
       .OpenDrawerAppointmentInfo__row
         span.OpenDrawerAppointmentInfo__label 手機
         span.OpenDrawerAppointmentInfo__value {{ appointment.customerPhone }}
@@ -82,13 +154,34 @@ const canCancel = computed(() => appointment.value.status === 'CONFIRMED');
       .OpenDrawerAppointmentInfo__row(v-if="appointment.cancelReason")
         span.OpenDrawerAppointmentInfo__label 取消理由
         span.OpenDrawerAppointmentInfo__value {{ appointment.cancelReason }}
-    .OpenDrawerAppointmentInfo__footer(v-if="canCancel")
-      ElButton(
+    .OpenDrawerAppointmentInfo__footer(v-if="hasActions")
+      ElButton.OpenDrawerAppointmentInfo__btn(
+        v-if="canCancel"
         type="danger"
         plain
-        :loading="cancelling"
+        :loading="submitting"
         @click="ClickCancel"
-      ) 商家取消
+      ) {{ $t('appointment.actions.cancel') }}
+      ElButton.OpenDrawerAppointmentInfo__btn(
+        v-if="canMarkDone"
+        type="warning"
+        plain
+        :loading="submitting"
+        @click="ClickNoShow"
+      ) {{ $t('appointment.actions.noShow') }}
+      ElButton.OpenDrawerAppointmentInfo__btn(
+        v-if="canMarkDone"
+        type="success"
+        plain
+        :loading="submitting"
+        @click="ClickComplete"
+      ) {{ $t('appointment.actions.complete') }}
+      ElButton.OpenDrawerAppointmentInfo__btn(
+        v-if="canReschedule"
+        type="primary"
+        :loading="submitting"
+        @click="ClickReschedule"
+      ) {{ $t('appointment.actions.reschedule') }}
 </template>
 
 <style lang="scss" scoped>
@@ -163,11 +256,22 @@ const canCancel = computed(() => appointment.value.status === 'CONFIRMED');
 }
 
 .OpenDrawerAppointmentInfo__footer {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
   padding: 12px 20px 20px;
   border-top: 1px solid #ebeef5;
 }
 
-.OpenDrawerAppointmentInfo__footer .el-button {
-  width: 100%;
+.OpenDrawerAppointmentInfo__btn {
+  flex: 1 1 calc(50% - 4px);
+  min-width: 0;
+  margin: 0 !important;
+}
+
+@media (min-width: 480px) {
+  .OpenDrawerAppointmentInfo__btn {
+    flex: 1 1 0;
+  }
 }
 </style>

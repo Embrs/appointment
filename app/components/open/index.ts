@@ -103,6 +103,9 @@ export default {
   /** 商家代客建立預約 */
   DialogAppointmentCreate: (params: DialogAppointmentCreateParams) =>
     Open<{ done: boolean }>('OpenDialogAppointmentCreate', params),
+  /** 商家修改既有預約（reschedule） */
+  DialogAppointmentReschedule: (params: DialogAppointmentRescheduleParams) =>
+    Open<{ done: boolean }>('OpenDialogAppointmentReschedule', params),
   /** 商家取消預約理由 */
   DialogCancelReason: (params: DialogCancelReasonParams) =>
     Open<{ done: boolean; reason?: string }>('OpenDialogCancelReason', params)

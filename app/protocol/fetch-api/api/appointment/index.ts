@@ -56,6 +56,15 @@ export const NoShowAppointment = ({ id }: NoShowAppointmentParams) => {
   return methods.post<NoShowAppointmentRes>(`/nuxt-api/appointment/${id}/no-show`, {});
 };
 
+/** 商家：修改既有預約時間 / 資源（reschedule；force=true 過號補登） */
+export const RescheduleAppointment = ({ id, ...body }: RescheduleAppointmentParams) => {
+  if (IsMock()) return mock.RescheduleAppointment();
+  return methods.post<RescheduleAppointmentRes>(
+    `/nuxt-api/appointment/${id}/reschedule`,
+    body as unknown as Record<string, unknown>
+  );
+};
+
 /** 商家：歷史紀錄 */
 export const GetAppointmentArchive = (params: GetAppointmentArchiveParams = {}) => {
   if (IsMock()) return mock.GetAppointmentArchive();

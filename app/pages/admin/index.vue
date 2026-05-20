@@ -61,6 +61,7 @@ const BookingModeLabel = (mode: BookingModeType): string => {
     case 'TIME_SLOT': return '固定時段';
     case 'TIME_CAPACITY': return '時段+人數';
     case 'RESOURCE': return '指定資源';
+    case 'RESOURCE_OPTIONAL': return '可選資源';
     case 'QUEUE': return '號碼牌';
     default: return mode;
   }

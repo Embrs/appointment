@@ -1,5 +1,8 @@
 <script setup lang="ts">
 // PageAdminAppointmentsArchive — 商家歷史紀錄查詢
+// 即時搜尋（400ms 防抖），任一篩選變動 → 頁碼回到第一頁；換頁不重設篩選；查詢中顯示 loading
+import { debounce } from 'lodash-es';
+
 definePageMeta({
   layout: 'back-desk',
   middleware: ['merchant']
@@ -12,10 +15,15 @@ const { t } = useI18n();
 const loading = ref(false);
 const items = ref<AppointmentArchiveItem[]>([]);
 const total = ref(0);
-const filter = reactive({
+
+const initialFilter = () => ({
   dateFrom: $dayjs().subtract(6, 'month').format('YYYY-MM-DD'),
   dateTo: $dayjs().subtract(3, 'month').format('YYYY-MM-DD'),
-  customerPhone: '',
+  customerPhone: ''
+});
+
+const filter = reactive({
+  ...initialFilter(),
   page: 1,
   pageSize: 50
 });
@@ -39,6 +47,28 @@ const ApiLoad = async () => {
   } finally {
     loading.value = false;
   }
+};
+
+// 即時搜尋（400ms 防抖）：任一篩選變動 → 重置 page=1 並重打 API
+const ApiLoadDebounced = debounce(() => {
+  filter.page = 1;
+  ApiLoad();
+}, 400);
+
+watch(
+  () => [filter.dateFrom, filter.dateTo, filter.customerPhone],
+  () => { ApiLoadDebounced(); }
+);
+
+onBeforeUnmount(() => {
+  ApiLoadDebounced.cancel();
+});
+
+const ClickResetFilter = () => {
+  Object.assign(filter, initialFilter());
+  filter.page = 1;
+  ApiLoadDebounced.cancel();
+  ApiLoad();
 };
 
 const StatusLabel = (status: string) => t(`appointment.status.${status}`, status);
@@ -68,9 +98,15 @@ onMounted(ApiLoad);
       inputmode="numeric"
       style="width: 160px;"
     )
-    ElButton(@click="ApiLoad") 查詢
+    ElButton(plain @click="ClickResetFilter") 重設
 
-  ElTable(:data="items" :loading="loading" stripe style="width: 100%;")
+  ElTable(
+    v-loading="loading"
+    :data="items"
+    stripe
+    element-loading-text="查詢中…"
+    style="width: 100%;"
+  )
     ElTableColumn(label="時間" width="160")
       template(#default="{ row }")
         span {{ fmtDateTime(row.startAt) }}
@@ -85,11 +121,12 @@ onMounted(ApiLoad);
       template(#default="{ row }")
         span {{ fmtDateTime(row.archivedAt) }}
 
-  .PageArchive__pager(v-if="total > filter.pageSize")
+  .PageArchive__pager(v-if="total > 0")
     ElPagination(
       v-model:current-page="filter.page"
       :page-size="filter.pageSize"
       :total="total"
+      :pager-count="7"
       layout="prev, pager, next, total"
       @current-change="ApiLoad"
     )

@@ -50,6 +50,32 @@ export const CompleteAppointment = () =>
 export const NoShowAppointment = () =>
   SuccessRes<NoShowAppointmentRes>({ id: 'mock-appt-1', status: 'NO_SHOW' });
 
+export const RescheduleAppointment = () =>
+  SuccessRes<RescheduleAppointmentRes>({
+    appointment: {
+      id: 'mock-appt-1',
+      mode: 'TIME_SLOT',
+      status: 'CONFIRMED',
+      startAt: '2026-05-22T01:00:00.000Z',
+      endAt: '2026-05-22T01:30:00.000Z',
+      service: {
+        id: 'mock-service-1',
+        name: '健康檢查',
+        bookingMode: 'TIME_SLOT',
+        durationMinutes: 30
+      },
+      resource: null,
+      customerLastName: '林',
+      customerTitle: 'MR',
+      customerPhone: '0987654321',
+      note: null,
+      cancelReason: null,
+      canceledBy: null,
+      canceledAt: null,
+      createdAt: '2026-05-19T01:00:00.000Z'
+    }
+  });
+
 export const GetAppointmentArchive = () =>
   SuccessRes<GetAppointmentArchiveRes>({
     total: 0,

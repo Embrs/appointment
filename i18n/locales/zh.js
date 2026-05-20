@@ -154,6 +154,7 @@ export default {
       TIME_SLOT: '固定時段',
       TIME_CAPACITY: '時段+人數',
       RESOURCE: '指定資源',
+      RESOURCE_OPTIONAL: '可選資源',
       QUEUE: '號碼牌'
     },
     settings: {
@@ -341,6 +342,10 @@ export default {
       pickService: '選擇服務',
       pickResource: '選擇資源',
       pickDateTime: '選擇日期與時段'
+    },
+    resource: {
+      anyLabel: '不指定（由系統自動分配）',
+      anyDescription: '由系統為您挑選一位可用的資源'
     },
     fields: {
       date: '日期',
@@ -554,8 +559,38 @@ export default {
       detail: '詳細',
       cancel: '取消預約',
       complete: '標記完成',
-      noShow: '標記未到'
+      noShow: '標記未到',
+      reschedule: '修改預約'
+    },
+    confirm: {
+      complete: '確定將此預約標記為已完成？',
+      noShow: '確定將此預約標記為未到？'
+    },
+    reschedule: {
+      title: '修改預約',
+      origin: '原預約',
+      success: '已更新預約',
+      loadingSlots: '載入時段中…',
+      forceHint: '已啟用過號補登：允許選擇已過時段、跳過資源排班檢查；仍會檢查雙開衝突，避免造成業務事故。',
+      forcePromptOnPastSlot: '時段已過，請啟用「過號補登」再送出',
+      fields: {
+        date: '新日期',
+        time: '新時段',
+        timePlaceholder: 'HH:mm',
+        timeRequired: '請選擇時段',
+        resource: '新資源',
+        resourceAny: '不指定（由系統自動分配）',
+        resourceRequired: '請選擇資源',
+        force: '過號補登（允許過去時段）'
+      },
+      actions: {
+        confirm: '確認修改',
+        cancel: '取消'
+      }
     }
+  },
+  service: {
+    durationLabel: '{n} 分鐘'
   },
   enum: {
     apiStatus: {

@@ -36,13 +36,16 @@ const affectedServices = computed(() =>
   effectiveServices.value.filter((s) => s.isActive && s.bookingMode !== 'QUEUE')
 );
 
-// 未綁定資源警告:當前 scope 為某資源,且該資源未被任何 RESOURCE 啟用服務的 resourceIds 包含
+// 未綁定資源警告:當前 scope 為某資源,且該資源未被任何 RESOURCE / RESOURCE_OPTIONAL 啟用服務的 resourceIds 包含
 const isResourceUnbound = computed(() => {
   if (isMerchantScope.value) return false;
   const rid = currentResourceId.value;
   if (!rid) return false;
   const boundCount = effectiveServices.value.filter(
-    (s) => s.bookingMode === 'RESOURCE' && s.isActive && s.resourceIds?.includes(rid)
+    (s) =>
+      (s.bookingMode === 'RESOURCE' || s.bookingMode === 'RESOURCE_OPTIONAL') &&
+      s.isActive &&
+      s.resourceIds?.includes(rid)
   ).length;
   return boundCount === 0;
 });

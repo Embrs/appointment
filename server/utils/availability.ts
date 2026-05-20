@@ -69,7 +69,7 @@ export interface ComputeAvailabilityFail {
 // ====== 純函式輸入型別 ======
 
 export interface BuildSlotsService {
-  bookingMode: 'TIME_SLOT' | 'TIME_CAPACITY' | 'RESOURCE' | 'QUEUE';
+  bookingMode: 'TIME_SLOT' | 'TIME_CAPACITY' | 'RESOURCE' | 'RESOURCE_OPTIONAL' | 'QUEUE';
   durationMinutes: number;
   slotIntervalMinutes: number;
   capacityPerSlot: number;
@@ -131,6 +131,52 @@ export const getWeekdayInTz = (date: string, tz: string): number => {
 export const getDayRangeUtc = (date: string, tz: string): { start: Date; end: Date } => {
   const start = dayjs.tz(`${date}T00:00:00`, tz);
   return { start: start.toDate(), end: start.add(1, 'day').toDate() };
+};
+
+// ====== 純函式：mergeResourceSlots（RESOURCE_OPTIONAL union 聚合） ======
+
+/**
+ * 將多個資源各自的 slots 合併為「任一資源可用即視為可用」的聚合視圖。
+ * 規則：
+ * - 以 startAt 為 key 對齊；某 startAt 只要任一資源 remaining>0 → 輸出 remaining=1。
+ * - 全部 remaining=0 時：若所有候選 reason 都是 'past' → 'past'；否則 'taken'。
+ * - 若某 startAt 在所有資源 slots 中都不存在（無人排班）→ 不出現在輸出。
+ * - capacity 恆為 1（RESOURCE_OPTIONAL 每筆預約僅佔一資源 slot）。
+ */
+export const mergeResourceSlots = (perResourceSlots: Slot[][]): Slot[] => {
+  const byStart = new Map<string, Slot[]>();
+  for (const slots of perResourceSlots) {
+    for (const s of slots) {
+      const list = byStart.get(s.startAt);
+      if (list) list.push(s);
+      else byStart.set(s.startAt, [s]);
+    }
+  }
+  const result: Slot[] = [];
+  const sortedKeys = [...byStart.keys()].sort();
+  for (const key of sortedKeys) {
+    const candidates = byStart.get(key)!;
+    const available = candidates.find((s) => s.remaining > 0);
+    if (available) {
+      result.push({
+        startAt: available.startAt,
+        endAt: available.endAt,
+        capacity: 1,
+        remaining: 1
+      });
+      continue;
+    }
+    const allPast = candidates.every((s) => s.reason === 'past');
+    const reason: SlotUnavailableReason = allPast ? 'past' : 'taken';
+    result.push({
+      startAt: candidates[0].startAt,
+      endAt: candidates[0].endAt,
+      capacity: 1,
+      remaining: 0,
+      reason
+    });
+  }
+  return result;
 };
 
 // ====== 純函式：buildSlots ======
@@ -269,6 +315,9 @@ export const computeAvailability = async (
   });
   if (!service) return { ok: false, response: notFoundError(event) };
 
+  const isResourceMode =
+    service.bookingMode === 'RESOURCE' || service.bookingMode === 'RESOURCE_OPTIONAL';
+
   // bookingMode 與 resourceId 一致性
   if (service.bookingMode === 'QUEUE') {
     return { ok: false, response: badRequestError(event, MSG_QUEUE_NOT_SUPPORTED) };
@@ -276,12 +325,99 @@ export const computeAvailability = async (
   if (service.bookingMode === 'RESOURCE' && !params.resourceId) {
     return { ok: false, response: badRequestError(event, MSG_RESOURCE_REQUIRED) };
   }
-  if (service.bookingMode !== 'RESOURCE' && params.resourceId) {
+  if (!isResourceMode && params.resourceId) {
     return { ok: false, response: badRequestError(event, MSG_RESOURCE_NOT_ALLOWED) };
   }
 
-  // RESOURCE：驗 ServiceResource 關聯 + Resource 啟用
-  if (service.bookingMode === 'RESOURCE' && params.resourceId) {
+  const tz = merchant.timezone;
+  const weekday = getWeekdayInTz(params.date, tz);
+  const { start: dayStart, end: dayEnd } = getDayRangeUtc(params.date, tz);
+  const overrideDate = dayjs.tz(`${params.date}T00:00:00`, tz).utc().toDate();
+  const now = new Date();
+
+  // 共用：整店休假（一次查，所有路徑共用）
+  const holidayRow = await prisma.merchantHoliday.findFirst({
+    where: { merchantId: merchant.id, date: overrideDate }
+  });
+  const isHoliday = holidayRow !== null;
+
+  // 內部 helper：對單一資源（或非 RESOURCE 模式以 null）算 slots
+  const computeSlotsForResource = async (resourceId: string | null): Promise<Slot[]> => {
+    const scope = resourceId ? 'RESOURCE' : 'MERCHANT';
+    const rules = await prisma.scheduleRule.findMany({
+      where: {
+        merchantId: merchant.id,
+        scope,
+        resourceId: resourceId ?? null,
+        weekday,
+        isActive: true
+      },
+      select: { startTime: true, endTime: true, isActive: true }
+    });
+    const overrideRow = await prisma.scheduleOverride.findFirst({
+      where: {
+        merchantId: merchant.id,
+        scope,
+        resourceId: resourceId ?? null,
+        date: overrideDate
+      },
+      select: { isClosed: true, startTime: true, endTime: true }
+    });
+    const appointments = await prisma.appointment.findMany({
+      where: {
+        merchantId: merchant.id,
+        serviceId: service.id,
+        ...(resourceId ? { resourceId } : { resourceId: null }),
+        status: 'CONFIRMED',
+        startAt: { gte: dayStart, lt: dayEnd }
+      },
+      select: { startAt: true }
+    });
+    const occupiedMap = new Map<string, number>();
+    for (const a of appointments) {
+      const key = a.startAt.toISOString();
+      occupiedMap.set(key, (occupiedMap.get(key) ?? 0) + 1);
+    }
+    return buildSlots({
+      service: {
+        bookingMode: service.bookingMode,
+        durationMinutes: service.durationMinutes,
+        slotIntervalMinutes: service.slotIntervalMinutes,
+        capacityPerSlot: service.capacityPerSlot
+      },
+      rules: rules.map((r) => ({ startTime: r.startTime, endTime: r.endTime, isActive: r.isActive })),
+      override: overrideRow
+        ? { isClosed: overrideRow.isClosed, startTime: overrideRow.startTime, endTime: overrideRow.endTime }
+        : null,
+      isHoliday,
+      occupiedMap,
+      timezone: tz,
+      date: params.date,
+      now
+    });
+  };
+
+  // 路徑 A：RESOURCE_OPTIONAL 且未帶 resourceId → 對所有綁定 active 資源做 union 聚合
+  if (service.bookingMode === 'RESOURCE_OPTIONAL' && !params.resourceId) {
+    const links = await prisma.serviceResource.findMany({
+      where: {
+        serviceId: service.id,
+        resource: { isActive: true, deletedAt: null }
+      },
+      select: { resourceId: true }
+    });
+    if (links.length === 0) {
+      return { ok: true, timezone: tz, date: params.date, slots: [] };
+    }
+    const perResourceSlots = await Promise.all(
+      links.map((l) => computeSlotsForResource(l.resourceId))
+    );
+    const slots = mergeResourceSlots(perResourceSlots);
+    return { ok: true, timezone: tz, date: params.date, slots };
+  }
+
+  // 路徑 B：RESOURCE 或 RESOURCE_OPTIONAL 帶 resourceId → 驗綁定 + active 後算單一資源
+  if (isResourceMode && params.resourceId) {
     const link = await prisma.serviceResource.findUnique({
       where: { serviceId_resourceId: { serviceId: service.id, resourceId: params.resourceId } }
     });
@@ -290,77 +426,12 @@ export const computeAvailability = async (
       where: { id: params.resourceId, merchantId: merchant.id, isActive: true, deletedAt: null }
     });
     if (!resource) return { ok: false, response: badRequestError(event, MSG_RESOURCE_NOT_LINKED) };
+    const slots = await computeSlotsForResource(params.resourceId);
+    return { ok: true, timezone: tz, date: params.date, slots };
   }
 
-  const tz = merchant.timezone;
-  const weekday = getWeekdayInTz(params.date, tz);
-  const scope = service.bookingMode === 'RESOURCE' ? 'RESOURCE' : 'MERCHANT';
-
-  // 查每週規則
-  const rules = await prisma.scheduleRule.findMany({
-    where: {
-      merchantId: merchant.id,
-      scope,
-      resourceId: scope === 'RESOURCE' ? params.resourceId! : null,
-      weekday,
-      isActive: true
-    },
-    select: { startTime: true, endTime: true, isActive: true }
-  });
-
-  // 查當日 override
-  const overrideDate = dayjs.tz(`${params.date}T00:00:00`, tz).utc().toDate();
-  const overrideRow = await prisma.scheduleOverride.findFirst({
-    where: {
-      merchantId: merchant.id,
-      scope,
-      resourceId: scope === 'RESOURCE' ? params.resourceId! : null,
-      date: overrideDate
-    },
-    select: { isClosed: true, startTime: true, endTime: true }
-  });
-
-  // 查整店休假
-  const holidayRow = await prisma.merchantHoliday.findFirst({
-    where: { merchantId: merchant.id, date: overrideDate }
-  });
-
-  // 查當日 CONFIRMED 預約
-  const { start: dayStart, end: dayEnd } = getDayRangeUtc(params.date, tz);
-  const appointments = await prisma.appointment.findMany({
-    where: {
-      merchantId: merchant.id,
-      serviceId: service.id,
-      ...(scope === 'RESOURCE' ? { resourceId: params.resourceId! } : {}),
-      status: 'CONFIRMED',
-      startAt: { gte: dayStart, lt: dayEnd }
-    },
-    select: { startAt: true }
-  });
-  const occupiedMap = new Map<string, number>();
-  for (const a of appointments) {
-    const key = a.startAt.toISOString();
-    occupiedMap.set(key, (occupiedMap.get(key) ?? 0) + 1);
-  }
-
-  const slots = buildSlots({
-    service: {
-      bookingMode: service.bookingMode,
-      durationMinutes: service.durationMinutes,
-      slotIntervalMinutes: service.slotIntervalMinutes,
-      capacityPerSlot: service.capacityPerSlot
-    },
-    rules: rules.map((r) => ({ startTime: r.startTime, endTime: r.endTime, isActive: r.isActive })),
-    override: overrideRow
-      ? { isClosed: overrideRow.isClosed, startTime: overrideRow.startTime, endTime: overrideRow.endTime }
-      : null,
-    isHoliday: holidayRow !== null,
-    occupiedMap,
-    timezone: tz,
-    date: params.date,
-    now: new Date()
-  });
-
+  // 路徑 C：TIME_SLOT / TIME_CAPACITY → MERCHANT scope
+  const slots = await computeSlotsForResource(null);
   return { ok: true, timezone: tz, date: params.date, slots };
 };
 

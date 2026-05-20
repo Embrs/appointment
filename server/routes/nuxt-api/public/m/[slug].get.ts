@@ -114,7 +114,10 @@ export default defineEventHandler(async (event) => {
         slotIntervalMinutes: s.slotIntervalMinutes,
         capacityPerSlot: s.capacityPerSlot,
         priceCents: s.priceCents,
-        resourceIds: s.bookingMode === 'RESOURCE' ? s.resources.map((r) => r.resourceId) : []
+        resourceIds:
+          s.bookingMode === 'RESOURCE' || s.bookingMode === 'RESOURCE_OPTIONAL'
+            ? s.resources.map((r) => r.resourceId)
+            : []
       };
       if (s.bookingMode !== 'QUEUE') return base;
       const serving = projectQueueServingPublic(counterMap.get(s.id));

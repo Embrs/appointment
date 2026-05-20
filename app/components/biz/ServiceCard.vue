@@ -34,15 +34,21 @@ const ModeLabel = computed(() => {
     case 'TIME_SLOT': return t('admin.bookingMode.TIME_SLOT');
     case 'TIME_CAPACITY': return t('admin.bookingMode.TIME_CAPACITY');
     case 'RESOURCE': return t('admin.bookingMode.RESOURCE');
+    case 'RESOURCE_OPTIONAL': return t('admin.bookingMode.RESOURCE_OPTIONAL');
     case 'QUEUE': return t('admin.bookingMode.QUEUE');
     default: return '';
   }
 });
 
 const PriceLabel = computed(() => {
-  if (props.service.priceCents == null) return '';
-  return `NT$ ${(props.service.priceCents / 100).toFixed(0)}`;
+  const c = props.service.priceCents;
+  if (c == null || c <= 0) return '';
+  return `NT$ ${(c / 100).toFixed(0)}`;
 });
+
+const DurationLabel = computed(() =>
+  t('service.durationLabel', { n: props.service.durationMinutes })
+);
 </script>
 
 <template lang="pug">
@@ -58,7 +64,7 @@ const PriceLabel = computed(() => {
     .BizServiceCard__name {{ service.name }}
     .BizServiceCard__mode {{ ModeLabel }}
   .BizServiceCard__meta
-    span.BizServiceCard__duration {{ service.durationMinutes }}
+    span.BizServiceCard__duration {{ DurationLabel }}
     span.BizServiceCard__price(v-if="PriceLabel") {{ PriceLabel }}
   .BizServiceCard__desc(v-if="service.description") {{ service.description }}
   .BizServiceCard__chevron(aria-hidden="true")

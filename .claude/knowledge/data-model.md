@@ -67,9 +67,9 @@ type: reference
 |------|---|
 | `MerchantStatus` | `PENDING` / `ACTIVE` / `SUSPENDED` / `REJECTED` |
 | `MerchantUserRole` | `OWNER` / `STAFF` |
-| `BookingMode` | `TIME_SLOT` / `TIME_CAPACITY` / `RESOURCE` / `QUEUE` |
+| `BookingMode` | `TIME_SLOT` / `TIME_CAPACITY` / `RESOURCE` / `RESOURCE_OPTIONAL` / `QUEUE` |
 | `ScheduleScope` | `MERCHANT` / `RESOURCE` |
-| `AppointmentMode` | `TIME_SLOT` / `TIME_CAPACITY` / `RESOURCE`（無 `QUEUE`，號碼牌不進 Appointment） |
+| `AppointmentMode` | `TIME_SLOT` / `TIME_CAPACITY` / `RESOURCE` / `RESOURCE_OPTIONAL`（無 `QUEUE`，號碼牌不進 Appointment） |
 | `AppointmentStatus` | `CONFIRMED` / `CANCELED` / `NO_SHOW` / `COMPLETED` |
 | `CanceledBy` | `CUSTOMER` / `MERCHANT` / `SYSTEM` |
 | `QueueTicketStatus` | `WAITING` / `CALLED` / `DONE` / `SKIPPED` / `CANCELED` |

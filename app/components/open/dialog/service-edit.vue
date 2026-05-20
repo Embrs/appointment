@@ -33,7 +33,14 @@ const form = reactive({
 
 const showDurationFields = computed(() => form.bookingMode !== 'QUEUE');
 const showCapacity = computed(() => form.bookingMode === 'TIME_CAPACITY');
-const showResource = computed(() => form.bookingMode === 'RESOURCE');
+const showResource = computed(
+  () => form.bookingMode === 'RESOURCE' || form.bookingMode === 'RESOURCE_OPTIONAL'
+);
+const resourceHint = computed(() => {
+  if (form.bookingMode === 'RESOURCE') return '顧客預約時必須指定一位資源';
+  if (form.bookingMode === 'RESOURCE_OPTIONAL') return '顧客可選「不指定」由系統自動分配，或指定其中一位';
+  return '';
+});
 
 const rules: FormRules = {
   name: [
@@ -75,7 +82,7 @@ const BuildPayload = () => {
   if (form.bookingMode === 'TIME_CAPACITY') {
     extra.capacityPerSlot = Number(form.capacityPerSlot);
   }
-  if (form.bookingMode === 'RESOURCE') {
+  if (form.bookingMode === 'RESOURCE' || form.bookingMode === 'RESOURCE_OPTIONAL') {
     extra.resourceIds = [...form.resourceIds];
   }
   if (typeof form.priceCents === 'number' && form.priceCents > 0) {
@@ -85,8 +92,10 @@ const BuildPayload = () => {
 };
 
 const SaveFlow = async () => {
-  if (form.bookingMode === 'RESOURCE' && form.resourceIds.length === 0) {
-    ElMessage.error('RESOURCE 模式需綁定至少一個資源');
+  const requiresResource =
+    form.bookingMode === 'RESOURCE' || form.bookingMode === 'RESOURCE_OPTIONAL';
+  if (requiresResource && form.resourceIds.length === 0) {
+    ElMessage.error('RESOURCE / RESOURCE_OPTIONAL 模式需綁定至少一個資源');
     return;
   }
   const payload = BuildPayload();
@@ -152,10 +161,11 @@ onMounted(() => {
             value-on-clear=""
             placeholder="選擇預約模式"
           )
-            ElOption(label="TIME_SLOT 固定時段" value="TIME_SLOT")
-            ElOption(label="TIME_CAPACITY 時段+人數" value="TIME_CAPACITY")
-            ElOption(label="RESOURCE 指定資源" value="RESOURCE")
-            ElOption(label="QUEUE 號碼牌排隊" value="QUEUE")
+            ElOption(label="固定時段" value="TIME_SLOT")
+            ElOption(label="時段+人數" value="TIME_CAPACITY")
+            ElOption(label="指定資源（顧客必選）" value="RESOURCE")
+            ElOption(label="可選資源（顧客可選不指定）" value="RESOURCE_OPTIONAL")
+            ElOption(label="號碼牌排隊" value="QUEUE")
         template(v-if="showDurationFields")
           ElFormItem(label="服務時長（分鐘）")
             ElInput(
@@ -194,6 +204,7 @@ onMounted(() => {
             ) {{ r.name }}
           p.OpenDialogServiceEdit__hint(v-if="resourceOptions.length === 0")
             | 請先到「資源」頁建立至少一個資源
+          p.OpenDialogServiceEdit__hint--info(v-else) {{ resourceHint }}
         ElFormItem(label="價格（分；0 表示不顯示）")
           ElInput(
             v-model="form.priceCents"
@@ -279,6 +290,12 @@ onMounted(() => {
   margin: 4px 0 0 0;
   font-size: 12px;
   color: #e6a23c;
+}
+
+.OpenDialogServiceEdit__hint--info {
+  margin: 4px 0 0 0;
+  font-size: 12px;
+  color: #909399;
 }
 
 .OpenDialogServiceEdit__footer {

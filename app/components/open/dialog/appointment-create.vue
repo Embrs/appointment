@@ -40,7 +40,21 @@ const selectedService = computed(() =>
   services.value.find((s) => s.id === form.serviceId) ?? null
 );
 
-const needResource = computed(() => selectedService.value?.bookingMode === 'RESOURCE');
+// '__any__' 為 RESOURCE_OPTIONAL 「不指定」sentinel
+const ANY_RESOURCE = '__any__';
+const needResource = computed(
+  () =>
+    selectedService.value?.bookingMode === 'RESOURCE' ||
+    selectedService.value?.bookingMode === 'RESOURCE_OPTIONAL'
+);
+const isResourceOptional = computed(
+  () => selectedService.value?.bookingMode === 'RESOURCE_OPTIONAL'
+);
+const apiResourceId = computed(() =>
+  needResource.value && form.resourceId && form.resourceId !== ANY_RESOURCE
+    ? form.resourceId
+    : undefined
+);
 
 const availableResources = computed(() => {
   if (!selectedService.value) return [];
@@ -95,7 +109,7 @@ const ApiLoadSlots = async () => {
     const res = await $api.GetAvailability({
       slug: props.params.slug,
       serviceId: form.serviceId,
-      resourceId: needResource.value ? form.resourceId : undefined,
+      resourceId: apiResourceId.value,
       date: form.date
     });
     if (res.status.code === $enum.apiStatus.success) {
@@ -164,7 +178,7 @@ const SaveFlow = async () => {
   try {
     const res = await $api.CreateAppointment({
       serviceId: form.serviceId,
-      resourceId: needResource.value ? form.resourceId : undefined,
+      resourceId: apiResourceId.value,
       startAt: form.startAt,
       customer: {
         lastName: form.lastName.trim(),
@@ -265,6 +279,11 @@ onMounted(async () => {
             value-on-clear=""
             style="width: 100%;"
           )
+            ElOption(
+              v-if="isResourceOptional"
+              label="不指定（由系統自動分配）"
+              value="__any__"
+            )
             ElOption(v-for="r in availableResources" :key="r.id" :label="r.name" :value="r.id")
         ElFormItem(label="日期" prop="date")
           ElDatePicker(

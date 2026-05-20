@@ -31,6 +31,7 @@ enum BookingMode {
   TIME_SLOT
   TIME_CAPACITY
   RESOURCE
+  RESOURCE_OPTIONAL
   QUEUE
 }
 
@@ -45,6 +46,7 @@ enum AppointmentMode {
   TIME_SLOT
   TIME_CAPACITY
   RESOURCE
+  RESOURCE_OPTIONAL
 }
 
 /// 預約狀態

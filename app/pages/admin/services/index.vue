@@ -23,6 +23,7 @@ const BookingModeLabel = (mode: BookingModeType): string => {
     case 'TIME_SLOT': return '固定時段';
     case 'TIME_CAPACITY': return '時段+人數';
     case 'RESOURCE': return '指定資源';
+    case 'RESOURCE_OPTIONAL': return '可選資源';
     case 'QUEUE': return '號碼牌';
     default: return mode;
   }
@@ -33,6 +34,7 @@ const BookingModeTagType = (mode: BookingModeType): 'primary' | 'success' | 'war
     case 'TIME_SLOT': return 'primary';
     case 'TIME_CAPACITY': return 'success';
     case 'RESOURCE': return 'warning';
+    case 'RESOURCE_OPTIONAL': return 'warning';
     case 'QUEUE': return 'info';
     default: return 'info';
   }
@@ -107,7 +109,7 @@ onMounted(() => {
         span(v-else) —
     ElTableColumn(label="資源" min-width="160")
       template(#default="{ row }")
-        template(v-if="row.bookingMode === 'RESOURCE' && row.resourceIds.length")
+        template(v-if="(row.bookingMode === 'RESOURCE' || row.bookingMode === 'RESOURCE_OPTIONAL') && row.resourceIds.length")
           ElTag(
             v-for="rid in row.resourceIds"
             :key="rid"

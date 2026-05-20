@@ -1,6 +1,11 @@
 // 商家服務 type 定義
 
-type BookingModeType = 'TIME_SLOT' | 'TIME_CAPACITY' | 'RESOURCE' | 'QUEUE';
+type BookingModeType =
+  | 'TIME_SLOT'
+  | 'TIME_CAPACITY'
+  | 'RESOURCE'
+  | 'RESOURCE_OPTIONAL'
+  | 'QUEUE';
 
 interface ServiceItem {
   id: string;

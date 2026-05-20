@@ -48,16 +48,26 @@ const HOURS = Array.from({ length: 13 }, (_, i) => i + 8); // 8:00 ~ 20:00
 
 const WEEKDAY_LABELS = ['日', '一', '二', '三', '四', '五', '六'];
 
+const todayStr = computed(() => $dayjs().tz(props.timezone).format('YYYY-MM-DD'));
+
 const days = computed(() => {
   if (props.mode === 'day') {
-    return [{ date: props.anchorDate, label: $dayjs(props.anchorDate).format('MM/DD (週' + WEEKDAY_LABELS[$dayjs(props.anchorDate).day()] + ')') }];
+    const date = props.anchorDate;
+    return [{
+      date,
+      label: $dayjs(date).format('MM/DD (週' + WEEKDAY_LABELS[$dayjs(date).day()] + ')'),
+      isToday: date === todayStr.value
+    }];
   }
-  const start = $dayjs(props.anchorDate);
+  // 週模式：anchor 對齊 ISO 週一，週一→週日 共 7 格
+  const start = $dayjs(props.anchorDate).startOf('isoWeek');
   return Array.from({ length: 7 }, (_, i) => {
     const d = start.add(i, 'day');
+    const date = d.format('YYYY-MM-DD');
     return {
-      date: d.format('YYYY-MM-DD'),
-      label: d.format('MM/DD') + ` 週${WEEKDAY_LABELS[d.day()]}`
+      date,
+      label: d.format('MM/DD') + ` 週${WEEKDAY_LABELS[d.day()]}`,
+      isToday: date === todayStr.value
     };
   });
 });
@@ -167,16 +177,18 @@ const StatusColor = (status: string) => {
     .BizAppointmentCalendar__day-header(
       v-for="d in days"
       :key="d.date"
-      :class="{ 'is-closed': IsDateClosed(d.date) }"
-      :title="IsDateClosed(d.date) ? ClosedTooltip(d.date) : ''"
-    ) {{ d.label }}
+      :class="{ 'is-closed': IsDateClosed(d.date), 'is-today': d.isToday }"
+      :title="IsDateClosed(d.date) ? ClosedTooltip(d.date) : (d.isToday ? '今天' : '')"
+    )
+      span.BizAppointmentCalendar__day-label {{ d.label }}
+      span.BizAppointmentCalendar__today-badge(v-if="d.isToday") 今天
     //- body
     template(v-for="h in HOURS" :key="h")
       .BizAppointmentCalendar__time-label {{ String(h).padStart(2, '0') }}:00
       .BizAppointmentCalendar__cell(
         v-for="d in days"
         :key="`${d.date}_${h}`"
-        :class="CellClassFor(d.date, h)"
+        :class="[CellClassFor(d.date, h), { 'is-today': d.isToday }]"
         :title="!IsHourOpen(d.date, h) && !HasItems(d.date, h) ? ClosedTooltip(d.date) : ''"
         @click="ClickCell(d.date, h)"
       )
@@ -236,6 +248,39 @@ const StatusColor = (status: string) => {
   );
 }
 
+.BizAppointmentCalendar__day-header.is-today {
+  background: #ecf5ff;
+  color: #1d6fda;
+  box-shadow: inset 0 -2px 0 #409eff;
+}
+
+.BizAppointmentCalendar__day-header.is-today.is-closed {
+  background: repeating-linear-gradient(
+    45deg,
+    #ecf5ff,
+    #ecf5ff 6px,
+    #c6e2ff 6px,
+    #c6e2ff 7px
+  );
+  color: #1d6fda;
+}
+
+.BizAppointmentCalendar__day-label {
+  display: inline-block;
+}
+
+.BizAppointmentCalendar__today-badge {
+  display: inline-block;
+  margin-left: 6px;
+  padding: 1px 6px;
+  font-size: 10px;
+  font-weight: 600;
+  color: #fff;
+  background: #409eff;
+  border-radius: 8px;
+  vertical-align: middle;
+}
+
 .BizAppointmentCalendar__corner {
   border-left: 0;
 }
@@ -283,6 +328,14 @@ const StatusColor = (status: string) => {
 
 .BizAppointmentCalendar__cell.has-items {
   cursor: default;
+}
+
+.BizAppointmentCalendar__cell.is-today {
+  background-color: rgba(64, 158, 255, 0.04);
+}
+
+.BizAppointmentCalendar__cell.is-today.is-empty:hover {
+  background: #d9ecff;
 }
 
 .BizAppointmentCalendar__add-btn {

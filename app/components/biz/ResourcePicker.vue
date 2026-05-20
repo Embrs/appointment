@@ -1,5 +1,6 @@
 <script setup lang="ts">
 // BizResourcePicker — 資源選擇
+// allowAny=true 時於最上方顯示「不指定（由系統自動分配）」固定項，sentinel 為 '__any__'
 
 interface ResourceItem {
   id: string;
@@ -10,9 +11,16 @@ interface ResourceItem {
 interface ResourcePickerProps {
   modelValue: string | null;
   resources: ResourceItem[];
+  allowAny?: boolean;
+  anyLabel?: string;
+  anyDescription?: string;
 }
 
-defineProps<ResourcePickerProps>();
+withDefaults(defineProps<ResourcePickerProps>(), {
+  allowAny: false,
+  anyLabel: '不指定（由系統自動分配）',
+  anyDescription: ''
+});
 
 type Emit = { 'update:modelValue': [id: string] };
 const emit = defineEmits<Emit>();
@@ -20,8 +28,16 @@ const emit = defineEmits<Emit>();
 
 <template lang="pug">
 .BizResourcePicker
-  .BizResourcePicker__empty(v-if="resources.length === 0") 此服務尚未綁定資源
+  .BizResourcePicker__empty(v-if="resources.length === 0 && !allowAny") 此服務尚未綁定資源
   .BizResourcePicker__list(v-else)
+    button.BizResourcePicker__item.BizResourcePicker__item--any(
+      v-if="allowAny"
+      type="button"
+      :class="{ 'is-active': modelValue === '__any__' }"
+      @click="emit('update:modelValue', '__any__')"
+    )
+      .BizResourcePicker__name {{ anyLabel }}
+      .BizResourcePicker__desc(v-if="anyDescription") {{ anyDescription }}
     button.BizResourcePicker__item(
       v-for="r in resources"
       :key="r.id"
@@ -67,6 +83,14 @@ const emit = defineEmits<Emit>();
 .BizResourcePicker__item.is-active {
   background: #ecf5ff;
   border-color: #409eff;
+}
+
+.BizResourcePicker__item--any {
+  border-style: dashed;
+}
+
+.BizResourcePicker__item--any.is-active {
+  border-style: solid;
 }
 
 .BizResourcePicker__name {

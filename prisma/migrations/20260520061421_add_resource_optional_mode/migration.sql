@@ -1,0 +1,5 @@
+-- AlterEnum
+ALTER TYPE "AppointmentMode" ADD VALUE 'RESOURCE_OPTIONAL';
+
+-- AlterEnum
+ALTER TYPE "BookingMode" ADD VALUE 'RESOURCE_OPTIONAL';

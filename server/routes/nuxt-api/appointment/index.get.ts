@@ -44,7 +44,7 @@ export default defineEventHandler(async (event) => {
       skip: (q.page - 1) * q.pageSize,
       take: q.pageSize,
       include: {
-        service: { select: { id: true, name: true } },
+        service: { select: { id: true, name: true, bookingMode: true, durationMinutes: true } },
         resource: { select: { id: true, name: true } }
       }
     })
@@ -60,7 +60,12 @@ export default defineEventHandler(async (event) => {
       status: a.status,
       startAt: a.startAt.toISOString(),
       endAt: a.endAt.toISOString(),
-      service: { id: a.service.id, name: a.service.name },
+      service: {
+        id: a.service.id,
+        name: a.service.name,
+        bookingMode: a.service.bookingMode,
+        durationMinutes: a.service.durationMinutes
+      },
       resource: a.resource ? { id: a.resource.id, name: a.resource.name } : null,
       customerLastName: a.customerLastName,
       customerTitle: a.customerTitle,
