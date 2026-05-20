@@ -59,7 +59,8 @@ export const UseImpersonation = () => {
       userEmail: backEmail.value
     });
     ClearBackup();
-    await navigateTo('/sys/merchants');
+    const localePath = useLocalePath();
+    await navigateTo(localePath('/sys/merchants'));
   };
 
   /** 當前是否有有效備份（admin token 仍在） */

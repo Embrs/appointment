@@ -93,7 +93,7 @@ export default {
     ),
   /** 預約最終確認 drawer */
   DrawerBookingConfirm: (params: DrawerBookingConfirmParams) =>
-    Open<{ done: boolean; appointmentId?: string }>('OpenDrawerBookingConfirm', params),
+    Open<{ done: boolean; appointmentId?: string; limitExceeded?: boolean }>('OpenDrawerBookingConfirm', params),
   /** 預約成功通知 */
   DialogBookingSuccess: (params: DialogBookingSuccessParams) =>
     Open<{ done: boolean }>('OpenDialogBookingSuccess', params),

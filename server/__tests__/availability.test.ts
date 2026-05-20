@@ -206,7 +206,8 @@ describe('buildSlots — 容量耗盡', () => {
       startAt: '2026-05-18T01:00:00.000Z',
       endAt: '2026-05-18T02:00:00.000Z',
       capacity: 2,
-      remaining: 0
+      remaining: 0,
+      reason: 'capacity'
     });
     expect(slots[1].remaining).toBe(2); // 未佔用
     expect(slots[2].remaining).toBe(2);
@@ -317,5 +318,133 @@ describe('buildSlots — 邊界與防禦', () => {
       })
     );
     expect(slots).toEqual([]);
+  });
+});
+
+describe('buildSlots — Slot.reason 不可選原因', () => {
+  // 注入固定的 now：2026-05-18 11:30 Asia/Taipei = 2026-05-18 03:30 UTC
+  const fixedNow = new Date('2026-05-18T03:30:00.000Z');
+
+  it('已過時段標 reason=past 且 remaining=0', () => {
+    const slots = buildSlots(
+      baseInput({
+        service: { ...baseService, durationMinutes: 60, slotIntervalMinutes: 60 },
+        rules: [{ startTime: '09:00', endTime: '14:00', isActive: true }],
+        now: fixedNow
+      })
+    );
+    // slot 起點：09:00, 10:00, 11:00, 12:00, 13:00 TPE
+    expect(slots).toHaveLength(5);
+    // 09:00 (UTC 01:00) 在 now (UTC 03:30) 之前 → past
+    expect(slots[0].reason).toBe('past');
+    expect(slots[0].remaining).toBe(0);
+    // 10:00 (UTC 02:00) 仍在 now 之前 → past
+    expect(slots[1].reason).toBe('past');
+    // 11:00 (UTC 03:00) 仍在 now 之前 → past
+    expect(slots[2].reason).toBe('past');
+    // 12:00 (UTC 04:00) 在 now 之後 → 無 reason
+    expect(slots[3].reason).toBeUndefined();
+    expect(slots[3].remaining).toBe(1);
+    expect(slots[4].reason).toBeUndefined();
+  });
+
+  it('TIME_SLOT 被佔 reason=taken', () => {
+    const occupiedMap = new Map<string, number>();
+    occupiedMap.set('2026-05-18T06:00:00.000Z', 1); // 14:00 TPE 已被預約
+    const slots = buildSlots(
+      baseInput({
+        service: {
+          bookingMode: 'TIME_SLOT',
+          durationMinutes: 60,
+          slotIntervalMinutes: 60,
+          capacityPerSlot: 1
+        },
+        rules: [{ startTime: '14:00', endTime: '16:00', isActive: true }],
+        occupiedMap
+      })
+    );
+    expect(slots).toHaveLength(2);
+    expect(slots[0].reason).toBe('taken');
+    expect(slots[0].remaining).toBe(0);
+    expect(slots[1].reason).toBeUndefined();
+  });
+
+  it('RESOURCE 被佔 reason=taken', () => {
+    const occupiedMap = new Map<string, number>();
+    occupiedMap.set('2026-05-18T06:00:00.000Z', 1);
+    const slots = buildSlots(
+      baseInput({
+        service: {
+          bookingMode: 'RESOURCE',
+          durationMinutes: 60,
+          slotIntervalMinutes: 60,
+          capacityPerSlot: 1
+        },
+        rules: [{ startTime: '14:00', endTime: '16:00', isActive: true }],
+        occupiedMap
+      })
+    );
+    expect(slots[0].reason).toBe('taken');
+  });
+
+  it('TIME_CAPACITY 滿額 reason=capacity', () => {
+    const occupiedMap = new Map<string, number>();
+    occupiedMap.set('2026-05-18T06:00:00.000Z', 10);
+    const slots = buildSlots(
+      baseInput({
+        service: {
+          bookingMode: 'TIME_CAPACITY',
+          durationMinutes: 60,
+          slotIntervalMinutes: 60,
+          capacityPerSlot: 10
+        },
+        rules: [{ startTime: '14:00', endTime: '16:00', isActive: true }],
+        occupiedMap
+      })
+    );
+    expect(slots[0].reason).toBe('capacity');
+    expect(slots[0].remaining).toBe(0);
+    expect(slots[1].reason).toBeUndefined();
+    expect(slots[1].remaining).toBe(10);
+  });
+
+  it('未過且未滿 slot reason=undefined', () => {
+    const slots = buildSlots(
+      baseInput({
+        service: { ...baseService, durationMinutes: 60, slotIntervalMinutes: 60 },
+        rules: [{ startTime: '14:00', endTime: '16:00', isActive: true }],
+        now: fixedNow
+      })
+    );
+    expect(slots).toHaveLength(2);
+    expect(slots[0].reason).toBeUndefined();
+    expect(slots[0].remaining).toBe(1);
+    expect(slots[1].reason).toBeUndefined();
+  });
+
+  it('past 優先於 taken（同時滿足時取 past）', () => {
+    // 09:00 TPE 已過 + 已被佔 → 仍標 past
+    const occupiedMap = new Map<string, number>();
+    occupiedMap.set('2026-05-18T01:00:00.000Z', 1);
+    const slots = buildSlots(
+      baseInput({
+        service: { ...baseService, durationMinutes: 60, slotIntervalMinutes: 60 },
+        rules: [{ startTime: '09:00', endTime: '11:00', isActive: true }],
+        occupiedMap,
+        now: fixedNow
+      })
+    );
+    expect(slots[0].reason).toBe('past');
+  });
+
+  it('未傳 now 則不標 past（向後相容）', () => {
+    const slots = buildSlots(
+      baseInput({
+        service: { ...baseService, durationMinutes: 60, slotIntervalMinutes: 60 },
+        rules: [{ startTime: '09:00', endTime: '11:00', isActive: true }]
+        // 不傳 now
+      })
+    );
+    expect(slots.every((s) => s.reason !== 'past')).toBe(true);
   });
 });

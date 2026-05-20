@@ -121,6 +121,14 @@ type DrawerAppointmentInfoParams = {
 type DialogAppointmentCreateParams = {
   /** 商家當前 slug，用於查 availability（公開 API） */
   slug: string
+  /** 預填日期 YYYY-MM-DD（行事曆空白格點擊或外部入口提供） */
+  prefillDate?: string
+  /** 預填時段 ISO UTC 字串；slot 載入後自動 active 或提示不可用 */
+  prefillStartAt?: string
+  /** 預填服務 id */
+  prefillServiceId?: string
+  /** 預填資源 id（限 RESOURCE 模式服務） */
+  prefillResourceId?: string
 }
 
 type DialogCancelReasonParams = Record<string, never>

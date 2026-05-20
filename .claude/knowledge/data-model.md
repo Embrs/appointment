@@ -15,7 +15,7 @@ type: reference
 | Model | 用途 | 關鍵欄位 |
 |-------|------|---------|
 | `AdminUser` | 平台管理員 | `email` 唯一、`passwordHash`、`isActive`、`deletedAt` |
-| `Merchant` | 商家 | `slug` 唯一、`status: MerchantStatus`、`timezone`（預設 `Asia/Taipei`）、`cancelPolicy: Json`（含 `mode` / `hoursBeforeCannotCancel`） |
+| `Merchant` | 商家 | `slug` 唯一、`status: MerchantStatus`、`timezone`（預設 `Asia/Taipei`）、`cancelPolicy: Json`（含 `mode` / `hoursBeforeCannotCancel`）、`maxActiveAppointmentsPerCustomer Int @default(5)`（顧客同手機在本店未來 CONFIRMED 預約上限，1–99） |
 | `MerchantUser` | 商家成員 | `(merchantId, email)` 唯一、`role: MerchantUserRole`、`passwordHash` |
 
 ### 服務與資源

@@ -39,7 +39,7 @@ const ClickLoadSample = () => {
     .DemoTinymce__actions
       ElButton(@click="ClickLoadSample") 載入範例
       ElButton(@click="ClickClear") 清空內容
-      NuxtLink.DemoTinymce__back(to="/") ← 回首頁
+      NuxtLinkLocale.DemoTinymce__back(to="/") ← 回首頁
 
   .DemoTinymce__body
     .DemoTinymce__editor

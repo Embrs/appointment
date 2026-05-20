@@ -18,24 +18,17 @@ type Emit = {
 };
 const emit = defineEmits<Emit>();
 
+const { t } = useI18n();
+
 const fmtDate = (iso: string) => $dayjs(new Date(iso)).tz(props.timezone).format('YYYY-MM-DD');
 const fmtTime = (iso: string) => $dayjs(new Date(iso)).tz(props.timezone).format('HH:mm');
 
-const statusLabel = computed(() => {
-  switch (props.appointment.status) {
-    case 'CONFIRMED': return '已預約';
-    case 'CANCELED': return '已取消';
-    case 'NO_SHOW': return '未到';
-    case 'COMPLETED': return '已完成';
-    default: return props.appointment.status;
-  }
-});
+const statusLabel = computed(() => t(`booking.status.${props.appointment.status}`, props.appointment.status));
 
 const cancelerLabel = computed(() => {
-  if (props.appointment.canceledBy === 'MERCHANT') return '商家取消';
-  if (props.appointment.canceledBy === 'CUSTOMER') return '顧客取消';
-  if (props.appointment.canceledBy === 'SYSTEM') return '系統取消';
-  return '';
+  const by = props.appointment.canceledBy;
+  if (!by) return '';
+  return t(`booking.canceledBy.${by}`, '');
 });
 
 const showCancelBtn = computed(() => {
@@ -52,13 +45,13 @@ const showCancelBtn = computed(() => {
     .BizBookingCard__service {{ appointment.service.name }}
     .BizBookingCard__status {{ statusLabel }}
   .BizBookingCard__row
-    span.BizBookingCard__label 日期
+    span.BizBookingCard__label {{ $t('booking.fields.date') }}
     span.BizBookingCard__value {{ fmtDate(appointment.startAt) }} {{ fmtTime(appointment.startAt) }} ~ {{ fmtTime(appointment.endAt) }}
   .BizBookingCard__row(v-if="appointment.resource")
-    span.BizBookingCard__label 資源
+    span.BizBookingCard__label {{ $t('booking.fields.resource') }}
     span.BizBookingCard__value {{ appointment.resource.name }}
   .BizBookingCard__row(v-if="appointment.note")
-    span.BizBookingCard__label 備註
+    span.BizBookingCard__label {{ $t('booking.fields.note') }}
     span.BizBookingCard__value {{ appointment.note }}
   .BizBookingCard__cancel-block(v-if="appointment.status === 'CANCELED'")
     .BizBookingCard__cancel-by {{ cancelerLabel }}
@@ -69,7 +62,7 @@ const showCancelBtn = computed(() => {
       plain
       size="small"
       @click="emit('click-cancel', appointment.id)"
-    ) 取消預約
+    ) {{ $t('booking.actions.cancel') }}
 </template>
 
 <style lang="scss" scoped>

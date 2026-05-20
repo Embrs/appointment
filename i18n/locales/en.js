@@ -17,6 +17,9 @@ export default {
     submit: 'Submit',
     search: 'Search',
     copy: 'Copy',
+    loading: 'Loading…',
+    previous: 'Previous',
+    next: 'Next',
     saveSuccess: 'Saved',
     deleteSuccess: 'Deleted',
     createSuccess: 'Created',
@@ -129,9 +132,15 @@ export default {
       shareLink: 'Share Link',
       services: 'Services',
       resources: 'Resources',
-      schedule: 'Schedule',
-      holidays: 'Holidays',
-      staff: 'Staff'
+      appointments: 'Appointments',
+      queue: 'Queue Console',
+      schedule: 'Scheduling',
+      staff: 'Staff',
+      sectionOperate: 'Operations',
+      sectionSchedule: 'Scheduling',
+      sectionSettings: 'Settings',
+      // @deprecated merged into Scheduling
+      holidays: 'Closed Days'
     },
     actions: {
       create: 'Create',
@@ -170,21 +179,72 @@ export default {
     },
     resources: {
       listTitle: 'Resources',
-      nameLabel: 'Resource name'
+      nameLabel: 'Resource name',
+      boundServices: 'Bound Services',
+      boundServicesEmpty: '— Not bound',
+      boundServicesHint: 'Edit a RESOURCE-mode service and check this resource so customers can select it.'
     },
     schedule: {
-      title: 'Schedule',
+      title: 'Scheduling',
+      subtitle: 'Manage weekly hours, single-day overrides, closed days and queue hours',
       scopeMerchant: 'Whole shop',
       scopeResource: 'Resource',
       addSlot: '+ Add slot',
-      overrides: 'Date overrides',
+      // @deprecated renamed to "Single-day Override"
+      overrides: 'Single-day Override',
+      singleDayOverrides: 'Single-day Override',
       addOverride: '+ Add override',
-      closed: 'Closed'
+      closed: 'Closed',
+      tab: {
+        weekly: '📅 Booking Hours',
+        overrides: '🔧 Single-day Override',
+        holidays: '🚫 Closed Days',
+        queueWindow: '🎟 On-site Queue Hours'
+      },
+      hint: {
+        weekly: 'Set the fixed weekly business hours. For one-off changes on a specific date, switch to the "🔧 Single-day Override" tab.',
+        overrides: 'Configure a date whose hours differ from the weekly pattern (per shop or per resource). For a full shop-wide closure, use the "🚫 Closed Days" tab.',
+        holidays: 'Shop-wide closed days — the holiday name shows on the customer booking page. For partial-day changes or per-resource leave, use "🔧 Single-day Override".',
+        queueWindow: 'Per QUEUE service, configure weekly ticket-issuing hours and daily caps.'
+      },
+      affects: 'Affects: {names}',
+      affectsAll: 'Affects: all services (shop-wide)',
+      affectsNone: 'No matching services yet',
+      affectsMore: '+{n} more',
+      affectsCount: 'Affects {n} services',
+      affectsExpand: 'View',
+      unboundResource: {
+        title: 'This resource is not bound to any service. Customers (and merchant-proxy bookings) cannot select it.',
+        action: 'Bind in Services →'
+      },
+      emptyNoService: 'No services yet. Create one in the Services page first.',
+      goCreateService: 'Go to Services →',
+      weeklyTitle: 'Booking Hours',
+      overridesTitle: 'Single-day Override',
+      holidaysTitle: 'Closed Days',
+      queueWindowTitle: 'On-site Queue Hours'
+    },
+    queueWindow: {
+      title: 'Queue Hours',
+      subtitle: 'Set weekly ticket-issuing hours and daily caps for each QUEUE service',
+      loading: 'Loading…',
+      serviceLabel: 'Service',
+      noQueueService: 'No QUEUE-mode service yet. Create one first.',
+      goCreateService: 'Go to services →',
+      saveSuccess: 'Queue window saved',
+      maxTicketsHint: 'Cap 0 = unlimited',
+      adminNoWindow: 'Queue window not configured — customers cannot take tickets',
+      adminNoWindowAction: 'Configure →',
+      applyWeekdays: 'Apply to weekdays',
+      applyAllDays: 'Apply to all days',
+      applyAllDaysConfirm: 'This will overwrite Saturday & Sunday. Continue?',
+      needSourceRow: 'Enable a row first as source'
     },
     holidays: {
-      listTitle: 'Holidays',
+      listTitle: 'Closed Days',
       nameLabel: 'Name',
-      dateLabel: 'Date'
+      dateLabel: 'Date',
+      addHoliday: '+ Add Closed Day'
     },
     staff: {
       listTitle: 'Staff',
@@ -256,7 +316,10 @@ export default {
     steps: {
       service: 'Service',
       resource: 'Resource',
+      datetime: 'Date & Time',
+      // @deprecated superseded by datetime
       date: 'Date',
+      // @deprecated superseded by datetime
       slot: 'Slot',
       info: 'Info',
       confirm: 'Confirm'
@@ -267,10 +330,39 @@ export default {
       titleMiss: 'Miss',
       titleMx: 'Mx.',
       lastName: 'Last name',
+      lastNamePlaceholder: 'e.g. Smith',
       titleField: 'Title',
       phone: 'Phone',
-      note: 'Note'
+      phonePlaceholder: '0912345678',
+      note: 'Note',
+      noteOptional: 'Note (optional)'
     },
+    panel: {
+      pickService: 'Select a service',
+      pickResource: 'Select a resource',
+      pickDateTime: 'Select date & time'
+    },
+    fields: {
+      date: 'Date',
+      resource: 'Resource',
+      note: 'Note',
+      service: 'Service',
+      time: 'Time',
+      customer: 'Customer'
+    },
+    validation: {
+      lastNameRequired: 'Please enter last name',
+      lastNameMaxLength: 'Last name must be within 20 characters',
+      titleRequired: 'Please select a title',
+      phoneRequired: 'Please enter phone number',
+      phoneFormat: 'Invalid phone number format'
+    },
+    placeholders: {
+      pickTitle: 'Select title',
+      phoneExample: 'e.g. 0912345678',
+      lastNameExample: 'e.g. Smith'
+    },
+    submitFailed: 'Booking failed, please try again',
     status: {
       CONFIRMED: 'Confirmed',
       CANCELED: 'Canceled',
@@ -285,6 +377,7 @@ export default {
     actions: {
       cancel: 'Cancel booking',
       confirmBooking: 'Confirm',
+      reviseBooking: 'Back to edit',
       success: 'Booked',
       lookup: 'Search',
       switchIdentity: 'Switch identity',
@@ -293,6 +386,15 @@ export default {
       goArchive: 'History',
       delegate: 'Book on behalf'
     },
+    slotPicker: {
+      morning: 'Morning',
+      afternoon: 'Afternoon',
+      evening: 'Evening',
+      full: 'Full',
+      remaining: '{n} left',
+      loading: 'Loading slots…',
+      empty: 'No available slots for this date'
+    },
     messages: {
       bookSuccess: 'Booking confirmed',
       cancelSuccess: 'Booking canceled',
@@ -300,10 +402,15 @@ export default {
       cancelTooLate: 'Cancellation deadline passed, please contact merchant',
       notFound: 'Appointment not found',
       emptyList: 'No bookings yet',
-      noSlot: 'No available slots for this date'
+      noSlot: 'No available slots for this date',
+      limitExceeded: 'You have reached the booking limit at this merchant, please cancel an existing booking and try again',
+      limitExceededTitle: 'Booking limit reached',
+      limitExceededHint: 'You may cancel unnecessary bookings in "My Bookings"',
+      goMyBookings: 'Go to My Bookings'
     },
     queryTitle: 'Lookup Booking',
     querySubmit: 'Search',
+    queryHint: 'Enter the three details below to look up your booking records',
     fillContactTitle: 'Contact Details',
     calendar: {
       prev: 'Prev',
@@ -327,6 +434,7 @@ export default {
   },
   queue: {
     page: {
+      landingEyebrow: 'Queue ticket service',
       landingTitle: 'Take a ticket',
       landingHint: 'Pick a service below and submit your contact details to receive today’s queue ticket.',
       statusYourNumber: 'Your number',
@@ -345,8 +453,48 @@ export default {
       take: 'Take ticket',
       formTitle: 'Contact details for ticket',
       formSubmit: 'Take ticket',
-      connLive: 'Live connection',
-      connFallback: 'Fallback polling (15s)'
+      connLive: 'Live updates on',
+      connFallback: 'Live link unstable - still auto-updating',
+      connReconnecting: 'Disconnected, retrying in {n}s',
+      connOffline: 'This device is offline',
+      connRetry: 'Retry now',
+      currentServing: 'Now serving',
+      waitingCount: '{n} waiting',
+      notServing: 'No active call',
+      notStarted: 'Service has not started',
+      recentTitle: 'You already have ticket #{n} today',
+      recentSubtitle: 'Last taken on this device',
+      recentReturn: 'Back to waiting page',
+      recentDismiss: 'Not me',
+      findEntry: 'Find my ticket',
+      findTitle: 'Find my ticket',
+      findHint: 'Pick a service and enter the last 4 digits of your phone number to recover today’s ticket.',
+      findServiceLabel: 'Service',
+      findServicePlaceholder: 'Select a service',
+      findPhoneLabel: 'Last 4 digits of phone',
+      findPhonePlaceholder: 'e.g. 1234',
+      findSubmit: 'Find my ticket',
+      findAmbiguous: 'More than one match. Please use the full phone or contact the merchant.',
+      findNotFound: 'No ticket found today',
+      findInvalid: 'Please enter a 4-digit number',
+      callOverlayTitle: 'It’s your turn',
+      callOverlaySubtitle: 'Please come to the counter',
+      callOverlayDismiss: 'Got it',
+      titleCalled: '🔔 Your turn - {serviceName} - #{n}',
+      titleWaiting: 'Waiting - {serviceName}',
+      progressStart: 'Start',
+      progressYou: 'You',
+      progressEnd: 'End',
+      progressAhead: '{n} ahead of you',
+      progressNotStarted: 'Not started yet',
+      progressPassed: 'Your number has passed. Please contact staff or take a new ticket.',
+      doneTitle: 'Service completed. Thank you!',
+      doneSubtitle: 'See you next time',
+      doneCtaHome: 'Back home',
+      doneCtaRetake: 'Take new ticket',
+      skippedTitle: 'Your number was skipped',
+      skippedSubtitle: 'Please contact staff or take a new ticket if you still need service',
+      skippedCtaContact: 'Contact merchant'
     },
     status: {
       WAITING: 'Waiting',
@@ -363,7 +511,60 @@ export default {
       queueFull: 'All tickets issued for today',
       noWaiting: 'No waiting tickets',
       invalidTransition: 'Invalid ticket state transition',
-      ticketNotFound: 'Ticket not found'
+      ticketNotFound: 'Ticket not found',
+      findAmbiguous: 'More than one match. Please visit the counter with your phone for verification.',
+      findNotFound: 'No ticket found today',
+      findInvalid: 'Please enter a 4-digit number'
+    }
+  },
+  slot: {
+    reason: {
+      past: 'Past',
+      taken: 'Booked',
+      capacity: 'Full',
+      closed: 'Closed',
+      holiday: 'Holiday',
+      inactive: 'Inactive'
+    },
+    reasonTooltip: {
+      past: 'This time slot has passed and is no longer available',
+      taken: 'This slot is already booked by another customer',
+      capacity: 'This slot is fully booked',
+      closed: 'This time period is a break',
+      holiday: 'This day is a holiday',
+      inactive: 'This resource is currently inactive'
+    },
+    prefillNotice: 'You selected {time}. Please continue filling in customer information.',
+    prefillUnavailable: 'The slot you selected ({time}) is unavailable ({reason}). Please choose another time.'
+  },
+  appointment: {
+    status: {
+      CONFIRMED: 'Confirmed',
+      CANCELED: 'Canceled',
+      COMPLETED: 'Completed',
+      NO_SHOW: 'No-show'
+    },
+    customerTitle: {
+      MR: 'Mr.',
+      MRS: 'Mrs.',
+      MISS: 'Miss',
+      MX: 'Mx.'
+    },
+    list: {
+      showArchived: 'Show closed',
+      showArchivedHint: 'Also show canceled / completed / no-show records (up to 90 days back)'
+    },
+    tooltip: {
+      list: 'Active appointments (toggle "Show closed" to view canceled / completed / no-show)',
+      archive: 'Archived records older than 90 days'
+    },
+    actions: {
+      backToMain: '← Back to Appointments',
+      more: 'More',
+      detail: 'Detail',
+      cancel: 'Cancel',
+      complete: 'Mark completed',
+      noShow: 'Mark no-show'
     }
   }
 };

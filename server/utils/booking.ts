@@ -67,6 +67,60 @@ export const MSG_APPOINTMENT_ALREADY_CANCELED: I18nMessage = {
   ja: '予約はすでにキャンセル済みです'
 };
 
+export const MSG_APPOINTMENT_NOT_CONFIRMED: I18nMessage = {
+  zh_tw: '只有已確認的預約可標記完成或未到',
+  en: 'Only confirmed appointments can be marked completed or no-show',
+  ja: '確認済みの予約のみ完了または不在を記録できます'
+};
+
+export const MSG_APPOINTMENT_NOT_YET_STARTED: I18nMessage = {
+  zh_tw: '預約時間尚未開始，無法標記完成或未到',
+  en: 'Appointment has not started yet, cannot mark completed or no-show',
+  ja: '予約時間が開始されていないため、完了または不在を記録できません'
+};
+
+export const MSG_BOOKING_LIMIT_EXCEEDED: I18nMessage = {
+  zh_tw: '您在本商家的預約已達上限，請取消舊預約後再試',
+  en: 'You have reached the booking limit at this merchant, please cancel an existing booking and try again',
+  ja: 'この店舗での予約数が上限に達しました。既存の予約をキャンセルしてから再度お試しください'
+};
+
+// ====== 狀態流轉守衛（純函式，供 endpoint + 測試共用） ======
+
+export interface TransitionableAppointment {
+  merchantId: string;
+  status: string;
+  startAt: Date;
+}
+
+export type TransitionCheckResult =
+  | { ok: true }
+  | { ok: false; kind: 'not_found' }
+  | { ok: false; kind: 'bad_request'; message: I18nMessage };
+
+/**
+ * 檢查商家是否可對該預約執行「標記完成」或「標記未到」。
+ * - 預約不存在 / 不屬於該商家 → not_found（呼叫端回 404，避免洩漏存在性）
+ * - status 非 CONFIRMED → bad_request: MSG_APPOINTMENT_NOT_CONFIRMED
+ * - startAt 未過 → bad_request: MSG_APPOINTMENT_NOT_YET_STARTED
+ */
+export const checkAppointmentTransitionable = (
+  appointment: TransitionableAppointment | null,
+  merchantId: string,
+  now: Date = new Date()
+): TransitionCheckResult => {
+  if (!appointment || appointment.merchantId !== merchantId) {
+    return { ok: false, kind: 'not_found' };
+  }
+  if (appointment.startAt.getTime() > now.getTime()) {
+    return { ok: false, kind: 'bad_request', message: MSG_APPOINTMENT_NOT_YET_STARTED };
+  }
+  if (appointment.status !== 'CONFIRMED') {
+    return { ok: false, kind: 'bad_request', message: MSG_APPOINTMENT_NOT_CONFIRMED };
+  }
+  return { ok: true };
+};
+
 // ====== 三元組正規化 ======
 
 export const normalizePhone = (phone: string): string =>
@@ -103,6 +157,34 @@ export const checkCancelCutoff = (
   const diffMs = startAt.getTime() - now.getTime();
   if (diffMs < hours * 3600 * 1000) return MSG_CANCEL_TOO_LATE;
   return null;
+};
+
+// ====== 顧客預約上限 ======
+
+/** 構造「同一手機在本商家未來 CONFIRMED 預約」的 where 條件（供 Prisma count 與測試共用） */
+export const buildBookingLimitWhere = (
+  merchantId: string,
+  phone: string,
+  now: Date = new Date()
+) => ({
+  merchantId,
+  customerPhone: normalizePhone(phone),
+  status: 'CONFIRMED' as const,
+  startAt: { gte: now }
+});
+
+export interface CheckBookingLimitInput {
+  activeCount: number;
+  maxLimit: number;
+  byMerchant?: boolean;
+}
+
+/** 純函式：商家代客一律通過；否則 activeCount < maxLimit 才通過 */
+export const checkBookingLimit = (
+  input: CheckBookingLimitInput
+): { allowed: boolean } => {
+  if (input.byMerchant) return { allowed: true };
+  return { allowed: input.activeCount < input.maxLimit };
 };
 
 // ====== Advisory lock key ======
@@ -154,7 +236,7 @@ export interface CreateAppointmentFailure {
 export const createAppointment = async (
   input: CreateAppointmentInput
 ): Promise<CreateAppointmentSuccess | CreateAppointmentFailure> => {
-  const { event, merchantId, serviceId, resourceId, startAtIso, customer, note } = input;
+  const { event, merchantId, serviceId, resourceId, startAtIso, customer, note, byMerchant } = input;
 
   // 1. 驗 startAt 是否未過期
   const startAt = new Date(startAtIso);
@@ -191,11 +273,28 @@ export const createAppointment = async (
 
   const endAt = new Date(startAt.getTime() + service.durationMinutes * 60 * 1000);
   const capacity = service.bookingMode === 'TIME_CAPACITY' ? service.capacityPerSlot : 1;
+  const normalizedPhone = normalizePhone(customer.phone);
   const lockKey = buildLockKey(merchantId, resourceId ?? null, startAt.toISOString());
 
   try {
     const created = await prisma.$transaction(async (tx) => {
       await acquireAdvisoryLock(tx, lockKey);
+
+      // 先檢查顧客上限（商家代客預約略過）
+      if (!byMerchant) {
+        const merchantRow = await tx.merchant.findUnique({
+          where: { id: merchantId },
+          select: { maxActiveAppointmentsPerCustomer: true }
+        });
+        const maxLimit = merchantRow?.maxActiveAppointmentsPerCustomer ?? 5;
+        const activeCount = await tx.appointment.count({
+          where: buildBookingLimitWhere(merchantId, customer.phone)
+        });
+        const { allowed } = checkBookingLimit({ activeCount, maxLimit, byMerchant });
+        if (!allowed) {
+          return { limitExceeded: true as const };
+        }
+      }
 
       // 重檢已佔用人數
       const occupied = await tx.appointment.count({
@@ -226,15 +325,18 @@ export const createAppointment = async (
           endAt,
           customerLastName: customer.lastName,
           customerTitle: customer.title,
-          customerPhone: normalizePhone(customer.phone),
+          customerPhone: normalizedPhone,
           note: note ?? null
         },
         select: { id: true, startAt: true, endAt: true }
       });
-      return { taken: false as const, appt };
+      return { ok: true as const, appt };
     });
 
-    if (created.taken) {
+    if ('limitExceeded' in created) {
+      return { ok: false, response: conflictError(event, MSG_BOOKING_LIMIT_EXCEEDED) };
+    }
+    if ('taken' in created) {
       return { ok: false, response: conflictError(event, MSG_SLOT_TAKEN) };
     }
     return { ok: true, appointment: created.appt };

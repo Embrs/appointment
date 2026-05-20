@@ -8,6 +8,7 @@ definePageMeta({
 
 const route = useRoute();
 const router = useRouter();
+const localePath = useLocalePath();
 const useAsk = UseAsk();
 
 const QueryStatus = (raw: unknown): MerchantStatusFilter => {
@@ -26,7 +27,7 @@ const total = ref(0);
 
 const SyncQuery = () => {
   router.replace({
-    path: '/sys/merchants',
+    path: localePath('/sys/merchants'),
     query: {
       status: status.value === 'ALL' ? undefined : status.value,
       keyword: keyword.value || undefined,
@@ -171,7 +172,7 @@ onMounted(() => {
   )
     ElTableColumn(prop="name" label="商家名稱" min-width="180")
       template(#default="{ row }")
-        NuxtLink.PageSysMerchantsIndex__name-link(:to="`/sys/merchants/${row.id}`") {{ row.name }}
+        NuxtLinkLocale.PageSysMerchantsIndex__name-link(:to="`/sys/merchants/${row.id}`") {{ row.name }}
     ElTableColumn(prop="slug" label="slug" min-width="140")
     ElTableColumn(prop="ownerEmail" label="OWNER" min-width="200")
     ElTableColumn(prop="status" label="狀態" width="100")
@@ -180,12 +181,12 @@ onMounted(() => {
     ElTableColumn(label="操作" width="280" fixed="right")
       template(#default="{ row }")
         .PageSysMerchantsIndex__actions
-          ElButton(size="small" link @click="router.push(`/sys/merchants/${row.id}`)") 檢視
+          ElButton(size="small" link @click="router.push(localePath(`/sys/merchants/${row.id}`))") 檢視
           template(v-if="row.status === 'PENDING'")
             ElButton(size="small" type="primary" @click="ClickApprove(row)") 審核
             ElButton(size="small" type="danger" plain @click="ClickReject(row)") 拒絕
           template(v-else-if="row.status === 'ACTIVE'")
-            NuxtLink(:to="ImpersonateUrl(row.id)")
+            NuxtLinkLocale(:to="ImpersonateUrl(row.id)")
               ElButton(size="small" type="primary" plain) 進入後台
             ElButton(size="small" type="warning" plain @click="SuspendFlow(row)") 停用
           template(v-else-if="row.status === 'SUSPENDED'")

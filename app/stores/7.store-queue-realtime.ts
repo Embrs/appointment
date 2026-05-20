@@ -1,6 +1,9 @@
 // 號碼牌即時 store：WS 連線 + 15 秒輪詢兜底
 // 規範：頁面 mounted 時呼叫 Connect(merchantId)；unmounted 時 Disconnect
 // 雙軌制：WS 為主、HTTP polling 為 fallback；onmessage 直接 patch 本地 state
+// 連線狀態四態：live / reconnecting / fallback / offline，state 切換 1.5s debounce（避免短瞬斷抖動）
+
+export type QueueConnectionState = 'live' | 'reconnecting' | 'fallback' | 'offline';
 
 interface ServiceServingState {
   /** 服務 ID */
@@ -22,6 +25,21 @@ interface QueueBroadcastMessage {
   timestamp: number;
 }
 
+/** UseWS 內部 backoff 設定（與 use-ws.ts 對齊）；用來推估倒數初始值 */
+const WS_INITIAL_BACKOFF_MS = 1000;
+const WS_BACKOFF_FACTOR = 1.6;
+const WS_MAX_BACKOFF_MS = 30000;
+/** 連續重試到此次數視為 fallback */
+const FALLBACK_RETRY_THRESHOLD = 3;
+/** state 切換 debounce */
+const STATE_DEBOUNCE_MS = 1500;
+
+const CalcBackoffSeconds = (retry: number): number => {
+  const exp = Math.min(retry, 10);
+  const delayMs = Math.min(WS_INITIAL_BACKOFF_MS * Math.pow(WS_BACKOFF_FACTOR, exp), WS_MAX_BACKOFF_MS);
+  return Math.max(1, Math.ceil(delayMs / 1000));
+};
+
 export const StoreQueueRealtime = defineStore('StoreQueueRealtime', () => {
   /** 各服務當前服務中狀態，key=serviceId */
   const serviceMap = ref<Record<string, ServiceServingState>>({});
@@ -29,10 +47,16 @@ export const StoreQueueRealtime = defineStore('StoreQueueRealtime', () => {
   const myTicketId = ref<string>('');
   /** 自己票的完整資料（用於顯示 + 兜底輪詢比對） */
   const myTicket = ref<GetQueueTicketRes | null>(null);
-  /** WS 是否連線 */
+  /** WS 是否連線（既有對外狀態，向下相容） */
   const isWsConnected = ref(false);
   /** 最後一次廣播時間 */
   const lastEventAt = ref(0);
+  /** 連線狀態四態（經 debounce） */
+  const connectionState = ref<QueueConnectionState>('offline');
+  /** 重連倒數秒；非 reconnecting 時恆為 0 */
+  const reconnectIn = ref(0);
+  /** 裝置是否在線（navigator.onLine） */
+  const isOnline = ref(true);
 
   /** 內部：WS handle */
   let wsHandle: ReturnType<typeof UseWS> | null = null;
@@ -40,6 +64,73 @@ export const StoreQueueRealtime = defineStore('StoreQueueRealtime', () => {
   let pollTimerId: ReturnType<typeof setInterval> | null = null;
   /** 當前訂閱中的 merchantId */
   let currentMerchantId = '';
+  /** state debounce timer */
+  let stateDebounceTimer: ReturnType<typeof setTimeout> | null = null;
+  /** 倒數 timer */
+  let countdownTimerId: ReturnType<typeof setInterval> | null = null;
+  /** WS retryCount watcher stop fn */
+  let stopRetryWatch: (() => void) | null = null;
+  /** online/offline listeners */
+  let onlineHandler: (() => void) | null = null;
+  let offlineHandler: (() => void) | null = null;
+
+  // ====== 連線狀態計算與套用 ======
+  const ComputeRawState = (): QueueConnectionState => {
+    if (!isOnline.value) return 'offline';
+    if (!wsHandle) return 'offline';
+    if (wsHandle.isConnected.value) return 'live';
+    if (wsHandle.retryCount.value >= FALLBACK_RETRY_THRESHOLD) return 'fallback';
+    return 'reconnecting';
+  };
+
+  const StopCountdown = () => {
+    if (countdownTimerId !== null) {
+      clearInterval(countdownTimerId);
+      countdownTimerId = null;
+    }
+    reconnectIn.value = 0;
+  };
+
+  const StartCountdown = () => {
+    StopCountdown();
+    const retry = wsHandle?.retryCount.value ?? 0;
+    reconnectIn.value = CalcBackoffSeconds(retry);
+    countdownTimerId = setInterval(() => {
+      if (reconnectIn.value <= 1) {
+        // 倒數結束：以新的 retryCount 重新估算下一次（UseWS 會自動排程重連）
+        const next = wsHandle?.retryCount.value ?? 0;
+        reconnectIn.value = CalcBackoffSeconds(next);
+      } else {
+        reconnectIn.value -= 1;
+      }
+    }, 1000);
+  };
+
+  const ApplyState = (next: QueueConnectionState) => {
+    if (connectionState.value === next) return;
+    connectionState.value = next;
+    StopCountdown();
+    if (next === 'reconnecting') StartCountdown();
+  };
+
+  const ScheduleApply = () => {
+    const target = ComputeRawState();
+    // live 切換立即生效（不抖動，回到綠燈越快越好）
+    if (target === 'live') {
+      if (stateDebounceTimer) {
+        clearTimeout(stateDebounceTimer);
+        stateDebounceTimer = null;
+      }
+      ApplyState('live');
+      return;
+    }
+    // 其餘狀態 1.5s debounce，避免短瞬斷抖動
+    if (stateDebounceTimer) clearTimeout(stateDebounceTimer);
+    stateDebounceTimer = setTimeout(() => {
+      stateDebounceTimer = null;
+      ApplyState(ComputeRawState());
+    }, STATE_DEBOUNCE_MS);
+  };
 
   // ====== WS 訊息處理 ======
   const HandleMessage = (_ev: MessageEvent, parsed: unknown | null) => {
@@ -138,6 +229,13 @@ export const StoreQueueRealtime = defineStore('StoreQueueRealtime', () => {
     Disconnect();
     currentMerchantId = merchantId;
 
+    // 初始化在線狀態並掛上 online/offline listener
+    isOnline.value = typeof navigator !== 'undefined' ? navigator.onLine !== false : true;
+    onlineHandler = () => { isOnline.value = true; ScheduleApply(); };
+    offlineHandler = () => { isOnline.value = false; ScheduleApply(); };
+    window.addEventListener('online', onlineHandler);
+    window.addEventListener('offline', offlineHandler);
+
     const proto = window.location.protocol === 'https:' ? 'wss' : 'ws';
     const wsURL = `${proto}://${window.location.host}/nuxt-api/queue/ws?merchantId=${encodeURIComponent(merchantId)}`;
     wsHandle = UseWS(wsURL, {
@@ -148,13 +246,20 @@ export const StoreQueueRealtime = defineStore('StoreQueueRealtime', () => {
       heartbeatMsg: 'ping',
       expectPong: true,
       parseJSON: true,
-      OnOpen: () => { isWsConnected.value = true; },
-      OnClose: () => { isWsConnected.value = false; },
+      OnOpen: () => { isWsConnected.value = true; ScheduleApply(); },
+      OnClose: () => { isWsConnected.value = false; ScheduleApply(); },
       OnMessage: HandleMessage
     });
+    // 監聽 retryCount 變動以同步 reconnecting / fallback 狀態
+    stopRetryWatch = watch(
+      () => wsHandle?.retryCount.value ?? 0,
+      () => ScheduleApply()
+    );
     // 手動觸發連線（UseWS 的 autoConnect 仰賴 onMounted，但 store 不是 component）
     try { wsHandle.Connect(); } catch { /* ignore */ }
     StartPolling();
+    // 首次狀態評估
+    ScheduleApply();
   };
 
   /** 主動斷線（離開頁面時呼叫） */
@@ -163,9 +268,35 @@ export const StoreQueueRealtime = defineStore('StoreQueueRealtime', () => {
       try { wsHandle.Disconnect(); wsHandle.Dispose(); } catch { /* ignore */ }
       wsHandle = null;
     }
+    if (stopRetryWatch) {
+      stopRetryWatch();
+      stopRetryWatch = null;
+    }
+    if (onlineHandler) {
+      window.removeEventListener('online', onlineHandler);
+      onlineHandler = null;
+    }
+    if (offlineHandler) {
+      window.removeEventListener('offline', offlineHandler);
+      offlineHandler = null;
+    }
+    if (stateDebounceTimer) {
+      clearTimeout(stateDebounceTimer);
+      stateDebounceTimer = null;
+    }
+    StopCountdown();
     isWsConnected.value = false;
+    connectionState.value = 'offline';
     currentMerchantId = '';
     StopPolling();
+  };
+
+  /** 立即重試 WS 連線（給連線 banner 上的「立即重試」按鈕） */
+  const ForceReconnect = () => {
+    if (!wsHandle) return;
+    try { wsHandle.ForceReconnect(); } catch { /* ignore */ }
+    // 立即評估狀態
+    ScheduleApply();
   };
 
   // ====== 對外：myTicket 操作 ======
@@ -194,8 +325,12 @@ export const StoreQueueRealtime = defineStore('StoreQueueRealtime', () => {
     myTicketId,
     isWsConnected,
     lastEventAt,
+    connectionState,
+    reconnectIn,
+    isOnline,
     Connect,
     Disconnect,
+    ForceReconnect,
     SetMyTicket,
     ClearMyTicket,
     RefreshMyTicket

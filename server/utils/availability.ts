@@ -19,12 +19,31 @@ dayjs.extend(timezone);
 
 // ====== 對外型別 ======
 
+/**
+ * Slot 不可選原因。僅在 `remaining=0` 時設置；可選時為 undefined。
+ * - `past`     已過時段（startAt < now）
+ * - `taken`    TIME_SLOT/RESOURCE 模式 capacity=1 被佔
+ * - `capacity` TIME_CAPACITY 模式 occupied >= capacityPerSlot
+ * - `closed`   邊界保留值（整日 closed 仍回 []，不在此使用）
+ * - `holiday`  邊界保留值（整日 holiday 仍回 []，不在此使用）
+ * - `inactive` 邊界保留值（資源停用時整日不回 slot，不在此使用）
+ */
+export type SlotUnavailableReason =
+  | 'past'
+  | 'taken'
+  | 'capacity'
+  | 'closed'
+  | 'holiday'
+  | 'inactive';
+
 export interface Slot {
   /** ISO UTC 時間字串 */
   startAt: string;
   endAt: string;
   capacity: number;
   remaining: number;
+  /** 不可選原因；可選時為 undefined */
+  reason?: SlotUnavailableReason;
 }
 
 export interface ComputeAvailabilityParams {
@@ -78,6 +97,8 @@ export interface BuildSlotsInput {
   timezone: string;
   /** YYYY-MM-DD（商家時區） */
   date: string;
+  /** 用於判定 `reason='past'` 的時間基準；外殼預設傳 new Date()，測試可注入 */
+  now?: Date;
 }
 
 // ====== Helpers（可單測） ======
@@ -115,7 +136,7 @@ export const getDayRangeUtc = (date: string, tz: string): { start: Date; end: Da
 // ====== 純函式：buildSlots ======
 
 export const buildSlots = (input: BuildSlotsInput): Slot[] => {
-  const { service, rules, override, isHoliday, occupiedMap, timezone: tz, date } = input;
+  const { service, rules, override, isHoliday, occupiedMap, timezone: tz, date, now } = input;
 
   // 整店休假 → 空
   if (isHoliday) return [];
@@ -141,6 +162,8 @@ export const buildSlots = (input: BuildSlotsInput): Slot[] => {
   if (!Number.isFinite(duration) || duration <= 0) return [];
 
   const capacity = service.bookingMode === 'TIME_CAPACITY' ? service.capacityPerSlot : 1;
+  const isCapacityMode = service.bookingMode === 'TIME_CAPACITY';
+  const nowMs = now ? now.getTime() : Number.NEGATIVE_INFINITY;
 
   const slots: Slot[] = [];
   for (const interval of intervals) {
@@ -153,11 +176,22 @@ export const buildSlots = (input: BuildSlotsInput): Slot[] => {
       const endAt = composeUtc(date, m + duration, tz);
       const startIso = startAt.toISOString();
       const occupied = occupiedMap.get(startIso) ?? 0;
+      const remaining = Math.max(0, capacity - occupied);
+
+      let reason: SlotUnavailableReason | undefined;
+      if (startAt.getTime() < nowMs) {
+        reason = 'past';
+      } else if (remaining <= 0) {
+        reason = isCapacityMode ? 'capacity' : 'taken';
+      }
+
       slots.push({
         startAt: startIso,
         endAt: endAt.toISOString(),
         capacity,
-        remaining: Math.max(0, capacity - occupied)
+        // 已過時段視為不可選；其他模式下 remaining 計算結果即為實際剩餘
+        remaining: reason === 'past' ? 0 : remaining,
+        ...(reason ? { reason } : {})
       });
     }
   }
@@ -323,7 +357,8 @@ export const computeAvailability = async (
     isHoliday: holidayRow !== null,
     occupiedMap,
     timezone: tz,
-    date: params.date
+    date: params.date,
+    now: new Date()
   });
 
   return { ok: true, timezone: tz, date: params.date, slots };

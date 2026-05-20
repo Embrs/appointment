@@ -95,22 +95,24 @@ model AdminUser {
 
 /// 商家
 model Merchant {
-  id           String         @id @default(cuid())
-  slug         String         @unique
-  name         String
-  description  String?
-  logoUrl      String?
-  coverUrl     String?
-  timezone     String         @default("Asia/Taipei")
-  status       MerchantStatus @default(PENDING)
+  id                               String         @id @default(cuid())
+  slug                             String         @unique
+  name                             String
+  description                      String?
+  logoUrl                          String?
+  coverUrl                         String?
+  timezone                         String         @default("Asia/Taipei")
+  status                           MerchantStatus @default(PENDING)
   /// 取消政策（含 hoursBeforeCannotCancel 等欄位，由業務層決定 JSON 結構）
-  cancelPolicy Json           @default("{}")
-  contactPhone String?
-  contactEmail String?
-  address      String?
-  createdAt    DateTime       @default(now())
-  updatedAt    DateTime       @updatedAt
-  deletedAt    DateTime?
+  cancelPolicy                     Json           @default("{}")
+  contactPhone                     String?
+  contactEmail                     String?
+  address                          String?
+  /// 同一手機在本商家未來 CONFIRMED 預約的最大筆數（1–99）
+  maxActiveAppointmentsPerCustomer Int            @default(5)
+  createdAt                        DateTime       @default(now())
+  updatedAt                        DateTime       @updatedAt
+  deletedAt                        DateTime?
 
   users               MerchantUser[]
   services            Service[]

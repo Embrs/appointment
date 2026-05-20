@@ -24,6 +24,11 @@ const ClickPrimary = () => {
   else emit('click-book', props.service.id);
 };
 
+const AriaLabel = computed(() => {
+  const action = IsQueue.value ? t('admin.bookingMode.QUEUE') : t('booking.nav.bookNow');
+  return `${action} - ${props.service.name}`;
+});
+
 const ModeLabel = computed(() => {
   switch (props.service.bookingMode) {
     case 'TIME_SLOT': return t('admin.bookingMode.TIME_SLOT');
@@ -41,7 +46,14 @@ const PriceLabel = computed(() => {
 </script>
 
 <template lang="pug">
-.BizServiceCard
+.BizServiceCard(
+  role="button"
+  tabindex="0"
+  :aria-label="AriaLabel"
+  @click="ClickPrimary"
+  @keydown.enter.prevent="ClickPrimary"
+  @keydown.space.prevent="ClickPrimary"
+)
   .BizServiceCard__head
     .BizServiceCard__name {{ service.name }}
     .BizServiceCard__mode {{ ModeLabel }}
@@ -49,11 +61,9 @@ const PriceLabel = computed(() => {
     span.BizServiceCard__duration {{ service.durationMinutes }}
     span.BizServiceCard__price(v-if="PriceLabel") {{ PriceLabel }}
   .BizServiceCard__desc(v-if="service.description") {{ service.description }}
-  .BizServiceCard__footer
-    ElButton.BizServiceCard__btn(
-      type="primary"
-      @click="ClickPrimary"
-    ) {{ IsQueue ? $t('admin.bookingMode.QUEUE') : $t('booking.nav.bookNow') }}
+  .BizServiceCard__chevron(aria-hidden="true")
+    svg(width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round")
+      polyline(points="9 18 15 12 9 6")
 </template>
 
 <style lang="scss" scoped>
@@ -67,6 +77,21 @@ const PriceLabel = computed(() => {
   flex-direction: column;
   gap: 8px;
   height: 100%;
+  cursor: pointer;
+  position: relative;
+  transition: transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease;
+  outline: none;
+}
+
+.BizServiceCard:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 20px -8px rgba(31, 42, 68, 0.18);
+  border-color: rgba(53, 77, 123, 0.25);
+}
+
+.BizServiceCard:focus-visible {
+  border-color: $primary;
+  box-shadow: 0 0 0 3px rgba(53, 77, 123, 0.25);
 }
 
 .BizServiceCard__head {
@@ -108,16 +133,27 @@ const PriceLabel = computed(() => {
   font-size: 13px;
   color: #909399;
   line-height: 1.5;
+  padding-right: 24px;
 }
 
-.BizServiceCard__footer {
-  margin-top: auto;
-  padding-top: 4px;
+.BizServiceCard__chevron {
+  position: absolute;
+  right: 12px;
+  bottom: 12px;
   display: flex;
-  justify-content: flex-end;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background-color: rgba(53, 77, 123, 0.06);
+  color: $primary;
+  transition: background-color 0.15s ease, transform 0.15s ease;
 }
 
-.BizServiceCard__btn {
-  min-width: 96px;
+.BizServiceCard:hover .BizServiceCard__chevron {
+  background-color: $primary;
+  color: $white;
+  transform: translateX(2px);
 }
 </style>

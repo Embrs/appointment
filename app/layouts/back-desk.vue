@@ -2,6 +2,7 @@
 // LayoutBackDesk — 平台管理員 / 商家後台 layout
 // 提供：側邊 nav、header（登出）、admin 標記、代理中橫條
 // 代理橫條僅當 selfType='merchant' 且 /auth/me 回傳 impersonatedBy 有值時顯示
+const { t } = useI18n();
 const storeSelf = StoreSelf();
 const impersonation = UseImpersonation();
 const useAsk = UseAsk();
@@ -57,7 +58,7 @@ onMounted(() => {
   .LayoutBackDesk__body
     //- 側邊欄
     aside.LayoutBackDesk__sidebar
-      NuxtLink.LayoutBackDesk__brand(to="/")
+      NuxtLinkLocale.LayoutBackDesk__brand(to="/")
         .LayoutBackDesk__brandMark A
         .LayoutBackDesk__brandText
           .LayoutBackDesk__brandName Appointment
@@ -65,25 +66,31 @@ onMounted(() => {
 
       nav.LayoutBackDesk__nav
         template(v-if="isAdmin")
-          NuxtLink.LayoutBackDesk__navLink(to="/sys") 總覽
-          NuxtLink.LayoutBackDesk__navLink(to="/sys/merchants") 商家管理
-          NuxtLink.LayoutBackDesk__navLink(to="/sys/admins") 管理員
+          NuxtLinkLocale.LayoutBackDesk__navLink(to="/sys") 總覽
+          NuxtLinkLocale.LayoutBackDesk__navLink(to="/sys/merchants") 商家管理
+          NuxtLinkLocale.LayoutBackDesk__navLink(to="/sys/admins") 管理員
         template(v-else)
-          NuxtLink.LayoutBackDesk__navLink(to="/admin") 首頁
-          NuxtLink.LayoutBackDesk__navLink(
-            v-if="storeSelf.HasRule('merchant.settings.update')"
-            to="/admin/settings"
-          ) 商家設定
-          NuxtLink.LayoutBackDesk__navLink(to="/admin/share-link") 對外連結
-          NuxtLink.LayoutBackDesk__navLink(to="/admin/services") 服務
-          NuxtLink.LayoutBackDesk__navLink(to="/admin/resources") 資源
-          NuxtLink.LayoutBackDesk__navLink(to="/admin/schedule") 時段
-          NuxtLink.LayoutBackDesk__navLink(to="/admin/holidays") 休假
-          NuxtLink.LayoutBackDesk__navLink(to="/admin/queue") 叫號
-          NuxtLink.LayoutBackDesk__navLink(
-            v-if="storeSelf.HasRule('merchant.staff.manage')"
-            to="/admin/staff"
-          ) 成員
+          .LayoutBackDesk__navSection
+            .LayoutBackDesk__navSectionTitle {{ t('admin.nav.sectionOperate') }}
+            NuxtLinkLocale.LayoutBackDesk__navLink(to="/admin") {{ t('admin.nav.home') }}
+            NuxtLinkLocale.LayoutBackDesk__navLink(to="/admin/appointments") {{ t('admin.nav.appointments') }}
+            NuxtLinkLocale.LayoutBackDesk__navLink(to="/admin/queue") {{ t('admin.nav.queue') }}
+          .LayoutBackDesk__navSection
+            .LayoutBackDesk__navSectionTitle {{ t('admin.nav.sectionSchedule') }}
+            NuxtLinkLocale.LayoutBackDesk__navLink(to="/admin/schedule") {{ t('admin.nav.schedule') }}
+          .LayoutBackDesk__navSection
+            .LayoutBackDesk__navSectionTitle {{ t('admin.nav.sectionSettings') }}
+            NuxtLinkLocale.LayoutBackDesk__navLink(
+              v-if="storeSelf.HasRule('merchant.settings.update')"
+              to="/admin/settings"
+            ) {{ t('admin.nav.settings') }}
+            NuxtLinkLocale.LayoutBackDesk__navLink(to="/admin/share-link") {{ t('admin.nav.shareLink') }}
+            NuxtLinkLocale.LayoutBackDesk__navLink(to="/admin/services") {{ t('admin.nav.services') }}
+            NuxtLinkLocale.LayoutBackDesk__navLink(to="/admin/resources") {{ t('admin.nav.resources') }}
+            NuxtLinkLocale.LayoutBackDesk__navLink(
+              v-if="storeSelf.HasRule('merchant.staff.manage')"
+              to="/admin/staff"
+            ) {{ t('admin.nav.staff') }}
 
       .LayoutBackDesk__sidebarFooter
         .LayoutBackDesk__sidebarUser
@@ -247,6 +254,27 @@ $headerHeight: 60px;
   flex-direction: column;
   gap: 2px;
   overflow-y: auto;
+}
+
+.LayoutBackDesk__navSection {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 6px 0 10px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.LayoutBackDesk__navSection:last-child {
+  border-bottom: none;
+}
+
+.LayoutBackDesk__navSectionTitle {
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.38);
+  padding: 6px 14px 4px;
 }
 
 .LayoutBackDesk__navLink {
@@ -434,6 +462,17 @@ $headerHeight: 60px;
     overflow-x: auto;
     padding: 8px;
     gap: 4px;
+  }
+
+  .LayoutBackDesk__navSection {
+    flex-direction: row;
+    padding: 0;
+    border-bottom: none;
+    gap: 4px;
+  }
+
+  .LayoutBackDesk__navSectionTitle {
+    display: none;
   }
 
   .LayoutBackDesk__navLink {

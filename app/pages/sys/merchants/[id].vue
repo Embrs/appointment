@@ -193,7 +193,7 @@ onMounted(() => {
           ElButton(type="primary" @click="ClickApprove") 審核通過
           ElButton(type="danger" plain @click="ClickReject") 拒絕
         template(v-else-if="merchant.status === 'ACTIVE'")
-          NuxtLink(:to="`/sys/impersonate/${merchant.id}`")
+          NuxtLinkLocale(:to="`/sys/impersonate/${merchant.id}`")
             ElButton(type="primary") 進入該商家後台
           ElButton(type="warning" plain @click="ClickSuspend") 停用
         template(v-else-if="merchant.status === 'SUSPENDED'")

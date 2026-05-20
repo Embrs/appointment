@@ -16,6 +16,11 @@ export const TakeQueueTicket = () =>
     timezone: 'Asia/Taipei'
   });
 
+export const FindQueueTicket = () =>
+  SuccessRes<FindQueueTicketRes>({
+    ticketId: 'mock-ticket-1'
+  });
+
 export const GetQueueTicket = () =>
   SuccessRes<GetQueueTicketRes>({
     ticket: {

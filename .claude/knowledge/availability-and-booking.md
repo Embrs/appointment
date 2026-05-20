@@ -76,8 +76,19 @@ await prisma.$transaction(async (tx) => {
 
 1. 驗 `startAt` 不為過去 → 400 `MSG_PAST_SLOT`
 2. 查 `Service` + 驗 BookingMode/resource 一致性
-3. 進入事務：取 advisory lock → `count CONFIRMED appointments` 重檢 → 超過 capacity 回 409 `MSG_SLOT_TAKEN`，否則 `create`
+3. 進入事務：取 advisory lock →
+   - 顧客上限檢查（`byMerchant !== true` 時）：查 `Merchant.maxActiveAppointmentsPerCustomer`，再 `count` 該手機在本商家未來 CONFIRMED 預約；達上限 → 409 `MSG_BOOKING_LIMIT_EXCEEDED`
+   - `count CONFIRMED appointments` 重檢 slot 容量 → 超過 capacity 回 409 `MSG_SLOT_TAKEN`
+   - 否則 `create`
 4. 失敗一律 `return conflictError(...)`，**不 throw**
+
+### 顧客預約上限
+
+- 欄位：`Merchant.maxActiveAppointmentsPerCustomer Int @default(5)`，範圍 1–99
+- 純函式：`checkBookingLimit({ activeCount, maxLimit, byMerchant })` 與 `buildBookingLimitWhere(merchantId, phone, now)`（供測試與 Prisma `count` 共用 where 條件）
+- 計入：同 `merchantId` + `normalizePhone(phone)` + `status='CONFIRMED'` + `startAt >= now()`
+- 略過：`byMerchant: true` 商家代客預約一律放行（與 `cancelPolicy` 略過策略一致）
+- 顧客面 `book.vue` 收到 409 + `MSG_BOOKING_LIMIT_EXCEEDED` 時用 `ElMessageBox.alert` 並導向 `/m/[slug]/my-bookings`
 
 ## 取消政策
 

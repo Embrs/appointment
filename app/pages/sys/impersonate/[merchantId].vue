@@ -9,6 +9,7 @@ definePageMeta({
 });
 
 const route = useRoute();
+const localePath = useLocalePath();
 const merchantId = computed(() => String(route.params.merchantId ?? ''));
 
 const errorMsg = ref('');
@@ -16,13 +17,13 @@ const errorMsg = ref('');
 const RunFlow = async () => {
   if (!merchantId.value) {
     errorMsg.value = '缺少商家 ID';
-    setTimeout(() => navigateTo('/sys/merchants'), 2000);
+    setTimeout(() => navigateTo(localePath('/sys/merchants')), 2000);
     return;
   }
   const res = await $api.SysImpersonateMerchant({ id: merchantId.value });
   if (res.status.code !== $enum.apiStatus.success) {
     errorMsg.value = res.status.message?.zh_tw || '代理失敗';
-    setTimeout(() => navigateTo('/sys/merchants'), 3000);
+    setTimeout(() => navigateTo(localePath('/sys/merchants')), 3000);
     return;
   }
   const { token, merchantId: mid, ownerName, ownerEmail } = res.data;
@@ -33,7 +34,7 @@ const RunFlow = async () => {
     userName: ownerName,
     userEmail: ownerEmail
   });
-  await navigateTo('/admin', { replace: true });
+  await navigateTo(localePath('/admin'), { replace: true });
 };
 
 onMounted(() => {

@@ -5,6 +5,7 @@ definePageMeta({ layout: 'front-desk' });
 
 const { t } = useI18n();
 const route = useRoute();
+const localePath = useLocalePath();
 const slug = computed(() => String(route.params.slug ?? ''));
 const initialServiceId = computed(() => String(route.query.serviceId ?? ''));
 
@@ -20,12 +21,12 @@ const slotsLoading = ref(false);
 const timezone = ref('Asia/Taipei');
 
 // 步驟狀態
-type StepName = 'service' | 'resource' | 'date' | 'slot' | 'info';
+type StepName = 'service' | 'resource' | 'datetime' | 'info';
 const stepOrder = computed<StepName[]>(() => {
   const needRes = selectedService.value?.bookingMode === 'RESOURCE';
   return needRes
-    ? ['service', 'resource', 'date', 'slot', 'info']
-    : ['service', 'date', 'slot', 'info'];
+    ? ['service', 'resource', 'datetime', 'info']
+    : ['service', 'datetime', 'info'];
 });
 const currentStep = ref<StepName>('service');
 const stepIndex = computed(() => stepOrder.value.indexOf(currentStep.value));
@@ -74,7 +75,7 @@ const ApiLoad = async () => {
       const s = services.value.find((x) => x.id === initialServiceId.value);
       if (s) {
         form.serviceId = s.id;
-        currentStep.value = s.bookingMode === 'RESOURCE' ? 'resource' : 'date';
+        currentStep.value = s.bookingMode === 'RESOURCE' ? 'resource' : 'datetime';
         if (s.bookingMode !== 'RESOURCE') {
           form.date = TodayStr(1);
           await ApiLoadSlots();
@@ -129,40 +130,47 @@ const ClickPickService = (id: string) => {
   form.startAt = '';
   slots.value = [];
   const needRes = selectedService.value?.bookingMode === 'RESOURCE';
-  currentStep.value = needRes ? 'resource' : 'date';
+  currentStep.value = needRes ? 'resource' : 'datetime';
   if (!needRes && !form.date) form.date = TodayStr(1);
   if (!needRes) ApiLoadSlots();
 };
 
 const ClickQueueFromBook = (_serviceId: string) => {
-  navigateTo(`/m/${slug.value}/queue`);
+  navigateTo(localePath(`/m/${slug.value}/queue`));
 };
 
 const ClickPickResource = (id: string) => {
   form.resourceId = id;
   if (!form.date) form.date = TodayStr(1);
-  currentStep.value = 'date';
+  currentStep.value = 'datetime';
   ApiLoadSlots();
 };
 
 watch(() => form.date, () => {
-  if (currentStep.value === 'date' || currentStep.value === 'slot') ApiLoadSlots();
+  if (currentStep.value === 'datetime') ApiLoadSlots();
 });
-
-const ClickNextFromDate = () => {
-  if (!form.date) { ElMessage.warning(t('validation.selectDate')); return; }
-  currentStep.value = 'slot';
-};
 
 const ClickPickSlot = (slot: AvailabilitySlot) => {
   form.startAt = slot.startAt;
   form.endAt = slot.endAt;
+};
+
+const ClickNextFromDateTime = () => {
+  if (!form.startAt) {
+    ElMessage.warning(t('validation.selectSlot'));
+    return;
+  }
   currentStep.value = 'info';
 };
 
 const ClickBack = () => {
   const i = stepIndex.value;
-  if (i > 0) currentStep.value = stepOrder.value[i - 1]!;
+  if (i <= 0) return;
+  if (currentStep.value === 'datetime') {
+    form.startAt = '';
+    form.endAt = '';
+  }
+  currentStep.value = stepOrder.value[i - 1]!;
 };
 
 const ConfirmFlow = async () => {
@@ -196,7 +204,21 @@ const ConfirmFlow = async () => {
       startAt: form.startAt,
       timezone: timezone.value
     });
-    navigateTo(`/m/${slug.value}/my-bookings`);
+    navigateTo(localePath(`/m/${slug.value}/my-bookings`));
+    return;
+  }
+
+  // 達顧客預約上限：alert 後引導至我的預約
+  if (result.limitExceeded) {
+    await ElMessageBox.alert(
+      `${t('booking.messages.limitExceeded')}\n\n${t('booking.messages.limitExceededHint')}`,
+      t('booking.messages.limitExceededTitle'),
+      {
+        confirmButtonText: t('booking.messages.goMyBookings'),
+        type: 'warning'
+      }
+    ).catch(() => null);
+    navigateTo(localePath(`/m/${slug.value}/my-bookings`));
   }
 };
 
@@ -222,7 +244,7 @@ onMounted(ApiLoad);
     :title="$t('booking.nav.bookNow')"
     :back-to="`/m/${slug}`"
   )
-  .PageBook__loading(v-if="loading") 載入中…
+  .PageBook__loading(v-if="loading") {{ $t('common.loading') }}
   template(v-else)
     //- 步驟條
     .PageBook__steps
@@ -241,7 +263,7 @@ onMounted(ApiLoad);
     .PageBook__panel
       //- Step: service
       template(v-if="currentStep === 'service'")
-        h3.PageBook__panelTitle 選擇服務
+        h3.PageBook__panelTitle {{ $t('booking.panel.pickService') }}
         .PageBook__serviceGrid
           BizServiceCard(
             v-for="s in services"
@@ -253,54 +275,49 @@ onMounted(ApiLoad);
 
       //- Step: resource
       template(v-else-if="currentStep === 'resource'")
-        h3.PageBook__panelTitle 選擇資源
+        h3.PageBook__panelTitle {{ $t('booking.panel.pickResource') }}
         BizResourcePicker(
           :model-value="form.resourceId"
           :resources="availableResources"
           @update:model-value="ClickPickResource"
         )
         .PageBook__nav
-          ElButton(@click="ClickBack") 上一步
+          ElButton(size="large" @click="ClickBack") {{ $t('common.previous') }}
 
-      //- Step: date
-      template(v-else-if="currentStep === 'date'")
-        h3.PageBook__panelTitle 選擇日期
-        BizDatePickerCalendar(v-model="form.date")
+      //- Step: datetime（合併日期與時段）
+      template(v-else-if="currentStep === 'datetime'")
+        h3.PageBook__panelTitle {{ $t('booking.panel.pickDateTime') }}
+        .PageBook__datetime
+          .PageBook__datetimeCalendar
+            BizDatePickerCalendar(v-model="form.date")
+          .PageBook__datetimeSlots
+            BizSlotPicker(
+              :model-value="form.startAt"
+              :slots="slots"
+              :timezone="timezone"
+              :loading="slotsLoading"
+              @update:model-value="(iso) => { const s = slots.find(x => x.startAt === iso); if (s) ClickPickSlot(s); }"
+            )
         .PageBook__nav
-          ElButton(@click="ClickBack") 上一步
-          ElButton(type="primary" @click="ClickNextFromDate") 下一步
-
-      //- Step: slot
-      template(v-else-if="currentStep === 'slot'")
-        h3.PageBook__panelTitle 選擇時段
-        BizDatePickerCalendar(v-model="form.date")
-        .PageBook__slotBlock
-          BizSlotPicker(
-            :model-value="form.startAt"
-            :slots="slots"
-            :timezone="timezone"
-            :loading="slotsLoading"
-            @update:model-value="(iso) => { const s = slots.find(x => x.startAt === iso); if (s) ClickPickSlot(s); }"
-          )
-        .PageBook__nav
-          ElButton(@click="ClickBack") 上一步
+          ElButton(size="large" @click="ClickBack") {{ $t('common.previous') }}
+          ElButton(type="primary" size="large" :disabled="!form.startAt" @click="ClickNextFromDateTime") {{ $t('common.next') }}
 
       //- Step: info
       template(v-else-if="currentStep === 'info'")
-        h3.PageBook__panelTitle 填寫聯絡資訊
+        h3.PageBook__panelTitle {{ $t('booking.fillContactTitle') }}
         ElForm(label-position="top")
-          ElFormItem(label="姓氏" required)
-            ElInput(v-model="form.lastName" maxlength="20" size="large" placeholder="例：王")
-          ElFormItem(label="稱謂" required)
+          ElFormItem(:label="$t('booking.customer.lastName')" required)
+            ElInput(v-model="form.lastName" maxlength="20" size="large" :placeholder="$t('booking.customer.lastNamePlaceholder')")
+          ElFormItem(:label="$t('booking.customer.titleField')" required)
             ElSelect(v-model="form.title" size="large" style="width: 100%;")
               ElOption(v-for="opt in titleOptions" :key="opt.value" :label="opt.label" :value="opt.value")
-          ElFormItem(label="手機號碼" required)
-            ElInput(v-model="form.phone" maxlength="20" inputmode="numeric" size="large" placeholder="0912345678")
-          ElFormItem(label="備註（選填）")
+          ElFormItem(:label="$t('booking.customer.phone')" required)
+            ElInput(v-model="form.phone" maxlength="20" inputmode="numeric" size="large" :placeholder="$t('booking.customer.phonePlaceholder')")
+          ElFormItem(:label="$t('booking.customer.noteOptional')")
             ElInput(v-model="form.note" type="textarea" :rows="2" maxlength="200" show-word-limit)
         .PageBook__nav
-          ElButton(size="large" @click="ClickBack") 上一步
-          ElButton(type="primary" size="large" :disabled="!isFormValid" @click="ConfirmFlow") 預約確認
+          ElButton(size="large" @click="ClickBack") {{ $t('common.previous') }}
+          ElButton(type="primary" size="large" :disabled="!isFormValid" @click="ConfirmFlow") {{ $t('booking.actions.confirmBooking') }}
 </template>
 
 <style lang="scss" scoped>
@@ -413,18 +430,41 @@ onMounted(ApiLoad);
   gap: 12px;
 }
 
-.PageBook__slotBlock {
-  margin-top: 4px;
+.PageBook__datetime {
+  display: grid;
+  grid-template-columns: minmax(0, 320px) minmax(0, 1fr);
+  gap: 24px;
+  align-items: start;
+}
+
+.PageBook__datetimeCalendar,
+.PageBook__datetimeSlots {
+  min-width: 0;
+}
+
+@media (max-width: 768px) {
+  .PageBook__datetime {
+    grid-template-columns: 1fr;
+    gap: 16px;
+  }
 }
 
 .PageBook__nav {
   display: flex;
-  gap: 10px;
-  margin-top: 12px;
+  gap: 12px;
+  margin-top: 16px;
 }
 
 .PageBook__nav > * {
   flex: 1;
+}
+
+.PageBook__nav :deep(.el-button) {
+  min-height: 52px;
+  font-size: 15.5px;
+  font-weight: 600;
+  border-radius: 12px;
+  letter-spacing: 0.04em;
 }
 
 :deep(.el-input__wrapper),

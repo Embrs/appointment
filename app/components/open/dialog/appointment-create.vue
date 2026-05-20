@@ -1,6 +1,7 @@
 <script setup lang="ts">
 // OpenDialogAppointmentCreate — 商家代客建立預約
 // 步驟簡化版：選服務 → 選資源 → 選日期 → 選 slot → 填三元組 + note → 送出
+// 支援 prefillDate / prefillStartAt / prefillServiceId / prefillResourceId 預填
 import type { FormInstance, FormRules } from 'element-plus';
 
 type Props = {
@@ -10,6 +11,9 @@ type Props = {
 };
 const props = defineProps<Props>();
 
+const { t } = useI18n();
+const slotReason = UseSlotReason();
+
 const submitting = ref(false);
 const services = ref<ServiceItem[]>([]);
 const resources = ref<ResourceItem[]>([]);
@@ -18,15 +22,19 @@ const timezone = ref('Asia/Taipei');
 const loadingSlots = ref(false);
 
 const form = reactive({
-  serviceId: '',
-  resourceId: '',
-  date: $dayjs().format('YYYY-MM-DD'),
+  serviceId: props.params.prefillServiceId || '',
+  resourceId: props.params.prefillResourceId || '',
+  date: props.params.prefillDate || $dayjs().format('YYYY-MM-DD'),
   startAt: '',
   lastName: '',
   title: 'MR' as CustomerTitleType,
   phone: '',
   note: ''
 });
+
+// 預填提示狀態
+type PrefillNotice = { type: 'success' | 'warning'; message: string } | null;
+const prefillNotice = ref<PrefillNotice>(null);
 
 const selectedService = computed(() =>
   services.value.find((s) => s.id === form.serviceId) ?? null
@@ -80,7 +88,9 @@ const ApiLoadSlots = async () => {
   if (!form.date) return;
   loadingSlots.value = true;
   slots.value = [];
-  form.startAt = '';
+  // 預填情境保留 form.startAt 直到 slot 載完才比對；其他情境清空
+  const expectedStartAt = props.params.prefillStartAt;
+  if (!expectedStartAt) form.startAt = '';
   try {
     const res = await $api.GetAvailability({
       slug: props.params.slug,
@@ -91,6 +101,35 @@ const ApiLoadSlots = async () => {
     if (res.status.code === $enum.apiStatus.success) {
       slots.value = res.data.slots;
       timezone.value = res.data.timezone;
+      // 預填時段對應檢查
+      if (expectedStartAt) {
+        const target = slots.value.find((s) => s.startAt === expectedStartAt);
+        if (target && !target.reason && target.remaining > 0) {
+          form.startAt = target.startAt;
+          prefillNotice.value = {
+            type: 'success',
+            message: t('slot.prefillNotice', { time: fmtSlotTime(target.startAt) })
+          };
+        } else if (target) {
+          form.startAt = '';
+          prefillNotice.value = {
+            type: 'warning',
+            message: t('slot.prefillUnavailable', {
+              time: fmtSlotTime(target.startAt),
+              reason: slotReason.GetReasonLabel(target.reason)
+            })
+          };
+        } else {
+          form.startAt = '';
+          prefillNotice.value = {
+            type: 'warning',
+            message: t('slot.prefillUnavailable', {
+              time: $dayjs(new Date(expectedStartAt)).tz(timezone.value).format('HH:mm'),
+              reason: t('slot.reason.closed')
+            })
+          };
+        }
+      }
     }
   } finally {
     loadingSlots.value = false;
@@ -98,10 +137,14 @@ const ApiLoadSlots = async () => {
 };
 
 watch(() => form.serviceId, () => {
-  form.resourceId = '';
-  form.startAt = '';
-  slots.value = [];
-  if (!needResource.value) ApiLoadSlots();
+  if (!needResource.value) {
+    form.resourceId = '';
+    if (!props.params.prefillStartAt) form.startAt = '';
+    ApiLoadSlots();
+  } else if (!props.params.prefillResourceId) {
+    form.resourceId = '';
+    slots.value = [];
+  }
 });
 
 watch([() => form.resourceId, () => form.date], () => {
@@ -153,9 +196,38 @@ const ClickSubmit = async () => {
 
 const fmtSlotTime = (iso: string) => $dayjs(new Date(iso)).tz(timezone.value).format('HH:mm');
 
-onMounted(() => {
-  ApiLoadServices();
-  ApiLoadResources();
+// 時段區為空時的動態 placeholder：依缺哪個必填欄位給出具體指引
+const slotEmptyHint = computed(() => {
+  if (loadingSlots.value) return '';
+  if (slots.value.length > 0) return '';
+  if (!form.serviceId) return '請先選擇上方「服務」';
+  if (needResource.value && !form.resourceId) return '請先選擇上方「資源」';
+  if (!form.date) return '請先選擇「日期」';
+  return '本日無可預約時段，請改選其他日期';
+});
+
+const SlotClass = (s: AvailabilitySlot) => ({
+  'is-active': s.startAt === form.startAt,
+  'is-unavailable': !!s.reason || s.remaining <= 0,
+  [`is-reason-${s.reason || 'taken'}`]: !!s.reason
+});
+
+const SlotIsDisabled = (s: AvailabilitySlot) => !!s.reason || s.remaining <= 0;
+
+const SlotLabel = (s: AvailabilitySlot) => {
+  const time = fmtSlotTime(s.startAt);
+  if (!s.reason) return time;
+  return `${time} · ${slotReason.GetReasonLabel(s.reason)}`;
+};
+
+const SlotTooltip = (s: AvailabilitySlot) => s.reason ? slotReason.GetReasonTooltip(s.reason) : '';
+
+onMounted(async () => {
+  await Promise.all([ApiLoadServices(), ApiLoadResources()]);
+  // 若有預填 serviceId 但 watch 沒觸發，主動載 slots
+  if (form.serviceId) {
+    await ApiLoadSlots();
+  }
 });
 </script>
 
@@ -167,6 +239,14 @@ onMounted(() => {
       span.OpenDialogAppointmentCreate__title 代客建立預約
       button.OpenDialogAppointmentCreate__close(type="button" :disabled="submitting" @click="EmitClose(false)") ✕
     .OpenDialogAppointmentCreate__body
+      ElAlert(
+        v-if="prefillNotice"
+        :type="prefillNotice.type"
+        :title="prefillNotice.message"
+        show-icon
+        :closable="false"
+        style="margin-bottom: 12px;"
+      )
       ElForm(ref="formRef" :model="form" :rules="rules" label-position="top" @submit.prevent="ClickSubmit")
         ElFormItem(label="服務" prop="serviceId")
           ElSelect(
@@ -195,17 +275,26 @@ onMounted(() => {
             style="width: 100%;"
           )
         ElFormItem(label="時段" prop="startAt")
-          .OpenDialogAppointmentCreate__slots
-            .OpenDialogAppointmentCreate__slots-empty(v-if="loadingSlots") 載入中…
-            .OpenDialogAppointmentCreate__slots-empty(v-else-if="slots.length === 0") （請先選服務／資源／日期）
-            button.OpenDialogAppointmentCreate__slot(
+          .OpenDialogAppointmentCreate__slots(v-if="slots.length > 0 && !loadingSlots")
+            ElTooltip(
               v-for="s in slots"
               :key="s.startAt"
-              type="button"
-              :class="{ 'is-active': s.startAt === form.startAt, 'is-full': s.remaining <= 0 }"
-              :disabled="s.remaining <= 0"
-              @click="form.startAt = s.startAt"
-            ) {{ fmtSlotTime(s.startAt) }}
+              :content="SlotTooltip(s)"
+              :disabled="!SlotTooltip(s)"
+              placement="top"
+            )
+              button.OpenDialogAppointmentCreate__slot(
+                type="button"
+                :class="SlotClass(s)"
+                :disabled="SlotIsDisabled(s)"
+                @click="form.startAt = s.startAt"
+              ) {{ SlotLabel(s) }}
+          .OpenDialogAppointmentCreate__slotsHint(v-else-if="loadingSlots")
+            span.OpenDialogAppointmentCreate__slotsHintIcon ⏳
+            span 載入時段中…
+          .OpenDialogAppointmentCreate__slotsHint.is-empty(v-else)
+            span.OpenDialogAppointmentCreate__slotsHintIcon ⬆
+            span {{ slotEmptyHint }}
         ElDivider 顧客資訊
         ElFormItem(label="姓氏" prop="lastName")
           ElInput(v-model="form.lastName" maxlength="20")
@@ -276,9 +365,28 @@ onMounted(() => {
   gap: 6px;
 }
 
-.OpenDialogAppointmentCreate__slots-empty {
+.OpenDialogAppointmentCreate__slotsHint {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 14px 16px;
   font-size: 13px;
-  color: #909399;
+  color: #606266;
+  background: #f5f7fa;
+  border: 1px dashed #dcdfe6;
+  border-radius: 8px;
+  line-height: 1.5;
+}
+
+.OpenDialogAppointmentCreate__slotsHint.is-empty {
+  background: #fef6ec;
+  border-color: #f5dab1;
+  color: #b88230;
+}
+
+.OpenDialogAppointmentCreate__slotsHintIcon {
+  font-size: 16px;
+  flex-shrink: 0;
 }
 
 .OpenDialogAppointmentCreate__slot {
@@ -288,6 +396,12 @@ onMounted(() => {
   background: #fff;
   cursor: pointer;
   font-size: 13px;
+  transition: all 0.15s;
+}
+
+.OpenDialogAppointmentCreate__slot:not(:disabled):hover {
+  border-color: #409eff;
+  color: #409eff;
 }
 
 .OpenDialogAppointmentCreate__slot.is-active {
@@ -296,10 +410,24 @@ onMounted(() => {
   color: #fff;
 }
 
-.OpenDialogAppointmentCreate__slot.is-full {
+.OpenDialogAppointmentCreate__slot.is-unavailable {
   background: #f5f7fa;
   color: #c0c4cc;
+  border-color: #e4e7ed;
   cursor: not-allowed;
+  text-decoration: line-through;
+}
+
+.OpenDialogAppointmentCreate__slot.is-reason-past {
+  background: #f5f7fa;
+  color: #c0c4cc;
+}
+
+.OpenDialogAppointmentCreate__slot.is-reason-taken,
+.OpenDialogAppointmentCreate__slot.is-reason-capacity {
+  background: #fef0f0;
+  color: #f56c6c;
+  border-color: #fbc4c4;
 }
 
 .OpenDialogAppointmentCreate__footer {

@@ -72,7 +72,7 @@ onMounted(() => {
     template(v-else)
       p.PageAdminShareLink__empty
         | 尚未設定 slug ·
-        NuxtLink(to="/admin/settings") 前往商家設定
+        NuxtLinkLocale(to="/admin/settings") 前往商家設定
 </template>
 
 <style lang="scss" scoped>

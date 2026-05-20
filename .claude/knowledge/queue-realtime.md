@@ -29,8 +29,12 @@ type: reference
 | `POST /queue/[id]/done` | 標記完成 | merchant |
 | `POST /queue/[id]/skip` | 跳號 | merchant |
 | `GET /queue/ws` | WebSocket 訂閱 | 無（MVP 公開） |
+| `GET /merchant/queue-window` | 讀取某 QUEUE 服務的整週領號時段（query `serviceId`） | merchant |
+| `PUT /merchant/queue-window` | 整批覆寫某 QUEUE 服務的整週領號時段（事務內 deleteMany + createMany） | merchant |
 | `POST /public/queue/take` | 顧客領號 | 公開 |
 | `GET /public/queue/[id]` | 顧客查號 | 公開 |
+
+> `GET /public/m/[slug]` 對每個 `bookingMode=QUEUE` service 多回 `currentServing` / `ticketsTaken` / `waitingCount`（值由 `projectQueueServingPublic(counter)` 純函式組裝；無 counter 一律 0）。給領號頁初始載入用，WS 接手後續更新。
 
 ## 領號流程
 

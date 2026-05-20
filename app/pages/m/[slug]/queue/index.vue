@@ -3,14 +3,18 @@
 definePageMeta({ layout: 'front-desk' });
 
 const route = useRoute();
+const localePath = useLocalePath();
 const slug = computed(() => String(route.params.slug ?? ''));
 const sessionStore = StoreCustomerSession();
 const queueStore = StoreQueueRealtime();
+const recent = UseCustomerQueueRecent();
 
 const loading = ref(true);
 const taking = ref(false);
 const merchant = ref<PublicMerchantItem | null>(null);
 const queueServices = ref<PublicServiceItem[]>([]);
+const recentEntries = ref<CustomerQueueRecentEntry[]>([]);
+const dismissedTicketIds = ref<Set<string>>(new Set());
 
 // 載入商家公開資訊，並只保留 QUEUE 模式服務
 const ApiLoad = async () => {
@@ -30,6 +34,27 @@ const ApiLoad = async () => {
   }
 };
 
+// 顯示用：依 WS 推播優先、否則 fallback 初始載入值
+type ServingDisplay = {
+  kind: 'not-started' | 'no-called' | 'serving';
+  currentServing: number;
+  waitingCount: number;
+};
+
+const DisplayState = (s: PublicServiceItem): ServingDisplay => {
+  const wsState = queueStore.serviceMap[s.id];
+  const currentServing = wsState ? wsState.currentServing : (s.currentServing ?? 0);
+  const ticketsTaken = s.ticketsTaken ?? 0;
+  const waitingCount = Math.max(0, ticketsTaken - currentServing);
+  if (ticketsTaken === 0) {
+    return { kind: 'not-started', currentServing: 0, waitingCount: 0 };
+  }
+  if (currentServing === 0) {
+    return { kind: 'no-called', currentServing: 0, waitingCount };
+  }
+  return { kind: 'serving', currentServing, waitingCount };
+};
+
 const ApiTake = async (serviceId: string, customer: CustomerTripletShape) => {
   if (!merchant.value) return;
   taking.value = true;
@@ -44,8 +69,21 @@ const ApiTake = async (serviceId: string, customer: CustomerTripletShape) => {
       return;
     }
     sessionStore.SetTriplet(customer);
+    // 寫入 localStorage 供下次自動還原；只存末 4 碼避免敏感資訊外洩
+    const normalizedPhone = customer.phone.replace(/[\s-]/g, '');
+    recent.Append({
+      slug: slug.value,
+      merchantId: merchant.value.id,
+      ticketId: res.data.ticketId,
+      ticketNumber: res.data.ticketNumber,
+      ticketDate: res.data.ticketDate,
+      serviceId,
+      serviceName: res.data.serviceName,
+      phoneLast4: normalizedPhone.slice(-4),
+      takenAt: Date.now()
+    });
     // 直接導向 status 頁，由 status 頁負責建立 WS 連線
-    navigateTo(`/m/${slug.value}/queue/status?id=${res.data.ticketId}`);
+    navigateTo(localePath(`/m/${slug.value}/queue/status?id=${res.data.ticketId}`));
   } finally {
     taking.value = false;
   }
@@ -64,7 +102,35 @@ const ClickTake = async (serviceId: string) => {
   await ApiTake(serviceId, result.triplet);
 };
 
-onMounted(ApiLoad);
+const ClickResume = (entry: CustomerQueueRecentEntry) => {
+  navigateTo(localePath(`/m/${slug.value}/queue/status?id=${entry.ticketId}`));
+};
+
+const ClickDismissRecent = (entry: CustomerQueueRecentEntry) => {
+  // 僅本次隱藏，不從 localStorage 移除；保留作為下次出現的提示
+  const next = new Set(dismissedTicketIds.value);
+  next.add(entry.ticketId);
+  dismissedTicketIds.value = next;
+};
+
+const ClickFind = () => navigateTo(localePath(`/m/${slug.value}/queue/find`));
+
+const VisibleRecentEntries = computed(() => {
+  return recentEntries.value.filter((e) => !dismissedTicketIds.value.has(e.ticketId));
+});
+
+onMounted(async () => {
+  // 讀取 localStorage 紀錄（含當日過濾與防呆）
+  recentEntries.value = recent.ReadBySlug(slug.value);
+  await ApiLoad();
+  if (merchant.value?.id) {
+    queueStore.Connect(merchant.value.id);
+  }
+});
+
+onBeforeUnmount(() => {
+  queueStore.Disconnect();
+});
 
 const TitleHint = (mode: string) => mode === 'QUEUE' ? t('admin.bookingMode.QUEUE') : '';
 </script>
@@ -72,12 +138,38 @@ const TitleHint = (mode: string) => mode === 'QUEUE' ? t('admin.bookingMode.QUEU
 <template lang="pug">
 .PageQueueLanding
   BizCustomerPageHeader(:back-to="`/m/${slug}`")
-  .PageQueueLanding__loading(v-if="loading") 載入中…
+  .PageQueueLanding__loading(v-if="loading") {{ $t('common.loading') }}
   .PageQueueLanding__empty(v-else-if="!merchant") {{ $t('booking.messages.notFound') }}
   template(v-else)
+    //- 自動還原橫幅（onMounted 後若 localStorage 有當日同 slug 紀錄則顯示）
+    .PageQueueLanding__recent(
+      v-for="entry in VisibleRecentEntries"
+      :key="entry.ticketId"
+      data-testid="queue-recent-banner"
+    )
+      .PageQueueLanding__recentBody
+        .PageQueueLanding__recentTitle {{ $t('queue.page.recentTitle', { n: entry.ticketNumber }) }}
+        .PageQueueLanding__recentSub
+          span.PageQueueLanding__recentService {{ entry.serviceName }}
+          span.PageQueueLanding__recentSep ·
+          span.PageQueueLanding__recentHint {{ $t('queue.page.recentSubtitle') }}
+      .PageQueueLanding__recentActions
+        ElButton(
+          link
+          size="small"
+          data-testid="queue-recent-dismiss"
+          @click="ClickDismissRecent(entry)"
+        ) {{ $t('queue.page.recentDismiss') }}
+        ElButton(
+          type="primary"
+          size="small"
+          data-testid="queue-recent-return"
+          @click="ClickResume(entry)"
+        ) {{ $t('queue.page.recentReturn') }}
+
     //- 頁首 banner（漸層）
     .PageQueueLanding__hero
-      .PageQueueLanding__eyebrow 號碼牌服務
+      .PageQueueLanding__eyebrow {{ $t('queue.page.landingEyebrow') }}
       h1.PageQueueLanding__title {{ $t('queue.page.landingTitle') }}
       p.PageQueueLanding__desc {{ $t('queue.page.landingHint') }}
 
@@ -91,6 +183,24 @@ const TitleHint = (mode: string) => mode === 'QUEUE' ? t('admin.bookingMode.QUEU
           .PageQueueLanding__cardName {{ s.name }}
           .PageQueueLanding__cardMode {{ TitleHint(s.bookingMode) }}
         .PageQueueLanding__cardDesc(v-if="s.description") {{ s.description }}
+
+        //- 當前叫號狀態（即時 via WS；無 WS 訊息時讀初始載入值）
+        .PageQueueLanding__cardServing(:data-testid="`queue-serving-${s.id}`")
+          template(v-if="DisplayState(s).kind === 'not-started'")
+            .PageQueueLanding__servingNot {{ $t('queue.page.notStarted') }}
+          template(v-else-if="DisplayState(s).kind === 'no-called'")
+            .PageQueueLanding__servingChip
+              span.PageQueueLanding__servingLabel {{ $t('queue.page.currentServing') }}
+              span.PageQueueLanding__servingNum —
+            .PageQueueLanding__servingChip.PageQueueLanding__servingChip--waiting
+              span.PageQueueLanding__servingLabel {{ $t('queue.page.waitingCount', { n: DisplayState(s).waitingCount }) }}
+          template(v-else)
+            .PageQueueLanding__servingChip
+              span.PageQueueLanding__servingLabel {{ $t('queue.page.currentServing') }}
+              span.PageQueueLanding__servingNum {{ DisplayState(s).currentServing }}
+            .PageQueueLanding__servingChip.PageQueueLanding__servingChip--waiting
+              span.PageQueueLanding__servingLabel {{ $t('queue.page.waitingCount', { n: DisplayState(s).waitingCount }) }}
+
         .PageQueueLanding__cardFoot
           ElButton(
             type="primary"
@@ -99,6 +209,15 @@ const TitleHint = (mode: string) => mode === 'QUEUE' ? t('admin.bookingMode.QUEU
             data-testid="queue-take-btn"
             @click="ClickTake(s.id)"
           ) {{ $t('queue.page.take') }}
+
+    //- 找回我的號碼次要入口
+    .PageQueueLanding__findEntry(v-if="queueServices.length > 0")
+      ElButton(
+        link
+        type="primary"
+        data-testid="queue-find-entry"
+        @click="ClickFind"
+      ) {{ $t('queue.page.findEntry') }}
 </template>
 
 <style lang="scss" scoped>
@@ -113,6 +232,56 @@ const TitleHint = (mode: string) => mode === 'QUEUE' ? t('admin.bookingMode.QUEU
   text-align: center;
   color: rgba(69, 69, 69, 0.55);
   font-size: 14px;
+}
+
+// 自動還原橫幅 ----
+.PageQueueLanding__recent {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 18px;
+  background: linear-gradient(135deg, rgba(0, 173, 169, 0.12) 0%, rgba(0, 173, 169, 0.04) 100%);
+  border: 1px solid rgba(0, 173, 169, 0.28);
+  border-radius: 14px;
+}
+
+.PageQueueLanding__recentBody {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+  flex: 1 1 220px;
+}
+
+.PageQueueLanding__recentTitle {
+  font-size: 15px;
+  font-weight: 700;
+  color: $secondary;
+}
+
+.PageQueueLanding__recentSub {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+  font-size: 12.5px;
+  color: rgba(69, 69, 69, 0.7);
+}
+
+.PageQueueLanding__recentService {
+  font-weight: 600;
+}
+
+.PageQueueLanding__recentSep {
+  opacity: 0.4;
+}
+
+.PageQueueLanding__recentActions {
+  display: inline-flex;
+  gap: 8px;
+  flex-shrink: 0;
 }
 
 // 頁首 banner ----
@@ -278,8 +447,57 @@ const TitleHint = (mode: string) => mode === 'QUEUE' ? t('admin.bookingMode.QUEU
   line-height: 1.6;
 }
 
+.PageQueueLanding__cardServing {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
+.PageQueueLanding__servingNot {
+  font-size: 13.5px;
+  color: rgba(69, 69, 69, 0.55);
+  font-style: italic;
+}
+
+.PageQueueLanding__servingChip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  background-color: rgba(0, 173, 169, 0.12);
+  color: $secondary;
+  border-radius: 999px;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.PageQueueLanding__servingChip--waiting {
+  background-color: rgba(235, 139, 45, 0.12);
+  color: $tertiary;
+}
+
+.PageQueueLanding__servingLabel {
+  font-weight: 500;
+  font-size: 12.5px;
+  opacity: 0.85;
+}
+
+.PageQueueLanding__servingNum {
+  font-variant-numeric: tabular-nums;
+  font-size: 14px;
+  font-weight: 700;
+}
+
 .PageQueueLanding__cardFoot {
   display: flex;
   justify-content: flex-end;
+}
+
+// 找回我的號碼次要入口 ----
+.PageQueueLanding__findEntry {
+  display: flex;
+  justify-content: center;
+  padding-top: 4px;
 }
 </style>

@@ -37,11 +37,12 @@ type: reference
 | `POST /sys/merchant/[id]/approve` `reject` `suspend` `activate` | 商家狀態變更（PENDING→ACTIVE 等） |
 | `POST /sys/merchant/[id]/impersonate` | 代理進入商家後台（30 分鐘短 token；拒絕代理鏈） |
 
-### `merchant/` — 商家自身設定 + 員工
+### `merchant/` — 商家自身設定 + 員工 + 領號時段
 | Endpoint | 用途 |
 |----------|------|
 | `GET /merchant` `PUT /merchant/[id]` | 商家設定（含 `cancelPolicy` JSON） |
 | `GET /merchant/staff` `POST /merchant/staff` `PUT /merchant/staff/[id]` `POST /merchant/staff/[id]/toggle-active` | 員工管理（OWNER 限定） |
+| `GET /merchant/queue-window` `PUT /merchant/queue-window` | QUEUE 服務每週領號時段（PUT 為整批覆寫；body schema 共用 `server/utils/queue-window-schema.ts`） |
 
 ### `service/` / `resource/` — 服務、資源 CRUD
 標準 RESTful：`index.{get,post}` + `[id].{get,put,delete}`，五個 handler 各一支。
@@ -50,10 +51,10 @@ type: reference
 | Endpoint | 用途 |
 |----------|------|
 | `GET /schedule/rules` `PUT /schedule/rules` | 每週規則（PUT 為整批覆蓋） |
-| `GET /schedule/override` `POST /schedule/override` `DELETE /schedule/override/[id]` | 特定日期覆寫 |
+| `GET /schedule/override` `POST /schedule/override` `DELETE /schedule/override/[id]` | 單日調整（特定日期覆寫;後台「排班 → 單日調整」tab） |
 
-### `holiday/` — 整店休假日
-標準 CRUD（三個 handler：index.get/post + [id].delete）。
+### `holiday/` — 公休日（整店）
+標準 CRUD（三個 handler：index.get/post + [id].delete）。後台入口：`/admin/schedule?tab=holidays`。
 
 ### `appointment/` — 後台預約
 | Endpoint | 用途 |
@@ -61,6 +62,8 @@ type: reference
 | `GET /appointment` | 列表 |
 | `POST /appointment` | 商家代客預約（會略過 cancelPolicy） |
 | `POST /appointment/[id]/cancel` | 商家取消 |
+| `POST /appointment/[id]/complete` | 商家標記完成（CONFIRMED→COMPLETED，需 `startAt ≤ now`） |
+| `POST /appointment/[id]/no-show` | 商家標記未到（CONFIRMED→NO_SHOW，需 `startAt ≤ now`） |
 | `GET /appointment/archive` | 已歸檔預約 |
 
 ### `queue/` — 號碼牌商家控制

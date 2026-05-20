@@ -5,6 +5,10 @@ definePageMeta({
   middleware: ['merchant']
 });
 
+const router = useRouter();
+const localePath = useLocalePath();
+const { t } = useI18n();
+
 const loading = ref(false);
 const items = ref<AppointmentArchiveItem[]>([]);
 const total = ref(0);
@@ -37,10 +41,12 @@ const ApiLoad = async () => {
   }
 };
 
-const TitleLabel = (t: string) =>
-  ({ MR: '先生', MRS: '女士', MISS: '小姐', MX: '客人' } as Record<string, string>)[t] ?? '';
+const StatusLabel = (status: string) => t(`appointment.status.${status}`, status);
+const TitleLabel = (title: string) => (title ? t(`appointment.customerTitle.${title}`, '') : '');
 
 const fmtDateTime = (iso: string) => $dayjs(new Date(iso)).format('YYYY-MM-DD HH:mm');
+
+const ClickBack = () => router.push(localePath('/admin/appointments'));
 
 onMounted(ApiLoad);
 </script>
@@ -48,6 +54,8 @@ onMounted(ApiLoad);
 <template lang="pug">
 .PageArchive
   BizPageHeader(title="歷史紀錄" subtitle="查詢已歸檔的舊預約紀錄")
+    template(#actions)
+      ElButton(plain @click="ClickBack") {{ $t('appointment.actions.backToMain') }}
 
   .PageArchive__filter
     ElDatePicker(v-model="filter.dateFrom" value-format="YYYY-MM-DD" type="date" placeholder="起始日")
@@ -69,7 +77,9 @@ onMounted(ApiLoad);
     ElTableColumn(label="顧客" min-width="160")
       template(#default="{ row }")
         span {{ row.customerLastName }}{{ TitleLabel(row.customerTitle) }} ｜ {{ row.customerPhone }}
-    ElTableColumn(label="狀態" prop="status" width="100")
+    ElTableColumn(label="狀態" width="100")
+      template(#default="{ row }")
+        span {{ StatusLabel(row.status) }}
     ElTableColumn(label="取消理由" prop="cancelReason" min-width="160")
     ElTableColumn(label="歸檔時間" width="160")
       template(#default="{ row }")

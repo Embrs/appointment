@@ -44,6 +44,18 @@ export const CancelAppointment = ({ id, ...body }: CancelAppointmentParams) => {
   return methods.post<CancelAppointmentRes>(`/nuxt-api/appointment/${id}/cancel`, body as unknown as Record<string, unknown>);
 };
 
+/** 商家：標記預約完成（CONFIRMED → COMPLETED） */
+export const CompleteAppointment = ({ id }: CompleteAppointmentParams) => {
+  if (IsMock()) return mock.CompleteAppointment();
+  return methods.post<CompleteAppointmentRes>(`/nuxt-api/appointment/${id}/complete`, {});
+};
+
+/** 商家：標記預約未到（CONFIRMED → NO_SHOW） */
+export const NoShowAppointment = ({ id }: NoShowAppointmentParams) => {
+  if (IsMock()) return mock.NoShowAppointment();
+  return methods.post<NoShowAppointmentRes>(`/nuxt-api/appointment/${id}/no-show`, {});
+};
+
 /** 商家：歷史紀錄 */
 export const GetAppointmentArchive = (params: GetAppointmentArchiveParams = {}) => {
   if (IsMock()) return mock.GetAppointmentArchive();

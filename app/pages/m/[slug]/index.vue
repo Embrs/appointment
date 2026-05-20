@@ -3,6 +3,7 @@
 definePageMeta({ layout: 'front-desk' });
 
 const route = useRoute();
+const localePath = useLocalePath();
 const slug = computed(() => String(route.params.slug ?? ''));
 const loading = ref(true);
 const merchant = ref<PublicMerchantItem | null>(null);
@@ -27,15 +28,15 @@ const ApiLoad = async () => {
 };
 
 const ClickBook = (serviceId: string) => {
-  navigateTo(`/m/${slug.value}/book?serviceId=${serviceId}`);
+  navigateTo(localePath(`/m/${slug.value}/book?serviceId=${serviceId}`));
 };
 
 const ClickQueue = (_serviceId: string) => {
-  navigateTo(`/m/${slug.value}/queue`);
+  navigateTo(localePath(`/m/${slug.value}/queue`));
 };
 
-const ClickLookup = () => navigateTo(`/m/${slug.value}/lookup`);
-const ClickMyBookings = () => navigateTo(`/m/${slug.value}/my-bookings`);
+const ClickLookup = () => navigateTo(localePath(`/m/${slug.value}/lookup`));
+const ClickMyBookings = () => navigateTo(localePath(`/m/${slug.value}/my-bookings`));
 
 onMounted(ApiLoad);
 </script>
@@ -43,7 +44,7 @@ onMounted(ApiLoad);
 <template lang="pug">
 .PageMerchantHome
   BizAdSlot(name="merchant-page-top")
-  .PageMerchantHome__loading(v-if="loading") 載入中…
+  .PageMerchantHome__loading(v-if="loading") {{ $t('common.loading') }}
   .PageMerchantHome__empty(v-else-if="!merchant") {{ $t('booking.messages.notFound') }}
   template(v-else)
     //- Hero 卡

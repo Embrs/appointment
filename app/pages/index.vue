@@ -74,10 +74,10 @@ const steps = [
         a.PageIndex__navLink(href="#how") 開始使用
       .PageIndex__navActions
         template(v-if="isSignedIn")
-          NuxtLink.PageIndex__btn.PageIndex__btn--primary(:to="consoleHref") {{ consoleLabel }}
+          NuxtLinkLocale.PageIndex__btn.PageIndex__btn--primary(:to="consoleHref") {{ consoleLabel }}
         template(v-else)
-          NuxtLink.PageIndex__btn.PageIndex__btn--ghost(to="/sign-in") 商家登入
-          NuxtLink.PageIndex__btn.PageIndex__btn--primary(to="/sign-up") 立即註冊
+          NuxtLinkLocale.PageIndex__btn.PageIndex__btn--ghost(to="/sign-in") 商家登入
+          NuxtLinkLocale.PageIndex__btn.PageIndex__btn--primary(to="/sign-up") 立即註冊
 
   //- Hero 主視覺
   section.PageIndex__hero
@@ -93,10 +93,10 @@ const steps = [
           br
           | 四種模式自由切換，覆蓋餐廳、診所、美業、健身、課程等各行業。
         .PageIndex__heroActions(v-if="!isSignedIn")
-          NuxtLink.PageIndex__btn.PageIndex__btn--primary.PageIndex__btn--lg(to="/sign-up") 免費開店
-          NuxtLink.PageIndex__btn.PageIndex__btn--outline.PageIndex__btn--lg(to="/sign-in") 商家登入
+          NuxtLinkLocale.PageIndex__btn.PageIndex__btn--primary.PageIndex__btn--lg(to="/sign-up") 免費開店
+          NuxtLinkLocale.PageIndex__btn.PageIndex__btn--outline.PageIndex__btn--lg(to="/sign-in") 商家登入
         .PageIndex__heroActions(v-else)
-          NuxtLink.PageIndex__btn.PageIndex__btn--primary.PageIndex__btn--lg(:to="consoleHref") {{ consoleLabel }}
+          NuxtLinkLocale.PageIndex__btn.PageIndex__btn--primary.PageIndex__btn--lg(:to="consoleHref") {{ consoleLabel }}
         ul.PageIndex__heroMeta
           li.PageIndex__heroMetaItem 註冊免費
           li.PageIndex__heroMetaItem 隨開隨用
@@ -165,10 +165,10 @@ const steps = [
       h2.PageIndex__ctaTitle 準備好把預約交給系統了嗎？
       p.PageIndex__ctaLead 免費註冊、即時審核，幾分鐘內開始接受線上預約。
       .PageIndex__ctaActions(v-if="!isSignedIn")
-        NuxtLink.PageIndex__btn.PageIndex__btn--primary.PageIndex__btn--lg(to="/sign-up") 立即免費註冊
-        NuxtLink.PageIndex__btn.PageIndex__btn--ghostLight.PageIndex__btn--lg(to="/sign-in") 已有帳號，登入
+        NuxtLinkLocale.PageIndex__btn.PageIndex__btn--primary.PageIndex__btn--lg(to="/sign-up") 立即免費註冊
+        NuxtLinkLocale.PageIndex__btn.PageIndex__btn--ghostLight.PageIndex__btn--lg(to="/sign-in") 已有帳號，登入
       .PageIndex__ctaActions(v-else)
-        NuxtLink.PageIndex__btn.PageIndex__btn--primary.PageIndex__btn--lg(:to="consoleHref") {{ consoleLabel }}
+        NuxtLinkLocale.PageIndex__btn.PageIndex__btn--primary.PageIndex__btn--lg(:to="consoleHref") {{ consoleLabel }}
 
   //- Footer
   footer.PageIndex__footer
@@ -180,12 +180,12 @@ const steps = [
         p.PageIndex__footerNote 多商家預約 SaaS 平台
       .PageIndex__footerCol
         .PageIndex__footerHead 商家
-        NuxtLink.PageIndex__footerLink(to="/sign-in") 商家登入
-        NuxtLink.PageIndex__footerLink(to="/sign-up") 註冊申請
-        NuxtLink.PageIndex__footerLink(to="/forgot-password") 忘記密碼
+        NuxtLinkLocale.PageIndex__footerLink(to="/sign-in") 商家登入
+        NuxtLinkLocale.PageIndex__footerLink(to="/sign-up") 註冊申請
+        NuxtLinkLocale.PageIndex__footerLink(to="/forgot-password") 忘記密碼
       .PageIndex__footerCol
         .PageIndex__footerHead 平台
-        NuxtLink.PageIndex__footerLink(to="/sys/sign-in") 平台管理員登入
+        NuxtLinkLocale.PageIndex__footerLink(to="/sys/sign-in") 平台管理員登入
       .PageIndex__footerCol
         .PageIndex__footerHead 關於
         a.PageIndex__footerLink(href="#modes") 預約模式

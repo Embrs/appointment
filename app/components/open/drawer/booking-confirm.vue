@@ -4,22 +4,26 @@
 
 type Props = {
   params: DrawerBookingConfirmParams;
-  resolve: (value: { done: boolean; appointmentId?: string }) => void;
+  resolve: (value: { done: boolean; appointmentId?: string; limitExceeded?: boolean }) => void;
   level: number;
 };
 const props = defineProps<Props>();
 
+const { t } = useI18n();
 const submitting = ref(false);
 const errorMsg = ref('');
 
+const LIMIT_EXCEEDED_TEXT = computed(() => t('booking.messages.limitExceeded'));
+
+const TITLE_KEYS: Record<CustomerTitleType, string> = {
+  MR: 'titleMr',
+  MRS: 'titleMrs',
+  MISS: 'titleMiss',
+  MX: 'titleMx'
+};
 const titleLabel = computed(() => {
-  switch (props.params.customer.title) {
-    case 'MR': return '先生';
-    case 'MRS': return '女士';
-    case 'MISS': return '小姐';
-    case 'MX': return '客人';
-    default: return '';
-  }
+  const key = TITLE_KEYS[props.params.customer.title];
+  return key ? t(`booking.customer.${key}`) : '';
 });
 
 const dateLabel = computed(() =>
@@ -35,8 +39,8 @@ const timeLabel = computed(() => {
 type Emit = { 'on-close': [] };
 const emit = defineEmits<Emit>();
 
-const EmitClose = (done = false, appointmentId?: string) => {
-  props.resolve({ done, appointmentId });
+const EmitClose = (done = false, appointmentId?: string, limitExceeded = false) => {
+  props.resolve({ done, appointmentId, limitExceeded });
   emit('on-close');
 };
 
@@ -53,7 +57,13 @@ const ClickConfirm = async () => {
       note: props.params.note
     });
     if (res.status.code !== $enum.apiStatus.success) {
-      errorMsg.value = res.status.message?.zh_tw || '預約失敗，請重試';
+      const msg = res.status.message?.zh_tw || '';
+      // 達顧客預約上限：交由 book.vue 顯示 alert 並引導至我的預約
+      if (res.status.code === 409 && msg === LIMIT_EXCEEDED_TEXT.value) {
+        EmitClose(false, undefined, true);
+        return;
+      }
+      errorMsg.value = msg || t('booking.submitFailed');
       return;
     }
     EmitClose(true, res.data.id);
@@ -68,40 +78,44 @@ const ClickConfirm = async () => {
   .OpenDrawerBookingConfirm__mask(v-motion-fade @click="EmitClose(false)")
   .OpenDrawerBookingConfirm__panel(v-motion-slide-bottom)
     .OpenDrawerBookingConfirm__header
-      span.OpenDrawerBookingConfirm__title 確認預約
+      span.OpenDrawerBookingConfirm__title {{ $t('booking.actions.confirmBooking') }}
       button.OpenDrawerBookingConfirm__close(type="button" :disabled="submitting" @click="EmitClose(false)") ✕
     .OpenDrawerBookingConfirm__body
       .OpenDrawerBookingConfirm__row
-        span.OpenDrawerBookingConfirm__label 服務
+        span.OpenDrawerBookingConfirm__label {{ $t('booking.fields.service') }}
         span.OpenDrawerBookingConfirm__value {{ params.serviceName }}
       .OpenDrawerBookingConfirm__row(v-if="params.resourceName")
-        span.OpenDrawerBookingConfirm__label 資源
+        span.OpenDrawerBookingConfirm__label {{ $t('booking.fields.resource') }}
         span.OpenDrawerBookingConfirm__value {{ params.resourceName }}
       .OpenDrawerBookingConfirm__row
-        span.OpenDrawerBookingConfirm__label 日期
+        span.OpenDrawerBookingConfirm__label {{ $t('booking.fields.date') }}
         span.OpenDrawerBookingConfirm__value {{ dateLabel }}
       .OpenDrawerBookingConfirm__row
-        span.OpenDrawerBookingConfirm__label 時段
+        span.OpenDrawerBookingConfirm__label {{ $t('booking.fields.time') }}
         span.OpenDrawerBookingConfirm__value {{ timeLabel }}
       .OpenDrawerBookingConfirm__divider
       .OpenDrawerBookingConfirm__row
-        span.OpenDrawerBookingConfirm__label 姓氏
+        span.OpenDrawerBookingConfirm__label {{ $t('booking.customer.lastName') }}
         span.OpenDrawerBookingConfirm__value {{ params.customer.lastName }} {{ titleLabel }}
       .OpenDrawerBookingConfirm__row
-        span.OpenDrawerBookingConfirm__label 手機
+        span.OpenDrawerBookingConfirm__label {{ $t('booking.customer.phone') }}
         span.OpenDrawerBookingConfirm__value {{ params.customer.phone }}
       .OpenDrawerBookingConfirm__row(v-if="params.note")
-        span.OpenDrawerBookingConfirm__label 備註
+        span.OpenDrawerBookingConfirm__label {{ $t('booking.fields.note') }}
         span.OpenDrawerBookingConfirm__value {{ params.note }}
       .OpenDrawerBookingConfirm__error(v-if="errorMsg") {{ errorMsg }}
     .OpenDrawerBookingConfirm__footer
-      ElButton(:disabled="submitting" @click="EmitClose(false)") 返回修改
-      ElButton(type="primary" :loading="submitting" @click="ClickConfirm") 確認預約
+      ElButton(:disabled="submitting" @click="EmitClose(false)") {{ $t('booking.actions.reviseBooking') }}
+      ElButton(type="primary" :loading="submitting" @click="ClickConfirm") {{ $t('booking.actions.confirmBooking') }}
 </template>
 
 <style lang="scss" scoped>
 .OpenDrawerBookingConfirm {
   @include fixed("fill");
+
+  @include rwd-pc {
+    @include center;
+  }
 }
 
 .OpenDrawerBookingConfirm__mask {
@@ -119,6 +133,17 @@ const ClickConfirm = async () => {
   display: flex;
   flex-direction: column;
   max-height: 80vh;
+
+  @include rwd-pc {
+    position: relative;
+    bottom: auto;
+    left: auto;
+    right: auto;
+    width: min(480px, calc(100vw - 32px));
+    max-height: min(640px, calc(100vh - 32px));
+    border-radius: 12px;
+    box-shadow: 0 12px 32px rgb(0 0 0 / 18%);
+  }
 }
 
 .OpenDrawerBookingConfirm__header {

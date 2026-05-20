@@ -92,7 +92,7 @@ const ClickCancel = async (id: string) => {
   )
   .PageLookup__panel
     .PageLookup__head
-      p.PageLookup__hint 輸入下方三項資訊查詢您的預約紀錄
+      p.PageLookup__hint {{ $t('booking.queryHint') }}
     ElForm.PageLookup__form(label-position="top" @submit.prevent="QueryFlow")
       ElFormItem(:label="$t('booking.customer.lastName')" required)
         ElInput(v-model="form.lastName" maxlength="20" size="large")
@@ -100,7 +100,7 @@ const ClickCancel = async (id: string) => {
         ElSelect(v-model="form.title" size="large" style="width: 100%;")
           ElOption(v-for="opt in titleOptions" :key="opt.value" :label="opt.label" :value="opt.value")
       ElFormItem(:label="$t('booking.customer.phone')" required)
-        ElInput(v-model="form.phone" maxlength="20" inputmode="numeric" size="large" placeholder="0912345678")
+        ElInput(v-model="form.phone" maxlength="20" inputmode="numeric" size="large" :placeholder="$t('booking.customer.phonePlaceholder')")
       ElButton.PageLookup__submit(
         type="primary"
         size="large"

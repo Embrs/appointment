@@ -100,3 +100,17 @@ export const SysImpersonateMerchant = ({ id }: SysImpersonateMerchantParams) => 
   if (IsMock()) return mock.SysImpersonateMerchant();
   return methods.post<SysImpersonateMerchantRes>(`/nuxt-api/sys/merchant/${id}/impersonate`, {});
 };
+
+// QueueWindow（號碼牌領號時間設定） -----------------------------------------------------------
+
+/** 商家：讀取某 QUEUE 服務的整週領號時間窗 */
+export const GetQueueWindows = (params: GetQueueWindowsParams) => {
+  if (IsMock()) return mock.GetQueueWindows();
+  return methods.get<GetQueueWindowsRes>('/nuxt-api/merchant/queue-window', params as Record<string, unknown>);
+};
+
+/** 商家：整批覆寫某 QUEUE 服務的整週領號時間窗 */
+export const UpdateQueueWindows = (params: UpdateQueueWindowsParams) => {
+  if (IsMock()) return mock.UpdateQueueWindows();
+  return methods.put<UpdateQueueWindowsRes>('/nuxt-api/merchant/queue-window', params);
+};

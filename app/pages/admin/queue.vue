@@ -9,6 +9,20 @@ const useAsk = UseAsk();
 const loading = ref(true);
 const actionLoading = ref(false);
 const today = ref<GetQueueTodayRes | null>(null);
+const hasAnyWindow = ref(true);
+
+const ApiCheckWindows = async () => {
+  if (!today.value || today.value.services.length === 0) {
+    hasAnyWindow.value = true;
+    return;
+  }
+  const results = await Promise.all(
+    today.value.services.map((s) => $api.GetQueueWindows({ serviceId: s.serviceId }))
+  );
+  hasAnyWindow.value = results.some(
+    (r) => r.status.code === $enum.apiStatus.success && r.data.windows.length > 0
+  );
+};
 
 const ServingTicketIdMap = computed(() => {
   // 由 serviceMap 抓 servingTicketId（WS 推播即時值）；退而求其次用 today.services 的 CALLED 票
@@ -109,6 +123,7 @@ onMounted(async () => {
   if (storeSelf.merchantId) {
     queueStore.Connect(storeSelf.merchantId);
   }
+  await ApiCheckWindows();
 });
 
 onBeforeUnmount(() => {
@@ -123,6 +138,17 @@ onBeforeUnmount(() => {
       span.PageAdminQueue__conn(:class="{ 'PageAdminQueue__conn--off': !queueStore.isWsConnected }")
         span.PageAdminQueue__connDot
         span {{ queueStore.isWsConnected ? '即時連線中' : '連線中斷' }}
+
+  ElAlert(
+    v-if="!loading && today && today.services.length > 0 && !hasAnyWindow"
+    type="warning"
+    :closable="false"
+    show-icon
+    data-testid="queue-no-window-alert"
+  )
+    template(#title)
+      span {{ $t('admin.queueWindow.adminNoWindow') }}
+      NuxtLinkLocale.PageAdminQueue__alertLink(to="/admin/queue-window") {{ $t('admin.queueWindow.adminNoWindowAction') }}
 
   .PageAdminQueue__loading(v-if="loading") 載入中…
   .PageAdminQueue__empty(v-else-if="!today || today.services.length === 0")
@@ -204,5 +230,12 @@ onBeforeUnmount(() => {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(360px, 1fr));
   gap: 16px;
+}
+
+.PageAdminQueue__alertLink {
+  margin-left: 8px;
+  font-weight: 600;
+  color: $primary;
+  text-decoration: underline;
 }
 </style>

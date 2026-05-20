@@ -17,6 +17,9 @@ export default {
     submit: '送信',
     search: '検索',
     copy: 'コピー',
+    loading: '読み込み中…',
+    previous: '前へ',
+    next: '次へ',
     saveSuccess: '保存しました',
     deleteSuccess: '削除しました',
     createSuccess: '作成しました',
@@ -129,9 +132,15 @@ export default {
       shareLink: '共有リンク',
       services: 'サービス',
       resources: 'リソース',
+      appointments: '予約管理',
+      queue: '呼び出し',
       schedule: 'スケジュール',
-      holidays: '休日',
-      staff: 'メンバー'
+      staff: 'メンバー',
+      sectionOperate: '運用',
+      sectionSchedule: 'スケジュール',
+      sectionSettings: '設定',
+      // @deprecated スケジュール統合ページへ移行
+      holidays: '定休日'
     },
     actions: {
       create: '作成',
@@ -170,21 +179,72 @@ export default {
     },
     resources: {
       listTitle: 'リソース',
-      nameLabel: 'リソース名'
+      nameLabel: 'リソース名',
+      boundServices: '紐付けサービス',
+      boundServicesEmpty: '— 紐付け無し',
+      boundServicesHint: 'RESOURCE モードのサービスを編集してこのリソースを選択すると、お客様が指定できるようになります。'
     },
     schedule: {
       title: 'スケジュール',
+      subtitle: '週時間・単日調整・定休日・整理券時間をまとめて管理します',
       scopeMerchant: '店舗全体',
       scopeResource: 'リソース',
       addSlot: '+ 枠を追加',
-      overrides: '特定日上書き',
-      addOverride: '+ 上書きを追加',
-      closed: '当日休業'
+      // @deprecated 単日調整に置き換え
+      overrides: '単日調整',
+      singleDayOverrides: '単日調整',
+      addOverride: '+ 調整を追加',
+      closed: '当日休業',
+      tab: {
+        weekly: '📅 予約時間',
+        overrides: '🔧 単日調整',
+        holidays: '🚫 定休日',
+        queueWindow: '🎟 来店受付時間'
+      },
+      hint: {
+        weekly: '毎週の固定営業時間を設定します。特定日のみ時間が違う場合は「🔧 単日調整」タブをご利用ください。',
+        overrides: '特定の日だけ普段と違う時間または休業を設定できます(店舗全体または特定リソースを指定可能)。終日全店休業の場合は「🚫 定休日」タブをお使いください。',
+        holidays: '店舗全体の休業日。お客様の予約ページに祝日名が表示されます。早終いや特定リソースの欠勤は「🔧 単日調整」を使ってください。',
+        queueWindow: 'QUEUE サービスごとに、毎週の整理券発行時間帯と 1 日の上限を設定します。'
+      },
+      affects: '対象サービス:{names}',
+      affectsAll: '対象:店舗全体のサービス',
+      affectsNone: '対象サービスがまだありません',
+      affectsMore: 'ほか {n} 件',
+      affectsCount: '対象 {n} 件のサービス',
+      affectsExpand: '表示',
+      unboundResource: {
+        title: 'このリソースは未だどのサービスにも紐付けられていません。お客様予約・代理予約のどちらでも選択できません。',
+        action: 'サービスページで紐付ける →'
+      },
+      emptyNoService: 'まだサービスがありません。「サービス」ページで作成してください。',
+      goCreateService: 'サービスページへ →',
+      weeklyTitle: '予約時間',
+      overridesTitle: '単日調整',
+      holidaysTitle: '定休日',
+      queueWindowTitle: '来店受付時間'
+    },
+    queueWindow: {
+      title: '整理券時間',
+      subtitle: '曜日ごとに各 QUEUE サービスの受付時間帯と 1 日の上限を設定します',
+      loading: '読み込み中…',
+      serviceLabel: 'サービス',
+      noQueueService: 'QUEUE モードのサービスがありません。先に作成してください。',
+      goCreateService: 'サービス管理へ →',
+      saveSuccess: '受付時間を保存しました',
+      maxTicketsHint: '上限 0 = 無制限',
+      adminNoWindow: '受付時間が未設定です。お客様は整理券を取得できません。',
+      adminNoWindowAction: '設定へ →',
+      applyWeekdays: '平日に適用',
+      applyAllDays: '全曜日に適用',
+      applyAllDaysConfirm: 'この操作は土・日の設定を上書きします。続行しますか？',
+      needSourceRow: '適用元となる曜日を先に有効化してください'
     },
     holidays: {
-      listTitle: '休日',
+      listTitle: '定休日',
       nameLabel: '名称',
-      dateLabel: '日付'
+      dateLabel: '日付',
+      addHoliday: '+ 定休日を追加'
     },
     staff: {
       listTitle: 'メンバー',
@@ -256,7 +316,10 @@ export default {
     steps: {
       service: 'サービス',
       resource: 'リソース',
+      datetime: '日付と時間帯',
+      // @deprecated datetime に置換済み
       date: '日付',
+      // @deprecated datetime に置換済み
       slot: '時間帯',
       info: '情報',
       confirm: '確認'
@@ -267,10 +330,39 @@ export default {
       titleMiss: '様（未婚女性）',
       titleMx: '様',
       lastName: '姓',
+      lastNamePlaceholder: '例：田中',
       titleField: '敬称',
       phone: '電話番号',
-      note: '備考'
+      phonePlaceholder: '09012345678',
+      note: '備考',
+      noteOptional: '備考（任意）'
     },
+    panel: {
+      pickService: 'サービスを選択',
+      pickResource: 'リソースを選択',
+      pickDateTime: '日付と時間を選択'
+    },
+    fields: {
+      date: '日付',
+      resource: 'リソース',
+      note: '備考',
+      service: 'サービス',
+      time: '時間帯',
+      customer: 'お客様'
+    },
+    validation: {
+      lastNameRequired: '姓を入力してください',
+      lastNameMaxLength: '姓は20文字以内で入力してください',
+      titleRequired: '敬称を選択してください',
+      phoneRequired: '電話番号を入力してください',
+      phoneFormat: '電話番号の形式が正しくありません'
+    },
+    placeholders: {
+      pickTitle: '敬称を選択',
+      phoneExample: '例：09012345678',
+      lastNameExample: '例：田中'
+    },
+    submitFailed: '予約に失敗しました。再度お試しください',
     status: {
       CONFIRMED: '予約済み',
       CANCELED: 'キャンセル済み',
@@ -285,6 +377,7 @@ export default {
     actions: {
       cancel: '予約をキャンセル',
       confirmBooking: '予約確定',
+      reviseBooking: '修正に戻る',
       success: '予約完了',
       lookup: '照会',
       switchIdentity: '別の方として照会',
@@ -293,6 +386,15 @@ export default {
       goArchive: '履歴',
       delegate: '代理予約'
     },
+    slotPicker: {
+      morning: '午前',
+      afternoon: '午後',
+      evening: '夜',
+      full: '満',
+      remaining: '残 {n}',
+      loading: '時間帯を読み込み中…',
+      empty: 'この日は予約可能な時間帯がありません'
+    },
     messages: {
       bookSuccess: '予約が完了しました',
       cancelSuccess: '予約をキャンセルしました',
@@ -300,10 +402,15 @@ export default {
       cancelTooLate: 'キャンセル期限を過ぎています。店舗にご連絡ください',
       notFound: '該当する予約がありません',
       emptyList: '予約はまだありません',
-      noSlot: 'この日は予約可能な時間帯がありません'
+      noSlot: 'この日は予約可能な時間帯がありません',
+      limitExceeded: 'この店舗での予約数が上限に達しました。既存の予約をキャンセルしてから再度お試しください',
+      limitExceededTitle: '予約上限に達しました',
+      limitExceededHint: '「マイ予約」で不要な予約をキャンセルできます',
+      goMyBookings: 'マイ予約へ'
     },
     queryTitle: '予約照会',
     querySubmit: '検索',
+    queryHint: '以下の3つの情報を入力して予約履歴を照会してください',
     fillContactTitle: '連絡先情報',
     calendar: {
       prev: '前の',
@@ -327,6 +434,7 @@ export default {
   },
   queue: {
     page: {
+      landingEyebrow: '整理券サービス',
       landingTitle: '整理券を取る',
       landingHint: '下のサービスを選んで連絡先を入力すると、本日の整理券を発行します。',
       statusYourNumber: 'お持ちの番号',
@@ -345,8 +453,48 @@ export default {
       take: '整理券を取る',
       formTitle: '整理券のための連絡先',
       formSubmit: '整理券を取る',
-      connLive: 'ライブ接続中',
-      connFallback: 'ポーリング待機中（15秒）'
+      connLive: 'リアルタイム更新中',
+      connFallback: '接続が不安定ですが、自動更新を継続します',
+      connReconnecting: '接続が切れました、{n} 秒後に再接続',
+      connOffline: 'この端末はオフラインです',
+      connRetry: '今すぐ再接続',
+      currentServing: '対応中',
+      waitingCount: '待ち {n} 人',
+      notServing: '未呼出し',
+      notStarted: '受付開始前',
+      recentTitle: '本日 {n} 番の整理券をお持ちです',
+      recentSubtitle: 'この端末で発行済み',
+      recentReturn: '待ち画面に戻る',
+      recentDismiss: '自分ではない',
+      findEntry: '整理券を探す',
+      findTitle: '整理券を探す',
+      findHint: 'サービスを選び、電話番号の下 4 桁を入力して本日の整理券を呼び戻します。',
+      findServiceLabel: 'サービス',
+      findServicePlaceholder: 'サービスを選択',
+      findPhoneLabel: '電話番号の下 4 桁',
+      findPhonePlaceholder: '例：1234',
+      findSubmit: '整理券を探す',
+      findAmbiguous: '複数件見つかりました。完全な電話番号でお問い合わせください。',
+      findNotFound: '本日の整理券は見つかりません',
+      findInvalid: '4 桁の数字を入力してください',
+      callOverlayTitle: 'あなたの番です',
+      callOverlaySubtitle: 'カウンターへお越しください',
+      callOverlayDismiss: 'わかりました',
+      titleCalled: '🔔 あなたの番です - {serviceName} - {n} 番',
+      titleWaiting: '待機中 - {serviceName}',
+      progressStart: '受付',
+      progressYou: 'あなた',
+      progressEnd: '末尾',
+      progressAhead: 'あと {n} 人',
+      progressNotStarted: '呼び出しはまだ始まっていません',
+      progressPassed: 'あなたの番号は通過しました。スタッフへご相談ください。',
+      doneTitle: 'サービス完了、ありがとうございました',
+      doneSubtitle: 'またのご来店をお待ちしております',
+      doneCtaHome: 'トップへ',
+      doneCtaRetake: '再発行',
+      skippedTitle: 'あなたの番号はスキップされました',
+      skippedSubtitle: 'ご用の方はスタッフまでお声がけください',
+      skippedCtaContact: 'お店に連絡'
     },
     status: {
       WAITING: '待機中',
@@ -363,7 +511,60 @@ export default {
       queueFull: '本日の整理券は配布終了しました',
       noWaiting: 'お待ちの整理券はありません',
       invalidTransition: '整理券の状態変更ができません',
-      ticketNotFound: '整理券が見つかりません'
+      ticketNotFound: '整理券が見つかりません',
+      findAmbiguous: '複数件見つかりました。携帯電話をご持参のうえカウンターまでお越しください。',
+      findNotFound: '本日の整理券は見つかりません',
+      findInvalid: '4 桁の数字を入力してください'
+    }
+  },
+  slot: {
+    reason: {
+      past: '時間切れ',
+      taken: '予約済み',
+      capacity: '満員',
+      closed: '休憩中',
+      holiday: '休業日',
+      inactive: 'リソース停止中'
+    },
+    reasonTooltip: {
+      past: 'この時間帯は既に過ぎており、予約できません',
+      taken: 'この時間帯は他のお客様により予約済みです',
+      capacity: 'この時間帯は満員です',
+      closed: 'この時間帯は休憩時間です',
+      holiday: '本日は休業日です',
+      inactive: 'このリソースは現在停止中です'
+    },
+    prefillNotice: '{time} を選択しました。お客様情報の入力を続けてください。',
+    prefillUnavailable: '選択した {time} は利用できません（{reason}）。他の時間帯をお選びください。'
+  },
+  appointment: {
+    status: {
+      CONFIRMED: '予約済み',
+      CANCELED: 'キャンセル',
+      COMPLETED: '完了',
+      NO_SHOW: '未来店'
+    },
+    customerTitle: {
+      MR: '様（男性）',
+      MRS: '様（既婚女性）',
+      MISS: '様（未婚女性）',
+      MX: 'お客様'
+    },
+    list: {
+      showArchived: '終了済みを表示',
+      showArchivedHint: 'オンにすると、キャンセル／完了／未来店の記録も表示します（90日以内）'
+    },
+    tooltip: {
+      list: '進行中の予約（「終了済みを表示」でキャンセル／完了／未来店も確認できます）',
+      archive: '90日より前にアーカイブされた予約記録'
+    },
+    actions: {
+      backToMain: '← 予約管理に戻る',
+      more: 'その他',
+      detail: '詳細',
+      cancel: 'キャンセル',
+      complete: '完了にする',
+      noShow: '未来店にする'
     }
   }
 };

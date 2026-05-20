@@ -4,8 +4,9 @@
 // Change 1 的 admin middleware / 401 跳轉皆指向此路徑，保持向後相容
 definePageMeta({ layout: 'default' });
 
+const localePath = useLocalePath();
 if (import.meta.client) {
-  await navigateTo('/sign-in?type=admin', { replace: true });
+  await navigateTo(localePath('/sign-in?type=admin'), { replace: true });
 }
 </script>
 

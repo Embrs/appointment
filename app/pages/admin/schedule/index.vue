@@ -1,229 +1,212 @@
 <script setup lang="ts">
-// PageAdminSchedule — 時段管理：scope 切換（MERCHANT / 各 RESOURCE）+ 七天網格 + 特定日期覆寫
+// PageAdminSchedule — 排班整合頁:四 tab 容器(預約時段 / 單日調整 / 公休日 / 現場領號時段)
+// Tab 依商家服務的 bookingMode 動態顯示;預設 tab 為當前可見的第一個
 definePageMeta({
   layout: 'back-desk',
   middleware: ['merchant']
 });
 
-const useAsk = UseAsk();
-// 初值 false：避免 v-loading 在 page transition mount 階段就建立 mask 而卡住
-const loading = ref(false);
-const saving = ref(false);
-const resources = ref<ResourceItem[]>([]);
-const allRules = ref<ScheduleRuleItem[]>([]);
-const overrides = ref<ScheduleOverrideItem[]>([]);
+const { t } = useI18n();
+const route = useRoute();
+const router = useRouter();
 
-// scope 選擇：MERCHANT 或某個 resourceId
-const selectedScope = ref<string>('MERCHANT');
+type TabKey = 'weekly' | 'overrides' | 'holidays' | 'queue-window';
+const TAB_ORDER: TabKey[] = ['weekly', 'overrides', 'holidays', 'queue-window'];
 
-const isMerchantScope = computed(() => selectedScope.value === 'MERCHANT');
-const currentResourceId = computed(() => isMerchantScope.value ? null : selectedScope.value);
+const services = ref<ServiceItem[]>([]);
+const servicesLoading = ref(true);
 
-// 對應目前 scope 的 rules
-const currentRules = computed<{ weekday: number; startTime: string; endTime: string }[]>(() =>
-  allRules.value
-    .filter((r) =>
-      isMerchantScope.value
-        ? r.scope === 'MERCHANT'
-        : r.scope === 'RESOURCE' && r.resourceId === currentResourceId.value
-    )
-    .map((r) => ({ weekday: r.weekday, startTime: r.startTime, endTime: r.endTime }))
-);
+const activeServices = computed(() => services.value.filter((s) => s.isActive));
+const hasNonQueueService = computed(() => activeServices.value.some((s) => s.bookingMode !== 'QUEUE'));
+const hasQueueService = computed(() => activeServices.value.some((s) => s.bookingMode === 'QUEUE'));
 
-const WEEKDAY_NAMES = ['週日', '週一', '週二', '週三', '週四', '週五', '週六'];
-
-const ResourceName = (id: string | null): string => {
-  if (!id) return '整店';
-  return resources.value.find((r) => r.id === id)?.name ?? id;
-};
-
-const ApiLoad = async () => {
-  loading.value = true;
-  try {
-    const [rRes, sRes, oRes] = await Promise.all([
-      $api.GetResourceList(),
-      $api.GetScheduleRules({}),
-      $api.GetScheduleOverrides({})
-    ]);
-    if (rRes.status.code === $enum.apiStatus.success) resources.value = rRes.data.items;
-    if (sRes.status.code === $enum.apiStatus.success) allRules.value = sRes.data.rules;
-    if (oRes.status.code === $enum.apiStatus.success) overrides.value = oRes.data.items;
-  } finally {
-    loading.value = false;
+const visibleTabs = computed<TabKey[]>(() => {
+  const out: TabKey[] = [];
+  if (hasNonQueueService.value) {
+    out.push('weekly', 'overrides', 'holidays');
   }
+  if (hasQueueService.value) {
+    out.push('queue-window');
+  }
+  return out;
+});
+
+const isValidTab = (v: unknown): v is TabKey =>
+  typeof v === 'string' && TAB_ORDER.includes(v as TabKey);
+
+const activeTab = ref<TabKey>('weekly');
+
+const ResolveTab = (): TabKey | null => {
+  if (visibleTabs.value.length === 0) return null;
+  const q = route.query.tab;
+  if (isValidTab(q) && visibleTabs.value.includes(q)) return q;
+  return visibleTabs.value[0]!;
 };
 
-const HandleRulesChange = (next: { weekday: number; startTime: string; endTime: string }[]) => {
-  // 用「整組覆蓋當前 scope」維護 allRules：先移除當前 scope，再 push 新的
-  const others = allRules.value.filter((r) =>
-    isMerchantScope.value
-      ? !(r.scope === 'MERCHANT')
-      : !(r.scope === 'RESOURCE' && r.resourceId === currentResourceId.value)
-  );
-  const newScopeRules: ScheduleRuleItem[] = next.map((n) => ({
-    scope: isMerchantScope.value ? 'MERCHANT' : 'RESOURCE',
-    resourceId: currentResourceId.value,
-    weekday: n.weekday,
-    startTime: n.startTime,
-    endTime: n.endTime
-  }));
-  allRules.value = [...others, ...newScopeRules];
+const ApplyTabToUrl = (next: TabKey) => {
+  if (route.query.tab === next) return;
+  router.replace({ query: { ...route.query, tab: next } });
 };
 
-const ClickSave = async () => {
-  saving.value = true;
+const ClickTab = (key: TabKey) => {
+  activeTab.value = key;
+  ApplyTabToUrl(key);
+};
+
+const TabLabel = (key: TabKey) => {
+  const i18nKey = key === 'queue-window' ? 'queueWindow' : key;
+  return t(`admin.schedule.tab.${i18nKey}`);
+};
+
+watch(() => route.query.tab, (next) => {
+  if (visibleTabs.value.length === 0) return;
+  const v = isValidTab(next) && visibleTabs.value.includes(next) ? next : visibleTabs.value[0]!;
+  if (v !== activeTab.value) activeTab.value = v;
+});
+
+watch(visibleTabs, (next) => {
+  // 若目前 tab 因服務變動而不再可見,fallback 到第一個可見 tab
+  if (next.length === 0) return;
+  if (!next.includes(activeTab.value)) {
+    activeTab.value = next[0]!;
+    ApplyTabToUrl(next[0]!);
+  }
+});
+
+const ApiLoadServices = async () => {
+  servicesLoading.value = true;
   try {
-    const res = await $api.UpdateScheduleRules({
-      scope: isMerchantScope.value ? 'MERCHANT' : 'RESOURCE',
-      resourceId: currentResourceId.value,
-      rules: currentRules.value
-    });
-    if (res.status.code !== $enum.apiStatus.success) {
-      ElMessage.error(res.status.message?.zh_tw || '儲存失敗');
-      return;
+    const res = await $api.GetServiceList();
+    if (res.status.code === $enum.apiStatus.success) {
+      services.value = res.data.items;
     }
-    ElMessage.success('已儲存時段');
-    await ApiLoad();
   } finally {
-    saving.value = false;
+    servicesLoading.value = false;
   }
 };
 
-const ClickAddOverride = async () => {
-  const res = await $open.DialogScheduleOverrideEdit({
-    scope: isMerchantScope.value ? 'MERCHANT' : 'RESOURCE',
-    resourceId: currentResourceId.value
-  });
-  if (res?.done) await ApiLoad();
-};
-
-const ClickDeleteOverride = async (o: ScheduleOverrideItem) => {
-  const ok = await useAsk.Delete(`${o.date} (${ResourceName(o.resourceId)})`);
-  if (!ok) return;
-  const res = await $api.DeleteScheduleOverride({ id: o.id });
-  if (res.status.code !== $enum.apiStatus.success) {
-    ElMessage.error(res.status.message?.zh_tw || '刪除失敗');
-    return;
+onMounted(async () => {
+  await ApiLoadServices();
+  const initial = ResolveTab();
+  if (initial) {
+    activeTab.value = initial;
+    ApplyTabToUrl(initial);
   }
-  ElMessage.success('已刪除');
-  await ApiLoad();
-};
-
-onMounted(() => {
-  ApiLoad();
 });
 </script>
 
 <template lang="pug">
 .PageAdminSchedule
-  BizPageHeader(title="時段管理" subtitle="設定整店或個別資源的週期性可預約時段與特殊覆寫")
-  .PageAdminSchedule__scope
-    span.PageAdminSchedule__scope-label 套用對象：
-    ElSelect(
-      v-model="selectedScope"
-      value-on-clear=""
-      style="width: 240px;"
-    )
-      ElOption(label="整店（MERCHANT）" value="MERCHANT")
-      ElOption(
-        v-for="r in resources"
-        :key="r.id"
-        :label="`資源：${r.name}`"
-        :value="r.id"
+  BizPageHeader(
+    :title="t('admin.schedule.title')"
+    :subtitle="t('admin.schedule.subtitle')"
+  )
+
+  //- 無任何啟用服務:中央 empty state
+  .PageAdminSchedule__empty(v-if="!servicesLoading && visibleTabs.length === 0")
+    p {{ t('admin.schedule.emptyNoService') }}
+    NuxtLinkLocale.PageAdminSchedule__emptyLink(to="/admin/services") {{ t('admin.schedule.goCreateService') }}
+
+  template(v-else)
+    .PageAdminSchedule__tabs(role="tablist")
+      button.PageAdminSchedule__tab(
+        v-for="key in visibleTabs"
+        :key="key"
+        type="button"
+        role="tab"
+        :class="{ 'PageAdminSchedule__tab--active': activeTab === key }"
+        :data-tab="key"
+        :data-testid="`schedule-tab-${key}`"
+        @click="ClickTab(key)"
+      ) {{ TabLabel(key) }}
+
+    .PageAdminSchedule__panel
+      BizScheduleWeeklyPanel(
+        v-if="visibleTabs.includes('weekly')"
+        v-show="activeTab === 'weekly'"
+        :services="services"
       )
-  .PageAdminSchedule__editor(v-loading="loading")
-    BizSchedulerWeeklyEditor(
-      :rules="currentRules"
-      :scope="isMerchantScope ? 'MERCHANT' : 'RESOURCE'"
-      :resource-id="currentResourceId"
-      @update:rules="HandleRulesChange"
-    )
-    .PageAdminSchedule__editor-actions
-      ElButton(
-        type="primary"
-        :loading="saving"
-        @click="ClickSave"
-      ) 儲存當前 scope
-  .PageAdminSchedule__overrides
-    .PageAdminSchedule__overrides-header
-      h2.PageAdminSchedule__overrides-title 特定日期覆寫
-      ElButton(@click="ClickAddOverride") + 新增覆寫
-    ElTable(
-      :data="overrides"
-      v-loading="loading"
-      stripe
-      style="width: 100%;"
-    )
-      ElTableColumn(label="日期" prop="date" width="120")
-      ElTableColumn(label="範圍" width="160")
-        template(#default="{ row }")
-          span {{ row.scope === 'MERCHANT' ? '整店' : ResourceName(row.resourceId) }}
-      ElTableColumn(label="設定" min-width="200")
-        template(#default="{ row }")
-          ElTag(v-if="row.isClosed" type="danger" size="small") 當日休息
-          span(v-else) 開放 {{ row.startTime }} – {{ row.endTime }}
-      ElTableColumn(label="備註" prop="note" min-width="160")
-        template(#default="{ row }")
-          span {{ row.note || '—' }}
-      ElTableColumn(label="操作" width="100" fixed="right")
-        template(#default="{ row }")
-          ElButton(size="small" link type="danger" @click="ClickDeleteOverride(row)") 刪除
+      BizScheduleOverridesPanel(
+        v-if="visibleTabs.includes('overrides')"
+        v-show="activeTab === 'overrides'"
+        :services="services"
+      )
+      BizScheduleHolidaysPanel(
+        v-if="visibleTabs.includes('holidays')"
+        v-show="activeTab === 'holidays'"
+        :services="services"
+      )
+      BizScheduleQueueWindowPanel(
+        v-if="visibleTabs.includes('queue-window')"
+        v-show="activeTab === 'queue-window'"
+        :services="services"
+      )
 </template>
 
 <style lang="scss" scoped>
-.PageAdminSchedule__scope {
+.PageAdminSchedule {
   display: flex;
-  align-items: center;
-  gap: 10px;
-  margin-bottom: 16px;
-  background-color: $white;
-  padding: 14px 18px;
-  border-radius: 14px;
-  border: 1px solid rgba(53, 77, 123, 0.08);
+  flex-direction: column;
+  gap: 16px;
 }
 
-.PageAdminSchedule__scope-label {
-  font-size: 14px;
+.PageAdminSchedule__tabs {
+  display: flex;
+  gap: 4px;
+  background-color: $white;
+  padding: 6px;
+  border-radius: 12px;
+  border: 1px solid rgba(53, 77, 123, 0.08);
+  overflow-x: auto;
+}
+
+.PageAdminSchedule__tab {
+  flex-shrink: 0;
+  padding: 8px 18px;
+  font-size: 13.5px;
+  font-weight: 500;
+  background-color: transparent;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  color: rgba(69, 69, 69, 0.7);
+  transition: background-color 0.15s ease, color 0.15s ease;
+}
+
+.PageAdminSchedule__tab:hover {
+  background-color: rgba(53, 77, 123, 0.05);
+  color: $primary;
+}
+
+.PageAdminSchedule__tab--active {
+  background-color: $primary;
+  color: $white;
   font-weight: 600;
-  color: $primary;
 }
 
-.PageAdminSchedule__editor {
+.PageAdminSchedule__tab--active:hover {
+  background-color: $primary;
+  color: $white;
+}
+
+.PageAdminSchedule__panel {
+  display: block;
+}
+
+.PageAdminSchedule__empty {
   background-color: $white;
-  padding: 20px;
+  padding: 48px 24px;
   border-radius: 14px;
   border: 1px solid rgba(53, 77, 123, 0.08);
-  box-shadow: 0 4px 16px -10px rgba(31, 42, 68, 0.08);
-  margin-bottom: 16px;
+  text-align: center;
+  color: rgba(69, 69, 69, 0.65);
 }
 
-.PageAdminSchedule__editor-actions {
-  display: flex;
-  justify-content: flex-end;
-  margin-top: 14px;
-  border-top: 1px solid rgba(53, 77, 123, 0.08);
-  padding-top: 14px;
-}
-
-.PageAdminSchedule__overrides {
-  background-color: $white;
-  padding: 20px;
-  border-radius: 14px;
-  border: 1px solid rgba(53, 77, 123, 0.08);
-  box-shadow: 0 4px 16px -10px rgba(31, 42, 68, 0.08);
-}
-
-.PageAdminSchedule__overrides-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: 14px;
-}
-
-.PageAdminSchedule__overrides-title {
-  margin: 0;
-  font-size: 16px;
-  font-weight: 700;
+.PageAdminSchedule__emptyLink {
+  display: inline-block;
+  margin-top: 10px;
   color: $primary;
+  text-decoration: underline;
+  font-weight: 500;
 }
 </style>

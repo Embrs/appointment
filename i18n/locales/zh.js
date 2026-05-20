@@ -17,6 +17,9 @@ export default {
     submit: '送出',
     search: '查詢',
     copy: '複製',
+    loading: '載入中…',
+    previous: '上一步',
+    next: '下一步',
     saveSuccess: '已儲存',
     deleteSuccess: '已刪除',
     createSuccess: '已新增',
@@ -129,9 +132,15 @@ export default {
       shareLink: '對外連結',
       services: '服務',
       resources: '資源',
-      schedule: '時段',
-      holidays: '休假',
-      staff: '成員'
+      appointments: '預約管理',
+      queue: '叫號',
+      schedule: '排班',
+      staff: '成員',
+      sectionOperate: '營運',
+      sectionSchedule: '排班',
+      sectionSettings: '設定',
+      // @deprecated 由 schedule 整合頁取代
+      holidays: '公休日'
     },
     actions: {
       create: '新增',
@@ -170,21 +179,72 @@ export default {
     },
     resources: {
       listTitle: '資源管理',
-      nameLabel: '資源名稱'
+      nameLabel: '資源名稱',
+      boundServices: '已綁服務',
+      boundServicesEmpty: '— 尚未綁定',
+      boundServicesHint: '請在「服務」頁編輯 RESOURCE 模式服務時勾選此資源,顧客才看得到他'
     },
     schedule: {
-      title: '時段管理',
+      title: '排班',
+      subtitle: '管理每週時段、單日調整、公休日與領號時間',
       scopeMerchant: '整店',
       scopeResource: '資源',
       addSlot: '+ 新增時段',
-      overrides: '特定日期覆寫',
-      addOverride: '+ 新增覆寫',
-      closed: '當日休息'
+      // @deprecated 由 singleDayOverrides 取代(顯示名稱改為「單日調整」)
+      overrides: '單日調整',
+      singleDayOverrides: '單日調整',
+      addOverride: '+ 新增調整',
+      closed: '當日休息',
+      tab: {
+        weekly: '📅 預約時段',
+        overrides: '🔧 單日調整',
+        holidays: '🚫 公休日',
+        queueWindow: '🎟 現場領號時段'
+      },
+      hint: {
+        weekly: '設定每週固定營業時段;若某天時間和平常不一樣,請切換到「🔧 單日調整」tab',
+        overrides: '設定某一天和平常不一樣的時段或休息(可指定整店或單一資源)。整店全日休請改用「🚫 公休日」tab',
+        holidays: '整店休息日,會在顧客訂位頁顯示假日名稱。如果只是某天提早收或某資源請假,請改用「🔧 單日調整」tab',
+        queueWindow: '設定每個 QUEUE 服務每週的領號時段與每日上限'
+      },
+      affects: '影響服務:{names}',
+      affectsAll: '影響:整店所有服務',
+      affectsNone: '尚無對應服務',
+      affectsMore: '等 {n} 個',
+      affectsCount: '影響 {n} 個服務',
+      affectsExpand: '查看',
+      unboundResource: {
+        title: '此資源尚未被任何服務綁定,顧客在預約頁與後台代客預約都無法選到他',
+        action: '前往服務頁綁定 →'
+      },
+      emptyNoService: '尚未建立任何服務,請先到「服務」頁建立',
+      goCreateService: '前往服務頁 →',
+      weeklyTitle: '預約時段',
+      overridesTitle: '單日調整',
+      holidaysTitle: '公休日',
+      queueWindowTitle: '現場領號時段'
+    },
+    queueWindow: {
+      title: '領號時間',
+      subtitle: '依星期設定每個 QUEUE 服務的領號時段與每日上限',
+      loading: '載入中…',
+      serviceLabel: '服務',
+      noQueueService: '尚無 QUEUE 模式服務，請先建立',
+      goCreateService: '前往服務管理 →',
+      saveSuccess: '已儲存領號時間',
+      maxTicketsHint: '上限 0 = 無限',
+      adminNoWindow: '尚未設定領號時間，顧客將無法領號',
+      adminNoWindowAction: '前往設定 →',
+      applyWeekdays: '套用到所有平日',
+      applyAllDays: '套用到所有日',
+      applyAllDaysConfirm: '此操作會覆蓋週六、週日的設定，是否繼續？',
+      needSourceRow: '請先啟用任一列做為來源'
     },
     holidays: {
-      listTitle: '休假日',
+      listTitle: '公休日',
       nameLabel: '名稱',
-      dateLabel: '日期'
+      dateLabel: '日期',
+      addHoliday: '+ 新增公休日'
     },
     staff: {
       listTitle: '成員管理',
@@ -256,7 +316,10 @@ export default {
     steps: {
       service: '服務',
       resource: '資源',
+      datetime: '日期與時段',
+      // @deprecated 由 datetime 取代
       date: '日期',
+      // @deprecated 由 datetime 取代
       slot: '時段',
       info: '資訊',
       confirm: '確認'
@@ -267,10 +330,39 @@ export default {
       titleMiss: '小姐',
       titleMx: '客人',
       lastName: '姓氏',
+      lastNamePlaceholder: '例：王',
       titleField: '稱謂',
       phone: '手機號碼',
-      note: '備註'
+      phonePlaceholder: '0912345678',
+      note: '備註',
+      noteOptional: '備註（選填）'
     },
+    panel: {
+      pickService: '選擇服務',
+      pickResource: '選擇資源',
+      pickDateTime: '選擇日期與時段'
+    },
+    fields: {
+      date: '日期',
+      resource: '資源',
+      note: '備註',
+      service: '服務',
+      time: '時段',
+      customer: '顧客'
+    },
+    validation: {
+      lastNameRequired: '請填寫姓氏',
+      lastNameMaxLength: '姓氏請在 20 字以內',
+      titleRequired: '請選擇稱謂',
+      phoneRequired: '請填寫手機號碼',
+      phoneFormat: '手機號碼格式錯誤'
+    },
+    placeholders: {
+      pickTitle: '選擇稱謂',
+      phoneExample: '例：0912345678',
+      lastNameExample: '例：王'
+    },
+    submitFailed: '預約失敗，請重試',
     status: {
       CONFIRMED: '已預約',
       CANCELED: '已取消',
@@ -285,6 +377,7 @@ export default {
     actions: {
       cancel: '取消預約',
       confirmBooking: '確認預約',
+      reviseBooking: '返回修改',
       success: '預約成功',
       lookup: '查詢',
       switchIdentity: '切換身分',
@@ -293,6 +386,15 @@ export default {
       goArchive: '歷史紀錄',
       delegate: '代客預約'
     },
+    slotPicker: {
+      morning: '上午',
+      afternoon: '下午',
+      evening: '晚上',
+      full: '滿',
+      remaining: '剩 {n}',
+      loading: '時段載入中…',
+      empty: '該日無可預約時段'
+    },
     messages: {
       bookSuccess: '預約成功',
       cancelSuccess: '已取消預約',
@@ -300,10 +402,15 @@ export default {
       cancelTooLate: '已超過取消期限，請聯絡商家',
       notFound: '查無此預約',
       emptyList: '暫無預約紀錄',
-      noSlot: '該日無可預約時段'
+      noSlot: '該日無可預約時段',
+      limitExceeded: '您在本商家的預約已達上限，請取消舊預約後再試',
+      limitExceededTitle: '已達預約上限',
+      limitExceededHint: '您可至「我的預約」取消不需要的預約',
+      goMyBookings: '前往我的預約'
     },
     queryTitle: '查詢預約',
     querySubmit: '查詢',
+    queryHint: '輸入下方三項資訊查詢您的預約紀錄',
     fillContactTitle: '填寫聯絡資訊',
     calendar: {
       prev: '上一',
@@ -317,6 +424,7 @@ export default {
   },
   queue: {
     page: {
+      landingEyebrow: '號碼牌服務',
       landingTitle: '領號排隊',
       landingHint: '選擇下方服務後填寫聯絡資訊，即可領取今日號碼牌。',
       statusYourNumber: '您的號碼',
@@ -335,8 +443,48 @@ export default {
       take: '立即領號',
       formTitle: '填寫聯絡資訊以領號',
       formSubmit: '領號',
-      connLive: '即時連線中',
-      connFallback: '兜底輪詢中（15s）'
+      connLive: '即時更新中',
+      connFallback: '即時連線不穩，仍會自動更新',
+      connReconnecting: '連線中斷，{n} 秒後重試',
+      connOffline: '裝置目前離線',
+      connRetry: '立即重試',
+      currentServing: '目前叫到',
+      waitingCount: '等待 {n} 人',
+      notServing: '目前未叫號',
+      notStarted: '尚未開始服務',
+      recentTitle: '你今天已有 {n} 號',
+      recentSubtitle: '上次領號於本裝置',
+      recentReturn: '回到等待頁',
+      recentDismiss: '我不是這個',
+      findEntry: '找回我的號碼',
+      findTitle: '找回我的號碼',
+      findHint: '請選擇服務並輸入手機末 4 碼，協助你回到今日已領取的號碼牌。',
+      findServiceLabel: '服務',
+      findServicePlaceholder: '請選擇服務',
+      findPhoneLabel: '手機末 4 碼',
+      findPhonePlaceholder: '例如：1234',
+      findSubmit: '找回號碼',
+      findAmbiguous: '查詢結果不只一筆，請改用完整手機或聯絡店家',
+      findNotFound: '查無今日的號碼牌',
+      findInvalid: '請輸入正確的 4 位數字',
+      callOverlayTitle: '該你了',
+      callOverlaySubtitle: '請至櫃台',
+      callOverlayDismiss: '我知道了',
+      titleCalled: '🔔 該你了 - {serviceName} - 您的號碼 {n}',
+      titleWaiting: '等待中 - {serviceName}',
+      progressStart: '起點',
+      progressYou: '你',
+      progressEnd: '隊尾',
+      progressAhead: '前面還有 {n} 位',
+      progressNotStarted: '尚未開始叫號',
+      progressPassed: '您的號碼已過，請聯絡店家或重新領號',
+      doneTitle: '服務完成，謝謝您',
+      doneSubtitle: '歡迎再次光臨',
+      doneCtaHome: '回首頁',
+      doneCtaRetake: '重新領號',
+      skippedTitle: '您的號碼已被跳過',
+      skippedSubtitle: '如仍需服務，請洽櫃台或重新領號',
+      skippedCtaContact: '聯絡店家'
     },
     status: {
       WAITING: '等待中',
@@ -353,7 +501,60 @@ export default {
       queueFull: '今日號碼牌已發完',
       noWaiting: '目前沒有等待中的號碼',
       invalidTransition: '號碼牌狀態無法變更',
-      ticketNotFound: '查無此號碼牌'
+      ticketNotFound: '查無此號碼牌',
+      findAmbiguous: '查詢結果不只一筆，請至櫃台出示手機號碼協助核對',
+      findNotFound: '查無今日的號碼牌',
+      findInvalid: '請輸入正確的 4 位數字'
+    }
+  },
+  slot: {
+    reason: {
+      past: '已過',
+      taken: '已被預約',
+      capacity: '已額滿',
+      closed: '本時段休息',
+      holiday: '本日休假',
+      inactive: '資源停用'
+    },
+    reasonTooltip: {
+      past: '此時段已過，無法預約',
+      taken: '此時段已被其他顧客預約',
+      capacity: '此時段名額已滿',
+      closed: '本時段為休息時間',
+      holiday: '本日為休假日',
+      inactive: '此資源目前停用'
+    },
+    prefillNotice: '您點選的 {time} 已選中，請繼續填寫顧客資訊',
+    prefillUnavailable: '您點選的 {time} 目前不可用（{reason}），請選擇其他時段'
+  },
+  appointment: {
+    status: {
+      CONFIRMED: '已預約',
+      CANCELED: '已取消',
+      COMPLETED: '已完成',
+      NO_SHOW: '未到'
+    },
+    customerTitle: {
+      MR: '先生',
+      MRS: '女士',
+      MISS: '小姐',
+      MX: '客人'
+    },
+    list: {
+      showArchived: '顯示已結案',
+      showArchivedHint: '開啟後將同時顯示已取消、已完成、未到的紀錄（最多回溯 90 天）'
+    },
+    tooltip: {
+      list: '進行中的預約（可開啟「顯示已結案」查看已取消／完成／未到）',
+      archive: '90 天前已歸檔的舊預約紀錄'
+    },
+    actions: {
+      backToMain: '← 返回預約管理',
+      more: '更多',
+      detail: '詳細',
+      cancel: '取消預約',
+      complete: '標記完成',
+      noShow: '標記未到'
     }
   },
   enum: {

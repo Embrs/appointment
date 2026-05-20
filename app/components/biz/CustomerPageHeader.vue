@@ -10,6 +10,7 @@
 //   // overlay 模式只顯示返回按鈕，不顯示 title/subtitle
 
 const { t } = useI18n();
+const localePath = useLocalePath();
 
 const props = withDefaults(
   defineProps<{
@@ -32,7 +33,7 @@ const BackLabelText = computed(() => props.backLabel || t('common.back'));
 
 const ClickBack = () => {
   if (!props.backTo) return;
-  navigateTo(props.backTo);
+  navigateTo(localePath(props.backTo));
 };
 
 const HasBack = computed(() => !!props.backTo);

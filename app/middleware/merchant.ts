@@ -3,6 +3,7 @@
 export default defineNuxtRouteMiddleware(() => {
   const storeSelf = StoreSelf();
   if (! storeSelf.isSignIn || storeSelf.selfType !== 'merchant') {
-    return navigateTo('/sign-in');
+    const localePath = useLocalePath();
+    return navigateTo(localePath('/sign-in'));
   }
 });

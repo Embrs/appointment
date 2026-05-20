@@ -20,6 +20,12 @@ export const GetQueueTicket = ({ id }: GetQueueTicketParams) => {
   return methods.get<GetQueueTicketRes>(`/nuxt-api/public/queue/${id}`);
 };
 
+/** 公開：以手機末 4 碼找回今日號碼牌 */
+export const FindQueueTicket = (params: FindQueueTicketParams) => {
+  if (IsMock()) return mock.FindQueueTicket();
+  return methods.post<FindQueueTicketRes>('/nuxt-api/public/queue/find', params as unknown as Record<string, unknown>);
+};
+
 /** 商家：當日全部 ticket + counter */
 export const GetQueueToday = () => {
   if (IsMock()) return mock.GetQueueToday();

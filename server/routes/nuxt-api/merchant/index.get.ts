@@ -27,6 +27,7 @@ export default defineEventHandler(async (event) => {
       contactPhone: merchant.contactPhone,
       contactEmail: merchant.contactEmail,
       address: merchant.address,
+      maxActiveAppointmentsPerCustomer: merchant.maxActiveAppointmentsPerCustomer,
       createdAt: merchant.createdAt,
       updatedAt: merchant.updatedAt
     }

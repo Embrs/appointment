@@ -9,6 +9,7 @@
 //   BizPageHeader(title="商家詳情" :back-to="/sys/merchants")
 
 const { t } = useI18n();
+const localePath = useLocalePath();
 
 const props = withDefaults(
   defineProps<{
@@ -30,7 +31,7 @@ const BackLabelText = computed(() => props.backLabel || t('common.back'));
 
 const ClickBack = () => {
   if (!props.backTo) return;
-  navigateTo(props.backTo);
+  navigateTo(localePath(props.backTo));
 };
 </script>
 

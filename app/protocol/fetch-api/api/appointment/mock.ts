@@ -44,6 +44,12 @@ export const CreateAppointment = () =>
 export const CancelAppointment = () =>
   SuccessRes<CancelAppointmentRes>({ id: 'mock-appt-1' });
 
+export const CompleteAppointment = () =>
+  SuccessRes<CompleteAppointmentRes>({ id: 'mock-appt-1', status: 'COMPLETED' });
+
+export const NoShowAppointment = () =>
+  SuccessRes<NoShowAppointmentRes>({ id: 'mock-appt-1', status: 'NO_SHOW' });
+
 export const GetAppointmentArchive = () =>
   SuccessRes<GetAppointmentArchiveRes>({
     total: 0,

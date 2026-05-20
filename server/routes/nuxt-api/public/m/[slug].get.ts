@@ -4,6 +4,7 @@ import { z } from 'zod';
 import { prisma } from '@@/utils/prisma';
 import { badRequestError, notFoundError, successResponse, tooManyRequestsError } from '@@/utils/response';
 import { checkRateLimit } from '@@/utils/rate-limit';
+import { getTicketDate, projectQueueServingPublic } from '@@/utils/queue';
 
 const SlugSchema = z.string().min(1).max(64).regex(/^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$/i);
 
@@ -68,8 +69,30 @@ export default defineEventHandler(async (event) => {
     orderBy: [{ displayOrder: 'asc' }, { createdAt: 'asc' }]
   });
 
+  // 取所有 QUEUE 服務的當日 counter，供領號頁顯示「目前叫到 N 號 / 等待 M 人」
+  const queueServiceIds = services.filter((s) => s.bookingMode === 'QUEUE').map((s) => s.id);
+  const counterMap = new Map<string, { lastCalledNumber: number; lastTicketNumber: number }>();
+  if (queueServiceIds.length > 0) {
+    const ticketDate = getTicketDate(merchant.timezone);
+    const counters = await prisma.queueCounter.findMany({
+      where: {
+        merchantId: merchant.id,
+        counterDate: ticketDate,
+        serviceId: { in: queueServiceIds }
+      },
+      select: { serviceId: true, lastCalledNumber: true, lastTicketNumber: true }
+    });
+    for (const c of counters) {
+      counterMap.set(c.serviceId, {
+        lastCalledNumber: c.lastCalledNumber,
+        lastTicketNumber: c.lastTicketNumber
+      });
+    }
+  }
+
   return successResponse({
     merchant: {
+      id: merchant.id,
       slug: merchant.slug,
       name: merchant.name,
       description: merchant.description,
@@ -81,17 +104,22 @@ export default defineEventHandler(async (event) => {
       contactEmail: merchant.contactEmail,
       cancelPolicy: sanitizeCancelPolicy(merchant.cancelPolicy)
     },
-    services: services.map((s) => ({
-      id: s.id,
-      name: s.name,
-      description: s.description,
-      bookingMode: s.bookingMode,
-      durationMinutes: s.durationMinutes,
-      slotIntervalMinutes: s.slotIntervalMinutes,
-      capacityPerSlot: s.capacityPerSlot,
-      priceCents: s.priceCents,
-      resourceIds: s.bookingMode === 'RESOURCE' ? s.resources.map((r) => r.resourceId) : []
-    })),
+    services: services.map((s) => {
+      const base = {
+        id: s.id,
+        name: s.name,
+        description: s.description,
+        bookingMode: s.bookingMode,
+        durationMinutes: s.durationMinutes,
+        slotIntervalMinutes: s.slotIntervalMinutes,
+        capacityPerSlot: s.capacityPerSlot,
+        priceCents: s.priceCents,
+        resourceIds: s.bookingMode === 'RESOURCE' ? s.resources.map((r) => r.resourceId) : []
+      };
+      if (s.bookingMode !== 'QUEUE') return base;
+      const serving = projectQueueServingPublic(counterMap.get(s.id));
+      return { ...base, ...serving };
+    }),
     resources
   });
 });

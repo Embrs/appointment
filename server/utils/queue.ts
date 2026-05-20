@@ -46,6 +46,24 @@ export const MSG_QUEUE_INVALID_TRANSITION: I18nMessage = {
   ja: '整理券の状態変更ができません'
 };
 
+export const MSG_QUEUE_FIND_AMBIGUOUS: I18nMessage = {
+  zh_tw: '查詢結果不只一筆，請至櫃台出示手機號碼協助核對',
+  en: 'More than one match. Please visit the counter with your phone for verification.',
+  ja: '複数件見つかりました。携帯電話をご持参のうえカウンターまでお越しください。'
+};
+
+export const MSG_QUEUE_FIND_NOT_FOUND: I18nMessage = {
+  zh_tw: '查無今日的號碼牌',
+  en: 'No ticket found today',
+  ja: '本日の整理券は見つかりません'
+};
+
+export const MSG_QUEUE_FIND_INVALID: I18nMessage = {
+  zh_tw: '請輸入正確的 4 位數字',
+  en: 'Please enter a 4-digit number',
+  ja: '4 桁の数字を入力してください'
+};
+
 // ====== WebSocket peer 管理 ======
 
 /** peerMap：merchantId → Set<Peer> */
@@ -151,6 +169,32 @@ export interface QueueWindowRow {
   maxTickets: number;
   isActive: boolean;
 }
+
+// ====== 公開 currentServing / waitingCount 組裝 ======
+
+export interface QueueCounterSnapshot {
+  lastCalledNumber: number;
+  lastTicketNumber: number;
+}
+
+export interface QueueServingPublic {
+  currentServing: number;
+  ticketsTaken: number;
+  waitingCount: number;
+}
+
+/**
+ * 將當日 counter 投影為公開可見的「目前叫到 / 已發出 / 等待人數」三欄位
+ * 無 counter（當日尚未開機）一律回 0
+ */
+export const projectQueueServingPublic = (
+  counter: QueueCounterSnapshot | null | undefined
+): QueueServingPublic => {
+  const currentServing = counter?.lastCalledNumber ?? 0;
+  const ticketsTaken = counter?.lastTicketNumber ?? 0;
+  const waitingCount = Math.max(0, ticketsTaken - currentServing);
+  return { currentServing, ticketsTaken, waitingCount };
+};
 
 /** 判斷給定 timezone 下的當前時間是否在窗口內 */
 export const isWithinQueueWindow = (

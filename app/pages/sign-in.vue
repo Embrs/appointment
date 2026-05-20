@@ -7,6 +7,7 @@ definePageMeta({ layout: 'default' });
 
 const route = useRoute();
 const router = useRouter();
+const localePath = useLocalePath();
 const storeSelf = StoreSelf();
 const verify = UseVerify();
 
@@ -102,9 +103,9 @@ const SignInFlow = async () => {
     UseImpersonation().ClearBackup();
     ElMessage.success('登入成功');
     if (data.type === 'admin') {
-      router.push('/sys');
+      router.push(localePath('/sys'));
     } else {
-      router.push('/admin');
+      router.push(localePath('/admin'));
     }
   } finally {
     submitting.value = false;
@@ -120,11 +121,15 @@ const ClickSubmit = async () => {
 
 <template lang="pug">
 .PageSignIn
-  BizCustomerPageHeader(variant="overlay" :back-to="'/'")
+  BizCustomerPageHeader(
+    variant="overlay"
+    :back-to="'/'"
+    :back-label="$t('common.goHome')"
+  )
   .PageSignIn__split
     //- 左側品牌區
     aside.PageSignIn__brand
-      NuxtLink.PageSignIn__brandHeader(to="/")
+      NuxtLinkLocale.PageSignIn__brandHeader(to="/")
         .PageSignIn__brandMark A
         .PageSignIn__brandName Appointment
       .PageSignIn__brandBody
@@ -133,8 +138,6 @@ const ClickSubmit = async () => {
         p.PageSignIn__brandLead {{ heroCopy.lead }}
         ul.PageSignIn__brandList
           li.PageSignIn__brandItem(v-for="b in heroCopy.bullets" :key="b") {{ b }}
-      .PageSignIn__brandFooter
-        NuxtLink.PageSignIn__brandBack(to="/") ← {{ $t('common.goHome') }}
 
     //- 右側表單區
     section.PageSignIn__panel
@@ -190,9 +193,9 @@ const ClickSubmit = async () => {
           ) 登入
 
         .PageSignIn__links(v-if="!isAdmin")
-          NuxtLink.PageSignIn__link(to="/sign-up") 立即註冊商家
+          NuxtLinkLocale.PageSignIn__link(to="/sign-up") 立即註冊商家
           span.PageSignIn__divider |
-          NuxtLink.PageSignIn__link(to="/forgot-password") 忘記密碼
+          NuxtLinkLocale.PageSignIn__link(to="/forgot-password") 忘記密碼
 </template>
 
 <style lang="scss" scoped>
@@ -210,10 +213,10 @@ const ClickSubmit = async () => {
 // 左側品牌區 ----
 .PageSignIn__brand {
   position: relative;
-  padding: 48px 56px;
+  padding: 80px 56px 48px;
   display: flex;
   flex-direction: column;
-  justify-content: space-between;
+  gap: 32px;
   color: $white;
   background:
     radial-gradient(600px 400px at 90% -10%, rgba(235, 139, 45, 0.35), transparent 60%),
@@ -344,22 +347,6 @@ const ClickSubmit = async () => {
   border-left: 2px solid $white;
   border-bottom: 2px solid $white;
   transform: rotate(-45deg);
-}
-
-.PageSignIn__brandFooter {
-  position: relative;
-  font-size: 13px;
-  color: rgba(255, 255, 255, 0.6);
-}
-
-.PageSignIn__brandBack {
-  color: rgba(255, 255, 255, 0.7);
-  text-decoration: none;
-  transition: color 0.15s ease;
-}
-
-.PageSignIn__brandBack:hover {
-  color: $white;
 }
 
 // 右側表單區 ----
@@ -506,7 +493,7 @@ const ClickSubmit = async () => {
   }
 
   .PageSignIn__brand {
-    padding: 32px 28px;
+    padding: 72px 28px 32px;
     min-height: 320px;
   }
 
@@ -521,15 +508,11 @@ const ClickSubmit = async () => {
   .PageSignIn__brandList {
     display: none;
   }
-
-  .PageSignIn__brandFooter {
-    display: none;
-  }
 }
 
 @include rwd-less(640px) {
   .PageSignIn__brand {
-    padding: 28px 20px;
+    padding: 68px 20px 28px;
     min-height: 260px;
   }
 

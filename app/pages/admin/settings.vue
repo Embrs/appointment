@@ -27,7 +27,8 @@ const form = reactive({
   timezone: 'Asia/Taipei',
   address: '',
   cancelMode: 'free' as 'free' | 'cutoff',
-  cutoffHours: 2
+  cutoffHours: 2,
+  maxActiveAppointmentsPerCustomer: 5
 });
 
 const SLUG_PATTERN = /^[a-z0-9-]{3,50}$/;
@@ -65,6 +66,7 @@ const ApiLoad = async () => {
     const policy = m.cancelPolicy || { mode: 'free' };
     form.cancelMode = (policy.mode as 'free' | 'cutoff') ?? 'free';
     form.cutoffHours = (policy.hoursBeforeCannotCancel as number) ?? 2;
+    form.maxActiveAppointmentsPerCustomer = m.maxActiveAppointmentsPerCustomer ?? 5;
   } finally {
     loading.value = false;
   }
@@ -88,7 +90,8 @@ const SaveFlow = async () => {
       contactEmail: form.contactEmail.trim(),
       timezone: form.timezone,
       address: form.address.trim(),
-      cancelPolicy
+      cancelPolicy,
+      maxActiveAppointmentsPerCustomer: Number(form.maxActiveAppointmentsPerCustomer) || 5
     });
     if (res.status.code !== $enum.apiStatus.success) {
       ElMessage.error(res.status.message?.zh_tw || '儲存失敗');
@@ -186,6 +189,17 @@ onMounted(() => {
             min="1"
             max="168"
           )
+      .PageAdminSettings__section
+        h2.PageAdminSettings__section-title 預約上限
+        ElFormItem(label="同一手機在本店未來預約的最大筆數")
+          ElInputNumber(
+            v-model="form.maxActiveAppointmentsPerCustomer"
+            :min="1"
+            :max="99"
+            :step="1"
+            controls-position="right"
+          )
+          .PageAdminSettings__slug-hint 1–99，預設 5；商家代客預約不受此上限限制
       .PageAdminSettings__actions
         ElButton(
           type="primary"

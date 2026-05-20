@@ -27,6 +27,19 @@ interface TakeQueueTicketRes {
   timezone: string;
 }
 
+// 公開：找回號碼牌（手機末 4 碼） -----------------------------------------------------------
+
+interface FindQueueTicketParams {
+  slug: string;
+  serviceId: string;
+  /** 4 位數字字串 */
+  phoneLast4: string;
+}
+
+interface FindQueueTicketRes {
+  ticketId: string;
+}
+
 // 公開：查單張號碼牌 ---------------------------------------------------------------------------
 
 interface GetQueueTicketParams {

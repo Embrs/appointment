@@ -10,6 +10,7 @@ const storeSelf = StoreSelf();
 const merchantInfo = ref<SelfMerchantFull | null>(null);
 const services = ref<ServiceItem[]>([]);
 const resources = ref<ResourceItem[]>([]);
+const todayAppointmentCount = ref<number | null>(null);
 const loading = ref(true);
 
 const serviceCount = computed(() => services.value.filter((s) => s.isActive).length);
@@ -20,6 +21,21 @@ const recentServices = computed(() =>
     .sort((a, b) => (b.updatedAt ?? '').localeCompare(a.updatedAt ?? ''))
     .slice(0, 5)
 );
+
+const ApiLoadTodayAppointments = async (timezone: string) => {
+  const today = $dayjs().tz(timezone).format('YYYY-MM-DD');
+  const res = await $api.GetAppointmentList({
+    dateFrom: today,
+    dateTo: today,
+    status: 'CONFIRMED',
+    pageSize: 1
+  });
+  if (res.status.code === $enum.apiStatus.success) {
+    todayAppointmentCount.value = res.data.total;
+  } else {
+    todayAppointmentCount.value = null;
+  }
+};
 
 const ApiLoad = async () => {
   loading.value = true;
@@ -32,6 +48,9 @@ const ApiLoad = async () => {
     if (m.status.code === $enum.apiStatus.success) merchantInfo.value = m.data.merchant;
     if (s.status.code === $enum.apiStatus.success) services.value = s.data.items;
     if (r.status.code === $enum.apiStatus.success) resources.value = r.data.items;
+    // 今日預約數需在拿到 merchant timezone 後計算（避免用瀏覽器時區）
+    const tz = merchantInfo.value?.timezone || 'Asia/Taipei';
+    await ApiLoadTodayAppointments(tz);
   } finally {
     loading.value = false;
   }
@@ -61,12 +80,12 @@ onMounted(() => {
       h1.PageAdminIndex__title 歡迎，{{ merchantInfo?.name || storeSelf.userName }}
       p.PageAdminIndex__lead 管理服務、資源、員工與排班，所有預約一站式搞定。
     .PageAdminIndex__headActions
-      NuxtLink.PageAdminIndex__headAction(to="/admin/services") 管理服務
-      NuxtLink.PageAdminIndex__headAction.PageAdminIndex__headAction--ghost(to="/admin/share-link") 對外連結
+      NuxtLinkLocale.PageAdminIndex__headAction(to="/admin/services") 管理服務
+      NuxtLinkLocale.PageAdminIndex__headAction.PageAdminIndex__headAction--ghost(to="/admin/share-link") 對外連結
 
   //- 統計卡片
   .PageAdminIndex__cards
-    NuxtLink.PageAdminIndex__card.PageAdminIndex__card--service(to="/admin/services")
+    NuxtLinkLocale.PageAdminIndex__card.PageAdminIndex__card--service(to="/admin/services")
       .PageAdminIndex__cardHeader
         .PageAdminIndex__cardBadge 服務
         .PageAdminIndex__cardArrow →
@@ -74,7 +93,7 @@ onMounted(() => {
       .PageAdminIndex__cardLabel 啟用服務
       .PageAdminIndex__cardHint 點擊管理服務
 
-    NuxtLink.PageAdminIndex__card.PageAdminIndex__card--resource(to="/admin/resources")
+    NuxtLinkLocale.PageAdminIndex__card.PageAdminIndex__card--resource(to="/admin/resources")
       .PageAdminIndex__cardHeader
         .PageAdminIndex__cardBadge 資源
         .PageAdminIndex__cardArrow →
@@ -82,24 +101,25 @@ onMounted(() => {
       .PageAdminIndex__cardLabel 啟用資源
       .PageAdminIndex__cardHint 點擊管理資源
 
-    .PageAdminIndex__card.PageAdminIndex__card--placeholder
+    NuxtLinkLocale.PageAdminIndex__card.PageAdminIndex__card--appointment(to="/admin/appointments")
       .PageAdminIndex__cardHeader
-        .PageAdminIndex__cardBadge 即將推出
-      .PageAdminIndex__cardValue —
+        .PageAdminIndex__cardBadge 今日
+        .PageAdminIndex__cardArrow →
+      .PageAdminIndex__cardValue {{ loading ? '–' : (todayAppointmentCount ?? '—') }}
       .PageAdminIndex__cardLabel 今日預約
-      .PageAdminIndex__cardHint 將於下一階段開放
+      .PageAdminIndex__cardHint 點擊查看預約管理
 
   //- 最近編輯的服務
   section.PageAdminIndex__section
     header.PageAdminIndex__sectionHead
       h2.PageAdminIndex__sectionTitle 最近編輯的服務
-      NuxtLink.PageAdminIndex__sectionMore(to="/admin/services") 查看全部 →
+      NuxtLinkLocale.PageAdminIndex__sectionMore(to="/admin/services") 查看全部 →
     .PageAdminIndex__empty(v-if="!loading && recentServices.length === 0")
       | 尚未建立服務 ·
-      NuxtLink.PageAdminIndex__emptyLink(to="/admin/services")  建立第一個服務 →
+      NuxtLinkLocale.PageAdminIndex__emptyLink(to="/admin/services")  建立第一個服務 →
     ul.PageAdminIndex__list(v-else)
       li.PageAdminIndex__listItem(v-for="s in recentServices" :key="s.id")
-        NuxtLink.PageAdminIndex__listLink(to="/admin/services")
+        NuxtLinkLocale.PageAdminIndex__listLink(to="/admin/services")
           .PageAdminIndex__listAvatar {{ (s.name || '?').charAt(0).toUpperCase() }}
           .PageAdminIndex__listInfo
             .PageAdminIndex__listName {{ s.name }}
@@ -264,19 +284,8 @@ onMounted(() => {
   background: linear-gradient(180deg, $secondary, #5fc6c3);
 }
 
-.PageAdminIndex__card--placeholder {
-  opacity: 0.6;
-  cursor: default;
-}
-
-.PageAdminIndex__card--placeholder::before {
-  background: rgba(53, 77, 123, 0.25);
-}
-
-.PageAdminIndex__card--placeholder:hover {
-  transform: none;
-  box-shadow: none;
-  border-color: rgba(53, 77, 123, 0.08);
+.PageAdminIndex__card--appointment::before {
+  background: linear-gradient(180deg, #eb8b2d, #f4a85c);
 }
 
 .PageAdminIndex__cardHeader {
@@ -299,6 +308,11 @@ onMounted(() => {
 .PageAdminIndex__card--resource .PageAdminIndex__cardBadge {
   background-color: rgba(0, 173, 169, 0.12);
   color: $secondary;
+}
+
+.PageAdminIndex__card--appointment .PageAdminIndex__cardBadge {
+  background-color: rgba(235, 139, 45, 0.14);
+  color: #eb8b2d;
 }
 
 .PageAdminIndex__cardArrow {

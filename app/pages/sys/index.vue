@@ -74,12 +74,12 @@ onMounted(() => {
       h1.PageSysIndex__title 歡迎回來，{{ storeSelf.userName || '管理員' }}
       p.PageSysIndex__lead 一覽商家審核狀態、在線商家數量與管理員帳號。
     .PageSysIndex__headActions
-      NuxtLink.PageSysIndex__headAction(to="/sys/merchants?status=PENDING") 處理待審核
-      NuxtLink.PageSysIndex__headAction.PageSysIndex__headAction--ghost(to="/sys/admins") 管理員帳號
+      NuxtLinkLocale.PageSysIndex__headAction(to="/sys/merchants?status=PENDING") 處理待審核
+      NuxtLinkLocale.PageSysIndex__headAction.PageSysIndex__headAction--ghost(to="/sys/admins") 管理員帳號
 
   //- 統計卡片
   .PageSysIndex__cards
-    NuxtLink.PageSysIndex__card.PageSysIndex__card--pending(to="/sys/merchants?status=PENDING")
+    NuxtLinkLocale.PageSysIndex__card.PageSysIndex__card--pending(to="/sys/merchants?status=PENDING")
       .PageSysIndex__cardHeader
         .PageSysIndex__cardBadge 待處理
         .PageSysIndex__cardArrow →
@@ -87,7 +87,7 @@ onMounted(() => {
       .PageSysIndex__cardLabel 待審核商家
       .PageSysIndex__cardHint 點擊查看待審清單
 
-    NuxtLink.PageSysIndex__card.PageSysIndex__card--active(to="/sys/merchants?status=ACTIVE")
+    NuxtLinkLocale.PageSysIndex__card.PageSysIndex__card--active(to="/sys/merchants?status=ACTIVE")
       .PageSysIndex__cardHeader
         .PageSysIndex__cardBadge 在線
         .PageSysIndex__cardArrow →
@@ -95,7 +95,7 @@ onMounted(() => {
       .PageSysIndex__cardLabel 在線商家
       .PageSysIndex__cardHint 點擊查看在線清單
 
-    NuxtLink.PageSysIndex__card.PageSysIndex__card--admin(to="/sys/admins")
+    NuxtLinkLocale.PageSysIndex__card.PageSysIndex__card--admin(to="/sys/admins")
       .PageSysIndex__cardHeader
         .PageSysIndex__cardBadge 啟用中
         .PageSysIndex__cardArrow →
@@ -107,11 +107,11 @@ onMounted(() => {
   section.PageSysIndex__section
     header.PageSysIndex__sectionHead
       h2.PageSysIndex__sectionTitle 最近註冊
-      NuxtLink.PageSysIndex__sectionMore(to="/sys/merchants") 查看全部 →
+      NuxtLinkLocale.PageSysIndex__sectionMore(to="/sys/merchants") 查看全部 →
     .PageSysIndex__empty(v-if="!loading && recentMerchants.length === 0") 暫無商家
     ul.PageSysIndex__list(v-else)
       li.PageSysIndex__listItem(v-for="m in recentMerchants" :key="m.id")
-        NuxtLink.PageSysIndex__listLink(:to="`/sys/merchants/${m.id}`")
+        NuxtLinkLocale.PageSysIndex__listLink(:to="`/sys/merchants/${m.id}`")
           .PageSysIndex__listAvatar {{ (m.name || '?').charAt(0).toUpperCase() }}
           .PageSysIndex__listInfo
             .PageSysIndex__listName {{ m.name }}

@@ -26,6 +26,8 @@ interface SelfMerchantFull {
   contactPhone: string;
   contactEmail: string;
   address: string;
+  /** 同一手機在本商家未來 CONFIRMED 預約的最大筆數（1–99） */
+  maxActiveAppointmentsPerCustomer: number;
   createdAt: string;
   updatedAt: string;
 }
@@ -46,6 +48,7 @@ interface UpdateSelfMerchantParams {
   timezone?: string;
   address?: string;
   cancelPolicy?: CancelPolicy;
+  maxActiveAppointmentsPerCustomer?: number;
 }
 
 interface UpdateSelfMerchantRes {
@@ -224,4 +227,31 @@ interface SysImpersonateMerchantRes {
   ownerName: string;
   ownerEmail: string;
   expiresInSeconds: number;
+}
+
+// QueueWindow（號碼牌領號時間設定） -----------------------------------------------------------
+
+interface QueueWindowItem {
+  weekday: number;
+  startTime: string;
+  endTime: string;
+  maxTickets: number;
+  isActive: boolean;
+}
+
+interface GetQueueWindowsParams {
+  serviceId: string;
+}
+
+interface GetQueueWindowsRes {
+  windows: QueueWindowItem[];
+}
+
+interface UpdateQueueWindowsParams {
+  serviceId: string;
+  windows: QueueWindowItem[];
+}
+
+interface UpdateQueueWindowsRes {
+  windows: QueueWindowItem[];
 }

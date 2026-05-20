@@ -5,6 +5,7 @@ definePageMeta({ layout: 'front-desk' });
 
 const { t } = useI18n();
 const route = useRoute();
+const localePath = useLocalePath();
 const slug = computed(() => String(route.params.slug ?? ''));
 const sessionStore = StoreCustomerSession();
 
@@ -41,7 +42,7 @@ const PromptTripletFlow = async () => {
     initial: sessionStore.triplet ?? undefined
   });
   if (!result.done || !result.triplet) {
-    navigateTo(`/m/${slug.value}`);
+    navigateTo(localePath(`/m/${slug.value}`));
     return;
   }
   sessionStore.SetTriplet(result.triplet);
@@ -85,7 +86,7 @@ onMounted(() => {
       button.PageMyBookings__switch(type="button" @click="PromptTripletFlow")
         span.PageMyBookings__switchIcon ⇄
         span {{ $t('booking.actions.switchIdentity') }}
-  .PageMyBookings__loading(v-if="loading") 載入中…
+  .PageMyBookings__loading(v-if="loading") {{ $t('common.loading') }}
   template(v-else)
     .PageMyBookings__empty(v-if="appointments.length === 0")
       .PageMyBookings__emptyIcon ○

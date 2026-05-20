@@ -83,11 +83,15 @@ const ClickSubmit = async () => {
 
 <template lang="pug">
 .PageSignUp
-  BizCustomerPageHeader(variant="overlay" :back-to="'/'")
+  BizCustomerPageHeader(
+    variant="overlay"
+    :back-to="'/'"
+    :back-label="$t('common.goHome')"
+  )
   .PageSignUp__split
     //- 左側品牌區
     aside.PageSignUp__brand
-      NuxtLink.PageSignUp__brandHeader(to="/")
+      NuxtLinkLocale.PageSignUp__brandHeader(to="/")
         .PageSignUp__brandMark A
         .PageSignUp__brandName Appointment
       .PageSignUp__brandBody
@@ -96,8 +100,6 @@ const ClickSubmit = async () => {
         p.PageSignUp__brandLead 完成註冊後，平台管理員會儘速審核您的申請，審核通過即可登入後台開始接受預約。
         ul.PageSignUp__brandList
           li.PageSignUp__brandItem(v-for="b in brandBullets" :key="b") {{ b }}
-      .PageSignUp__brandFooter
-        NuxtLink.PageSignUp__brandBack(to="/") ← {{ $t('common.goHome') }}
 
     //- 右側表單區
     section.PageSignUp__panel
@@ -161,7 +163,7 @@ const ClickSubmit = async () => {
 
           .PageSignUp__links
             span.PageSignUp__hint 已有帳號？
-            NuxtLink.PageSignUp__link(to="/sign-in") 返回登入
+            NuxtLinkLocale.PageSignUp__link(to="/sign-in") 返回登入
 
         //- 待審核成功畫面
         template(v-else)
@@ -170,7 +172,7 @@ const ClickSubmit = async () => {
               span.PageSignUp__noticeCheck
             h2.PageSignUp__noticeTitle 申請已送出
             p.PageSignUp__noticeBody 您的商家註冊申請已送出，請等待平台管理員審核。<br/>審核通過後將以 Email 通知您登入後台。
-            NuxtLink.PageSignUp__noticeBtn(to="/sign-in")
+            NuxtLinkLocale.PageSignUp__noticeBtn(to="/sign-in")
               ElButton(type="primary" size="large") 返回登入
 </template>
 
@@ -189,10 +191,10 @@ const ClickSubmit = async () => {
 // 左側品牌區 ----
 .PageSignUp__brand {
   position: relative;
-  padding: 48px 56px;
+  padding: 80px 56px 48px;
   display: flex;
   flex-direction: column;
-  justify-content: space-between;
+  gap: 32px;
   color: $white;
   background:
     radial-gradient(600px 400px at 90% -10%, rgba(235, 139, 45, 0.35), transparent 60%),
@@ -323,22 +325,6 @@ const ClickSubmit = async () => {
   border-left: 2px solid $white;
   border-bottom: 2px solid $white;
   transform: rotate(-45deg);
-}
-
-.PageSignUp__brandFooter {
-  position: relative;
-  font-size: 13px;
-  color: rgba(255, 255, 255, 0.6);
-}
-
-.PageSignUp__brandBack {
-  color: rgba(255, 255, 255, 0.7);
-  text-decoration: none;
-  transition: color 0.15s ease;
-}
-
-.PageSignUp__brandBack:hover {
-  color: $white;
 }
 
 // 右側表單區 ----
@@ -486,7 +472,7 @@ const ClickSubmit = async () => {
   }
 
   .PageSignUp__brand {
-    padding: 32px 28px;
+    padding: 72px 28px 32px;
     min-height: 320px;
   }
 
@@ -501,15 +487,11 @@ const ClickSubmit = async () => {
   .PageSignUp__brandList {
     display: none;
   }
-
-  .PageSignUp__brandFooter {
-    display: none;
-  }
 }
 
 @include rwd-less(640px) {
   .PageSignUp__brand {
-    padding: 28px 20px;
+    padding: 68px 20px 28px;
     min-height: 260px;
   }
 

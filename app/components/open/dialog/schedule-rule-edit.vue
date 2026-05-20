@@ -39,6 +39,13 @@ const EmitClose = (done = false, rule?: { weekday: number; startTime: string; en
   emit('on-close');
 };
 
+const OpenTimePicker = (e: MouseEvent) => {
+  const root = e.currentTarget as HTMLElement | null;
+  const input = root?.querySelector('input[type="time"]') as HTMLInputElement | null;
+  if (!input || document.activeElement !== input) input?.focus();
+  try { input?.showPicker?.(); } catch { /* showPicker 受限於使用者手勢，失敗時忽略 */ }
+};
+
 const ClickSubmit = async () => {
   const valid = await formRef.value?.validate().catch(() => false);
   if (!valid) return;
@@ -81,19 +88,20 @@ const ClickSubmit = async () => {
               :value="idx"
             )
         ElFormItem(label="起始時間" prop="startTime")
-          ElInput(
-            v-model="form.startTime"
-            placeholder="HH:mm"
-            maxlength="5"
-            inputmode="numeric"
-          )
+          .OpenDialogScheduleRuleEdit__time(@click="OpenTimePicker")
+            ElInput(
+              v-model="form.startTime"
+              type="time"
+              step="900"
+            )
         ElFormItem(label="結束時間" prop="endTime")
-          ElInput(
-            v-model="form.endTime"
-            placeholder="HH:mm"
-            maxlength="5"
-            inputmode="numeric"
-          )
+          .OpenDialogScheduleRuleEdit__time(@click="OpenTimePicker")
+            ElInput(
+              v-model="form.endTime"
+              type="time"
+              step="900"
+              :min="form.startTime"
+            )
     .OpenDialogScheduleRuleEdit__footer
       ElButton(@click="EmitClose(false)") 取消
       ElButton(type="primary" @click="ClickSubmit") 加入
@@ -144,6 +152,11 @@ const ClickSubmit = async () => {
 
 .OpenDialogScheduleRuleEdit__body {
   padding: 20px;
+}
+
+.OpenDialogScheduleRuleEdit__time {
+  width: 100%;
+  cursor: pointer;
 }
 
 .OpenDialogScheduleRuleEdit__footer {

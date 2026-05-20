@@ -135,6 +135,26 @@ interface CancelAppointmentRes {
   id: string;
 }
 
+// 商家：標記完成 / 標記未到 --------------------------------------------------------------------
+
+interface CompleteAppointmentParams {
+  id: string;
+}
+
+interface CompleteAppointmentRes {
+  id: string;
+  status: 'COMPLETED';
+}
+
+interface NoShowAppointmentParams {
+  id: string;
+}
+
+interface NoShowAppointmentRes {
+  id: string;
+  status: 'NO_SHOW';
+}
+
 // 商家：歷史 -----------------------------------------------------------------------------------
 
 interface GetAppointmentArchiveParams {

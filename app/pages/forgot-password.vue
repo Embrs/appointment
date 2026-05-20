@@ -44,16 +44,13 @@ const ClickSubmit = async () => {
   .PageForgotPassword__split
     //- 左側品牌區
     aside.PageForgotPassword__brand
-      NuxtLink.PageForgotPassword__brandHeader(to="/")
+      NuxtLinkLocale.PageForgotPassword__brandHeader(to="/")
         .PageForgotPassword__brandMark A
         .PageForgotPassword__brandName Appointment
       .PageForgotPassword__brandBody
         .PageForgotPassword__brandEyebrow 密碼救援
         h2.PageForgotPassword__brandTitle 忘記密碼？沒關係，我們幫您
         p.PageForgotPassword__brandLead 輸入註冊時的 Email，若帳號存在，我們將寄送密碼重設連結到您的信箱。
-      .PageForgotPassword__brandFooter
-        NuxtLink.PageForgotPassword__brandBack(to="/sign-in") ← {{ $t('common.backToSignIn') }}
-
     //- 右側表單區
     section.PageForgotPassword__panel
       .PageForgotPassword__panelInner
@@ -87,7 +84,7 @@ const ClickSubmit = async () => {
             ) 送出重設連結
 
           .PageForgotPassword__links
-            NuxtLink.PageForgotPassword__link(to="/sign-in") ← 返回登入
+            NuxtLinkLocale.PageForgotPassword__link(to="/sign-in") ← 返回登入
 
         template(v-else)
           .PageForgotPassword__notice
@@ -95,7 +92,7 @@ const ClickSubmit = async () => {
               span.PageForgotPassword__noticeMail
             h2.PageForgotPassword__noticeTitle 已送出重設連結
             p.PageForgotPassword__noticeBody 若該 Email 存在於本平台，您將很快收到密碼重設信件。<br/>請檢查收件匣或垃圾信件夾。
-            NuxtLink.PageForgotPassword__noticeBtn(to="/sign-in")
+            NuxtLinkLocale.PageForgotPassword__noticeBtn(to="/sign-in")
               ElButton(type="primary" size="large") 返回登入
 </template>
 
@@ -114,10 +111,10 @@ const ClickSubmit = async () => {
 // 左側品牌區 ----
 .PageForgotPassword__brand {
   position: relative;
-  padding: 48px 56px;
+  padding: 80px 56px 48px;
   display: flex;
   flex-direction: column;
-  justify-content: space-between;
+  gap: 32px;
   color: $white;
   background:
     radial-gradient(600px 400px at 90% -10%, rgba(235, 139, 45, 0.35), transparent 60%),
@@ -209,22 +206,6 @@ const ClickSubmit = async () => {
   font-size: 15px;
   line-height: 1.75;
   color: rgba(255, 255, 255, 0.78);
-}
-
-.PageForgotPassword__brandFooter {
-  position: relative;
-  font-size: 13px;
-  color: rgba(255, 255, 255, 0.6);
-}
-
-.PageForgotPassword__brandBack {
-  color: rgba(255, 255, 255, 0.7);
-  text-decoration: none;
-  transition: color 0.15s ease;
-}
-
-.PageForgotPassword__brandBack:hover {
-  color: $white;
 }
 
 // 右側表單區 ----
@@ -377,7 +358,7 @@ const ClickSubmit = async () => {
   }
 
   .PageForgotPassword__brand {
-    padding: 32px 28px;
+    padding: 72px 28px 32px;
     min-height: 280px;
   }
 
@@ -388,15 +369,11 @@ const ClickSubmit = async () => {
   .PageForgotPassword__brandTitle {
     font-size: 26px;
   }
-
-  .PageForgotPassword__brandFooter {
-    display: none;
-  }
 }
 
 @include rwd-less(640px) {
   .PageForgotPassword__brand {
-    padding: 28px 20px;
+    padding: 68px 20px 28px;
     min-height: 220px;
   }
 

@@ -60,10 +60,11 @@ const TitleLabel = (title: string) => {
   }
 };
 
+// 與顧客「找回我的號碼」find 頁的「末 4 碼」對齊：商家現場唸「末 4 碼 1234 的顧客」、顧客 find 也用末 4 查
 const MaskPhone = (phone: string) => {
   if (!phone) return '';
-  if (phone.length < 4) return phone;
-  return `${phone.slice(0, 3)}***${phone.slice(-3)}`;
+  if (phone.length <= 4) return phone;
+  return `••••${phone.slice(-4)}`;
 };
 </script>
 

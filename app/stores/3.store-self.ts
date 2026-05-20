@@ -85,10 +85,11 @@ export const StoreSelf = defineStore('StoreSelf', () => {
   const SignOut = () => {
     const prevType = selfType.value;
     ClearInfo();
+    const localePath = useLocalePath();
     if (prevType === 'admin') {
-      navigateTo('/sys/sign-in');
+      navigateTo(localePath('/sys/sign-in'));
     } else if (prevType === 'merchant') {
-      navigateTo('/sign-in');
+      navigateTo(localePath('/sign-in'));
     }
     // guest 不跳轉
   };

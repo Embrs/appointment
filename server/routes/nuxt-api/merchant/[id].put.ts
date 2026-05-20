@@ -35,7 +35,8 @@ const UpdateSchema = z
     contactEmail: z.string().trim().email().max(120).optional().nullable(),
     timezone: z.string().trim().min(1).max(60).optional(),
     address: z.string().trim().max(200).optional().nullable(),
-    cancelPolicy: CancelPolicySchema.optional()
+    cancelPolicy: CancelPolicySchema.optional(),
+    maxActiveAppointmentsPerCustomer: z.number().int().min(1).max(99).optional()
   })
   .strict();
 
@@ -82,7 +83,8 @@ export default defineEventHandler(async (event) => {
       contactEmail: data.contactEmail ?? undefined,
       timezone: data.timezone,
       address: data.address ?? undefined,
-      cancelPolicy: mergedCancelPolicy
+      cancelPolicy: mergedCancelPolicy,
+      maxActiveAppointmentsPerCustomer: data.maxActiveAppointmentsPerCustomer
     }
   });
 
@@ -100,6 +102,7 @@ export default defineEventHandler(async (event) => {
       contactPhone: updated.contactPhone,
       contactEmail: updated.contactEmail,
       address: updated.address,
+      maxActiveAppointmentsPerCustomer: updated.maxActiveAppointmentsPerCustomer,
       updatedAt: updated.updatedAt
     }
   });

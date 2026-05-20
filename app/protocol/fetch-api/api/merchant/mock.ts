@@ -82,6 +82,7 @@ const fakeSelf: SelfMerchantFull = {
   contactPhone: '',
   contactEmail: 'demo@mock.local',
   address: '',
+  maxActiveAppointmentsPerCustomer: 5,
   createdAt: '2026-05-10T00:00:00.000Z',
   updatedAt: '2026-05-15T00:00:00.000Z'
 };
@@ -164,3 +165,16 @@ export const SysImpersonateMerchant = () => SuccessRes<SysImpersonateMerchantRes
   ownerEmail: fakeOwner.email,
   expiresInSeconds: 1800
 });
+
+// QueueWindow ---------------------------------------------------------------------------------
+
+const fakeQueueWindows: QueueWindowItem[] = [
+  { weekday: 1, startTime: '09:00', endTime: '18:00', maxTickets: 20, isActive: true },
+  { weekday: 2, startTime: '09:00', endTime: '18:00', maxTickets: 20, isActive: true },
+  { weekday: 3, startTime: '09:00', endTime: '18:00', maxTickets: 20, isActive: true },
+  { weekday: 4, startTime: '09:00', endTime: '18:00', maxTickets: 20, isActive: true },
+  { weekday: 5, startTime: '09:00', endTime: '18:00', maxTickets: 20, isActive: true }
+];
+
+export const GetQueueWindows = () => SuccessRes<GetQueueWindowsRes>({ windows: fakeQueueWindows });
+export const UpdateQueueWindows = () => SuccessRes<UpdateQueueWindowsRes>({ windows: fakeQueueWindows });

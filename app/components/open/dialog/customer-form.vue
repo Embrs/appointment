@@ -9,6 +9,7 @@ type Props = {
 };
 const props = defineProps<Props>();
 
+const { t } = useI18n();
 const formRef = ref<FormInstance | null>(null);
 const submitting = ref(false);
 
@@ -19,24 +20,24 @@ const form = reactive({
   phone: initial?.phone ?? ''
 });
 
-const rules: FormRules = {
+const rules = computed<FormRules>(() => ({
   lastName: [
-    { required: true, message: '請填寫姓氏', trigger: 'blur' },
-    { max: 20, message: '姓氏請在 20 字以內', trigger: 'blur' }
+    { required: true, message: t('booking.validation.lastNameRequired'), trigger: 'blur' },
+    { max: 20, message: t('booking.validation.lastNameMaxLength'), trigger: 'blur' }
   ],
-  title: [{ required: true, message: '請選擇稱謂', trigger: 'change' }],
+  title: [{ required: true, message: t('booking.validation.titleRequired'), trigger: 'change' }],
   phone: [
-    { required: true, message: '請填寫手機號碼', trigger: 'blur' },
-    { pattern: /^[0-9+\s-]{6,20}$/, message: '手機號碼格式錯誤', trigger: 'blur' }
+    { required: true, message: t('booking.validation.phoneRequired'), trigger: 'blur' },
+    { pattern: /^[0-9+\s-]{6,20}$/, message: t('booking.validation.phoneFormat'), trigger: 'blur' }
   ]
-};
+}));
 
-const titleOptions = [
-  { value: 'MR' as const, label: '先生' },
-  { value: 'MRS' as const, label: '女士' },
-  { value: 'MISS' as const, label: '小姐' },
-  { value: 'MX' as const, label: '客人' }
-];
+const titleOptions = computed(() => [
+  { value: 'MR' as const, label: t('booking.customer.titleMr') },
+  { value: 'MRS' as const, label: t('booking.customer.titleMrs') },
+  { value: 'MISS' as const, label: t('booking.customer.titleMiss') },
+  { value: 'MX' as const, label: t('booking.customer.titleMx') }
+]);
 
 type Emit = { 'on-close': [] };
 const emit = defineEmits<Emit>();
@@ -69,25 +70,25 @@ const ClickSubmit = async () => {
   .OpenDialogCustomerForm__mask(v-motion-fade)
   .OpenDialogCustomerForm__content(v-motion-roll-bottom)
     .OpenDialogCustomerForm__header
-      span.OpenDialogCustomerForm__title {{ params.title || '填寫聯絡資訊' }}
+      span.OpenDialogCustomerForm__title {{ params.title || $t('booking.fillContactTitle') }}
       button.OpenDialogCustomerForm__close(type="button" :disabled="submitting" @click="EmitClose(false)") ✕
     .OpenDialogCustomerForm__body
       ElForm(ref="formRef" :model="form" :rules="rules" label-position="top" @submit.prevent="ClickSubmit")
-        ElFormItem(label="姓氏" prop="lastName")
-          ElInput(v-model="form.lastName" maxlength="20" placeholder="例：王")
-        ElFormItem(label="稱謂" prop="title")
-          ElSelect(v-model="form.title" placeholder="選擇稱謂" style="width: 100%;")
+        ElFormItem(:label="$t('booking.customer.lastName')" prop="lastName")
+          ElInput(v-model="form.lastName" maxlength="20" :placeholder="$t('booking.placeholders.lastNameExample')")
+        ElFormItem(:label="$t('booking.customer.titleField')" prop="title")
+          ElSelect(v-model="form.title" :placeholder="$t('booking.placeholders.pickTitle')" style="width: 100%;")
             ElOption(v-for="opt in titleOptions" :key="opt.value" :label="opt.label" :value="opt.value")
-        ElFormItem(label="手機號碼" prop="phone")
+        ElFormItem(:label="$t('booking.customer.phone')" prop="phone")
           ElInput(
             v-model="form.phone"
             maxlength="20"
             inputmode="numeric"
-            placeholder="例：0912345678"
+            :placeholder="$t('booking.placeholders.phoneExample')"
           )
     .OpenDialogCustomerForm__footer
-      ElButton(:disabled="submitting" @click="EmitClose(false)") 取消
-      ElButton(type="primary" :loading="submitting" @click="ClickSubmit") {{ params.submitLabel || '確認' }}
+      ElButton(:disabled="submitting" @click="EmitClose(false)") {{ $t('common.cancel') }}
+      ElButton(type="primary" :loading="submitting" @click="ClickSubmit") {{ params.submitLabel || $t('common.confirm') }}
 </template>
 
 <style lang="scss" scoped>
