@@ -85,4 +85,4 @@ npx prisma studio        # 開啟 Prisma Studio 視覺化資料庫
 | [deploy-and-env.md](.claude/knowledge/deploy-and-env.md) | Dockerfile multi-stage、環境變數清單、cron jobs、R2、JobLock / RateLimit | 部署、環境變數調整、cron 排程、R2 上傳、排程互斥時 |
 
 > 知識庫結構：fact-context-layered-v1
-> 最後更新時間：2026-05-19
+> 最後更新時間：2026-05-20

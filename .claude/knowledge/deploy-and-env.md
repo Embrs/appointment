@@ -14,8 +14,8 @@ Dockerfile、環境變數、cron 觸發、Cloudflare R2、排程互斥鎖。
 
 | Stage | 基礎映像 | 動作 |
 |-------|---------|------|
-| `builder` | `node:24.11-alpine` | 先複製 `package*.json`、`prisma/`、`scripts/`（postinstall 依賴 `scripts/copy-tinymce.mjs`）→ `npm ci` → `prisma generate`（冪等保險）→ 複製其餘原始碼 → `npm run build` → 驗 `.output/server/index.mjs` 存在 |
-| `runner` | `node:24.11-alpine` | 複製 `.output/`、`prisma/`、`node_modules/{.prisma,@prisma,prisma}` |
+| `builder` | `node:24.11-alpine` | 先複製 `package*.json`、`prisma/`、`scripts/`（postinstall 依賴 `scripts/copy-tinymce.mjs`）→ `npm ci` → `prisma generate`（冪等保險）→ 複製其餘原始碼 → `npm run build` → 驗 `.output/server/index.mjs` 存在 → `npm prune --omit=dev` 精簡至 production 依賴 |
+| `runner` | `node:24.11-alpine` | 複製 `.output/`、`version.ts`、`prisma/`、`package.json`、完整精簡後的 `node_modules/` |
 
 啟動指令（在 runner stage）：
 ```sh
@@ -23,6 +23,7 @@ node ./node_modules/prisma/build/index.js migrate deploy && node ./.output/serve
 ```
 
 - 直接以 `node` 執行 prisma 入口，避開 `node_modules/.bin` 軟連結未複製到 runner 的問題（不再依賴 `npx`）
+- runner 整包複製 `node_modules`（而非僅 `@prisma`/`.prisma`/`prisma` 三個資料夾），確保 `@prisma/config → effect` 等 transitive deps 齊全；透過 builder stage 的 `npm prune --omit=dev` 控制體積
 - `prisma migrate deploy` 冪等，只套未套用的 migrations
 - 失敗則容器啟動失敗（部署 platform 會自動 rollback）
 - `EXPOSE 3000`、`NUXT_HOST=0.0.0.0`
