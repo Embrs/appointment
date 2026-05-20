@@ -11,12 +11,12 @@ TBD - created by archiving change merchant-config. Update Purpose after archive.
 
 - **GIVEN** 已登入商家
 - **WHEN** `GET /nuxt-api/merchant`
-- **THEN** 響應 200，`data.merchant` 含完整欄位（id、slug、name、description、logoUrl、coverUrl、cancelPolicy、contactPhone、contactEmail、timezone、address、status、createdAt、updatedAt）
+- **THEN** 響應 200，`data.merchant` 含完整欄位（id、slug、name、description、logoUrl、coverUrl、cancelPolicy、contactPhone、contactEmail、timezone、address、status、createdAt、updatedAt、**maxActiveAppointmentsPerCustomer**）
 
 #### Scenario: 修改自身商家
 
 - **GIVEN** 已登入商家、`id === auth.merchantId`
-- **WHEN** `PUT /nuxt-api/merchant/[id]` body 含 `{ name?, slug?, description?, logoUrl?, coverUrl?, contactPhone?, contactEmail?, timezone?, address?, cancelPolicy? }`
+- **WHEN** `PUT /nuxt-api/merchant/[id]` body 含 `{ name?, slug?, description?, logoUrl?, coverUrl?, contactPhone?, contactEmail?, timezone?, address?, cancelPolicy?, maxActiveAppointmentsPerCustomer? }`
 - **THEN** 響應 200，DB 同步更新；cancelPolicy 與既有 Json 合併（保留未提及 key）
 
 #### Scenario: 嘗試修改他人商家
@@ -39,6 +39,16 @@ TBD - created by archiving change merchant-config. Update Purpose after archive.
 
 - **WHEN** `cancelPolicy.mode='cutoff'` 但 `hoursBeforeCannotCancel` 缺失或 < 1
 - **THEN** 響應 400
+
+#### Scenario: 預約上限欄位範圍驗證
+
+- **WHEN** body `maxActiveAppointmentsPerCustomer = 5`
+- **THEN** 響應 200；DB 更新
+
+#### Scenario: 預約上限範圍錯誤
+
+- **WHEN** body `maxActiveAppointmentsPerCustomer = 0` 或 `100` 或 `3.5` 或 `'abc'`
+- **THEN** 響應 400（Zod 驗證失敗：必須是 1–99 的整數）
 
 ### Requirement: 服務 CRUD
 
@@ -262,45 +272,122 @@ TBD - created by archiving change merchant-config. Update Purpose after archive.
 
 ### Requirement: 商家後台配置頁面
 
-系統 SHALL 提供八個 `back-desk` layout + `merchant` middleware 保護的頁面。
+系統 SHALL 提供 `back-desk` layout + `merchant` middleware 保護的商家後台頁面;sidebar 導覽 SHALL 以三個語意分群呈現:「營運」、「排班」、「設定」。「排班」分群下的 `/admin/schedule` SHALL 為四 tab 容器頁,內含「📅 預約時段」、「🔧 單日調整」、「🚫 公休日」、「🎟 現場領號時段」四個 tab,tab 顯示性依商家服務的 bookingMode 構成動態決定。原 `/admin/holidays` 與 `/admin/queue-window` SHALL 保留為 redirect 路由。
 
 #### Scenario: Dashboard /admin
 
 - **GIVEN** 商家已登入
 - **WHEN** 訪 `/admin`
-- **THEN** 渲染 Dashboard，三張卡片（服務數、資源數、今日預約數預留 "—"）+ 最近編輯服務列表
+- **THEN** 渲染 Dashboard,三張卡片(服務數、資源數、今日預約數預留 "—")+ 最近編輯服務列表
 
 #### Scenario: 設定 /admin/settings
 
 - **WHEN** 訪 `/admin/settings`
-- **THEN** 渲染商家欄位編輯表單（含 logo / cover ImageUploader、cancelPolicy 選擇）
+- **THEN** 渲染商家欄位編輯表單(含 logo / cover ImageUploader、cancelPolicy 選擇)
 
 #### Scenario: 對外連結 /admin/share-link
 
 - **WHEN** 訪 `/admin/share-link`
-- **THEN** 渲染 `/m/{slug}` 連結（複製按鈕）+ QR code 圖片
+- **THEN** 渲染 `/m/{slug}` 連結(複製按鈕)+ QR code 圖片
 
 #### Scenario: 服務 /admin/services
 
 - **WHEN** 訪 `/admin/services`
-- **THEN** 渲染表格 + 新增 / 編輯彈窗；bookingMode 切換時對應欄位動態顯示
+- **THEN** 渲染表格 + 新增 / 編輯彈窗;bookingMode 切換時對應欄位動態顯示
 
 #### Scenario: 資源 /admin/resources
 
 - **WHEN** 訪 `/admin/resources`
-- **THEN** 渲染表格 + 新增 / 編輯彈窗
+- **THEN** 渲染表格 + 新增 / 編輯彈窗;表格 SHALL 包含「已綁服務」column(詳見「資源頁顯示綁定服務」requirement)
 
-#### Scenario: 時段 /admin/schedule
+#### Scenario: 排班 /admin/schedule 預設 tab(有非 QUEUE 服務)
 
+- **GIVEN** 商家至少有一個 `bookingMode !== 'QUEUE'` 的啟用服務
+- **WHEN** 訪 `/admin/schedule` 不帶 query
+- **THEN** 預設啟用「📅 預約時段」tab(`tab=weekly`),URL `router.replace` 為 `/admin/schedule?tab=weekly`
+
+#### Scenario: 排班 /admin/schedule 預設 tab(僅 QUEUE 服務)
+
+- **GIVEN** 商家所有啟用服務皆為 `bookingMode === 'QUEUE'`
+- **WHEN** 訪 `/admin/schedule` 不帶 query
+- **THEN** 預設啟用「🎟 現場領號時段」tab(`tab=queue-window`),URL `router.replace` 為 `/admin/schedule?tab=queue-window`
+
+#### Scenario: 排班 /admin/schedule 預設 tab(無任何服務)
+
+- **GIVEN** 商家無任何啟用服務
 - **WHEN** 訪 `/admin/schedule`
-- **THEN** 渲染 scope 切換（MERCHANT / 各 RESOURCE）+ SchedulerWeeklyEditor + 特定日期覆寫清單
+- **THEN** 不渲染任何 tab,中央顯示 empty state:「尚未建立任何服務,請先到『服務』頁建立」+ 連到 `/admin/services` 的按鈕
 
-#### Scenario: 休假 /admin/holidays
+#### Scenario: 排班 tab 切換同步 query
+
+- **GIVEN** 已在 `/admin/schedule?tab=weekly`
+- **WHEN** 使用者點擊「🚫 公休日」tab
+- **THEN** 切換顯示對應 panel,URL 經 `router.replace` 更新為 `/admin/schedule?tab=holidays`(不堆 history)
+
+#### Scenario: 排班 tab query 不合法或對應 tab 已隱藏
+
+- **WHEN** 訪 `/admin/schedule?tab=foo`,或訪 `?tab=queue-window` 但商家無 QUEUE 服務
+- **THEN** fallback 至「目前可見的第一個 tab」(`weekly` → `overrides` → `holidays` → `queue-window`),URL replace 為對應的合法 tab
+
+#### Scenario: 預約時段 tab 內容
+
+- **WHEN** 啟用 `tab=weekly`(且該 tab 可見)
+- **THEN** 渲染 scope 切換(MERCHANT / 各 RESOURCE) + SchedulerWeeklyEditor;副標顯示「設定每週固定營業時段。若有單日臨時變動請切換到『🔧 單日調整』tab」;同時顯示「影響服務:{逗號分隔的 bookingMode !== 'QUEUE' 啟用服務名}」
+
+#### Scenario: 單日調整 tab 內容
+
+- **WHEN** 啟用 `tab=overrides`(且該 tab 可見)
+- **THEN** 渲染特定日期覆寫清單 + 新增/編輯/刪除操作;tab 標題顯示為「🔧 單日調整」;副標顯示「設定某一天和平常不一樣的時段或休息。整店全日休請改用『🚫 公休日』tab」;影響服務行同「預約時段」tab
+
+#### Scenario: 公休日 tab 內容
+
+- **WHEN** 啟用 `tab=holidays`(且該 tab 可見)
+- **THEN** 渲染整店休假日清單 + 年份切換 + 新增彈窗;tab 標題顯示為「🚫 公休日」;副標顯示「整店休息日,會在顧客訂位頁顯示假日名稱。如果只是某天提早收或某資源請假,請改用『🔧 單日調整』tab」;副標補「影響:整店所有服務」
+
+#### Scenario: 現場領號時段 tab 內容
+
+- **WHEN** 啟用 `tab=queue-window`(且該 tab 可見)
+- **THEN** 渲染服務選擇器 + 每週 7 天領號窗編輯(startTime/endTime/maxTickets/isActive);tab 標題顯示為「🎟 現場領號時段」;副標補「影響服務:{逗號分隔的 bookingMode === 'QUEUE' 啟用服務名}」
+
+#### Scenario: 預約時段 tab 隱藏條件
+
+- **GIVEN** 商家無任何 `bookingMode !== 'QUEUE'` 的啟用服務
+- **WHEN** 訪 `/admin/schedule`
+- **THEN** 「📅 預約時段」「🔧 單日調整」「🚫 公休日」三個 tab 不渲染;只渲染「🎟 現場領號時段」(若有 QUEUE 服務)
+
+#### Scenario: 現場領號時段 tab 隱藏條件
+
+- **GIVEN** 商家無任何 `bookingMode === 'QUEUE'` 的啟用服務
+- **WHEN** 訪 `/admin/schedule`
+- **THEN** 「🎟 現場領號時段」tab 不渲染;只渲染其他三個 tab(若有非 QUEUE 服務)
+
+#### Scenario: 舊路由 /admin/holidays redirect
 
 - **WHEN** 訪 `/admin/holidays`
-- **THEN** 渲染休假日清單 + 新增彈窗
+- **THEN** 客戶端 redirect(`navigateTo('/admin/schedule?tab=holidays', { replace: true })`),不污染瀏覽器歷史
 
-#### Scenario: 員工 /admin/staff（OWNER only）
+#### Scenario: 舊路由 /admin/queue-window redirect
+
+- **WHEN** 訪 `/admin/queue-window`
+- **THEN** 客戶端 redirect 至 `/admin/schedule?tab=queue-window`(replace mode)
+
+#### Scenario: Sidebar 商家視角分群呈現
+
+- **GIVEN** 商家已登入(非平台管理員)
+- **WHEN** 渲染 sidebar
+- **THEN** 顯示 3 個分群區塊,每塊含小標題:
+  - 「營運」:首頁 / 預約管理 / 叫號
+  - 「排班」:排班(連到 `/admin/schedule`)
+  - 「設定」:商家設定 / 對外連結 / 服務 / 資源 / 成員
+  順序固定如上;`商家設定` 與 `成員` 依 `HasRule` 條件顯示(維持既有行為)
+
+#### Scenario: Sidebar 平台管理員視角
+
+- **GIVEN** 平台管理員登入(`isAdmin=true`)
+- **WHEN** 渲染 sidebar
+- **THEN** 維持既有三個 NavLink(總覽 / 商家管理 / 管理員),不套用分群
+
+#### Scenario: 員工 /admin/staff(OWNER only)
 
 - **GIVEN** 當前用戶 role='OWNER'
 - **WHEN** 訪 `/admin/staff`
@@ -310,12 +397,12 @@ TBD - created by archiving change merchant-config. Update Purpose after archive.
 
 - **GIVEN** 當前用戶 role='STAFF'
 - **WHEN** 訪 `/admin/staff`
-- **THEN** 顯示「無權限」訊息，不渲染表格
+- **THEN** 顯示「無權限」訊息,不渲染表格
 
 #### Scenario: 非商家訪 /admin/*
 
 - **GIVEN** 未登入或 selfType !== 'merchant'
-- **WHEN** 訪 `/admin/*`
+- **WHEN** 訪 `/admin/*`(含 redirect 舊路由)
 - **THEN** middleware 跳轉到 `/sign-in`
 
 ### Requirement: SchedulerWeeklyEditor 元件
@@ -372,7 +459,7 @@ TBD - created by archiving change merchant-config. Update Purpose after archive.
 
 ### Requirement: Protocol bindings
 
-`app/protocol/fetch-api/api/{merchant, service, resource, schedule, holiday, upload}/` SHALL 暴露商家後台所有 API 方法，並支援 `NUXT_PUBLIC_TEST_MODE='T'` 時走 mock。
+`app/protocol/fetch-api/api/{merchant, service, resource, schedule, holiday, upload, queue}/` SHALL 暴露商家後台所有 API 方法，並支援 `NUXT_PUBLIC_TEST_MODE='T'` 時走 mock。
 
 #### Scenario: service 模組 mock 路由
 
@@ -385,6 +472,11 @@ TBD - created by archiving change merchant-config. Update Purpose after archive.
 - **GIVEN** testMode='F'
 - **WHEN** 呼叫 `$api.UpdateScheduleRules({ scope: 'MERCHANT', rules: [...] })`
 - **THEN** 向 `PUT /nuxt-api/schedule/rules` 發請求
+
+#### Scenario: queue-window 讀寫 binding
+
+- **WHEN** 呼叫 `$api.GetQueueWindows({ serviceId })` 與 `$api.UpdateQueueWindows({ serviceId, windows })`
+- **THEN** 分別對應 `GET /nuxt-api/merchant/queue-window?serviceId=xxx` 與 `PUT /nuxt-api/merchant/queue-window`
 
 ### Requirement: 預約管理頁採同頁 toggle、預設行事曆
 
@@ -566,4 +658,365 @@ TBD - created by archiving change merchant-config. Update Purpose after archive.
 - **GIVEN** 2026-05-22 為 MerchantHoliday
 - **WHEN** hover 該日欄位
 - **THEN** tooltip 顯示「本日休假」（取自 MerchantHoliday.name 或 i18n 預設）
+
+### Requirement: 商家標記預約完成
+
+系統 SHALL 提供 `POST /nuxt-api/appointment/[id]/complete` 端點，允許已登入商家把已過開始時間的 `CONFIRMED` 預約改為 `COMPLETED`。
+
+#### Scenario: 標記完成成功
+
+- **GIVEN** 商家已登入、預約 `status=CONFIRMED`、`startAt < now()`
+- **WHEN** POST `/nuxt-api/appointment/[id]/complete`
+- **THEN** 後端用條件式 update（`where: { id, merchantId, status: 'CONFIRMED' }`）將 status 改為 `COMPLETED`；回 `successResponse({ id, status: 'COMPLETED' })`
+
+#### Scenario: 預約時間尚未到拒絕
+
+- **GIVEN** 預約 `status=CONFIRMED`、`startAt > now()`
+- **WHEN** POST `/[id]/complete`
+- **THEN** 回 400 `MSG_APPOINTMENT_NOT_YET_STARTED`
+
+#### Scenario: 預約已取消拒絕
+
+- **GIVEN** 預約 `status=CANCELED`
+- **WHEN** POST `/[id]/complete`
+- **THEN** 回 400 `MSG_APPOINTMENT_NOT_CONFIRMED`
+
+#### Scenario: 跨商家越權拒絕
+
+- **GIVEN** 商家 A 已登入、預約屬於商家 B
+- **WHEN** POST `/[id]/complete`
+- **THEN** 回 404 `MSG_APPOINTMENT_NOT_FOUND`（不洩漏存在與否）
+
+#### Scenario: 未登入拒絕
+
+- **WHEN** 無 token 呼叫 `/[id]/complete`
+- **THEN** `requireMerchant` 回 401
+
+#### Scenario: 並發競態保護
+
+- **GIVEN** 商家 A 與商家 B 同時點「完成」（同一預約屬於某商家，兩 owner 同時操作）
+- **WHEN** 兩 request 抵達後端
+- **THEN** Prisma `updateMany` 條件式更新只有一個會回 `count: 1`，另一個 `count: 0` 回 400 `MSG_APPOINTMENT_NOT_CONFIRMED`
+
+### Requirement: 商家標記預約未到
+
+系統 SHALL 提供 `POST /nuxt-api/appointment/[id]/no-show` 端點，允許已登入商家把已過開始時間的 `CONFIRMED` 預約改為 `NO_SHOW`。
+
+#### Scenario: 標記未到成功
+
+- **GIVEN** 商家已登入、預約 `status=CONFIRMED`、`startAt < now()`
+- **WHEN** POST `/nuxt-api/appointment/[id]/no-show`
+- **THEN** 後端條件式 update status → `NO_SHOW`；回 `successResponse({ id, status: 'NO_SHOW' })`
+
+#### Scenario: 預約時間尚未到拒絕
+
+- **GIVEN** 預約 `startAt > now()`
+- **WHEN** POST `/[id]/no-show`
+- **THEN** 回 400 `MSG_APPOINTMENT_NOT_YET_STARTED`
+
+#### Scenario: 已完成預約拒絕
+
+- **GIVEN** 預約 `status=COMPLETED`
+- **WHEN** POST `/[id]/no-show`
+- **THEN** 回 400 `MSG_APPOINTMENT_NOT_CONFIRMED`
+
+#### Scenario: 跨商家越權拒絕
+
+- **GIVEN** 預約不屬於當前商家
+- **WHEN** POST `/[id]/no-show`
+- **THEN** 回 404 `MSG_APPOINTMENT_NOT_FOUND`
+
+### Requirement: 商家預約列表狀態流轉操作
+
+商家後台預約列表頁 `/admin/appointments` SHALL 對「已過開始時間且狀態為 CONFIRMED」的列顯示「標記完成」與「標記未到」操作；其他狀態不顯示。
+
+#### Scenario: 顯示與隱藏條件
+
+- **GIVEN** 列表渲染中
+- **WHEN** 某列 `status=CONFIRMED` 且 `startAt <= now()`
+- **THEN** 該列顯示「標記完成 / 標記未到」按鈕（建議用 dropdown「更多」收納，避免擠壓）
+
+#### Scenario: 未到時間不顯示操作
+
+- **GIVEN** 列 `status=CONFIRMED`、`startAt > now()`
+- **WHEN** 渲染
+- **THEN** 不顯示「標記完成 / 標記未到」按鈕，僅顯示「詳情」與「取消」
+
+#### Scenario: 非 CONFIRMED 不顯示操作
+
+- **GIVEN** 列 `status ∈ {CANCELED, COMPLETED, NO_SHOW}`
+- **WHEN** 渲染
+- **THEN** 不顯示「標記完成 / 標記未到」也不顯示「取消」，僅顯示「詳情」
+
+#### Scenario: 點擊標記完成有二次確認
+
+- **WHEN** 點擊「標記完成」
+- **THEN** 跳 `ElMessageBox.confirm`「確定將此預約標記為已完成？」，確認後才呼叫 API；取消則不動
+
+#### Scenario: 操作後即時刷新列表
+
+- **GIVEN** 標記完成 API 成功
+- **WHEN** 收到 success response
+- **THEN** 列表 ApiLoad 重新拉取，該列狀態變成「已完成」
+
+### Requirement: 標記端點 Protocol bindings
+
+`app/protocol/` SHALL 提供 `CompleteAppointment({ id })` 與 `NoShowAppointment({ id })` 兩個 ApiCall，回傳標準 `ApiResponse<{ id, status }>`。
+
+#### Scenario: TypeScript 型別正確
+
+- **WHEN** 任一 Vue 組件呼叫 `$api.CompleteAppointment({ id })`
+- **THEN** 編譯時 `res.data.status` 推斷為 `'COMPLETED'` 字面型別
+
+### Requirement: BizQueueWindowEditor 元件 UI
+
+`app/components/biz/QueueWindowEditor.vue` SHALL 提供商家於 `/admin/queue-window` 編輯每週 7 天領號時段的 UI；星期欄 MUST 以本地化文字呈現、平日與週末 MUST 視覺區分、且 MUST 提供以「已啟用列」為來源的批次套用操作。
+
+#### Scenario: 星期欄顯示本地化週名
+
+- **GIVEN** 商家以任一語系（zh / en / ja）登入 `/admin/queue-window`
+- **WHEN** 元件渲染 7 列
+- **THEN** 每列日期欄顯示對應語系的完整週名（例如 zh：週日／週一／…／週六；en：Sun / Mon / … / Sat；ja：日曜／月曜／…／土曜），不得出現 i18n key 字串或單一字元
+
+#### Scenario: i18n 取陣列失敗時的 fallback
+
+- **GIVEN** `common.weekdayLong` 對應 message resource 不是長度 7 的字串陣列（key 漂移、locale 檔損壞）
+- **WHEN** 元件渲染
+- **THEN** 元件 MUST 顯示硬編碼的繁中週名 fallback（`週日 / 週一 / … / 週六`），不得顯示 i18n key 字串、不得顯示空白或單字元
+
+#### Scenario: 平日與週末視覺區分
+
+- **GIVEN** 元件渲染 7 列
+- **WHEN** 使用者目視
+- **THEN** 週日（weekday=0）與週六（weekday=6）兩列的背景色或日期欄文字色 MUST 與週一至週五（weekday=1..5）有可辨識的差異
+
+#### Scenario: 無已啟用列時批次按鈕 disabled
+
+- **GIVEN** 7 列皆 `isActive=false`
+- **WHEN** 使用者檢視批次工具列
+- **THEN** 「套用到所有平日」與「套用到所有日」按鈕 MUST 皆為 disabled 狀態，且 MUST 顯示提示文字「請先啟用任一列做為來源」（或對應語系翻譯）
+
+#### Scenario: 套用到所有平日
+
+- **GIVEN** 至少有一列 `isActive=true`（例如週一 startTime=10:00、endTime=17:00、maxTickets=30）
+- **WHEN** 使用者點擊「套用到所有平日」
+- **THEN** weekday 1..5 五列的 `startTime / endTime / maxTickets` MUST 與來源列一致、且 `isActive` 皆 true；weekday 0 與 weekday 6 的 `isActive` 與值 MUST 保持原狀不變
+
+#### Scenario: 套用到所有日（需確認）
+
+- **GIVEN** 至少有一列 `isActive=true`
+- **WHEN** 使用者點擊「套用到所有日」
+- **THEN** 元件 MUST 先彈出確認對話框（`ElMessageBox.confirm`）說明此操作會覆蓋週六、週日的設定
+- **AND WHEN** 使用者確認
+- **THEN** weekday 0..6 七列的 `startTime / endTime / maxTickets` MUST 與來源列一致、且 `isActive` 皆 true
+
+#### Scenario: 多個 active 列時的 source 選擇
+
+- **GIVEN** 有多列 `isActive=true`（例如週一、週三皆啟用，值不同）
+- **WHEN** 使用者點擊任一批次按鈕
+- **THEN** 元件 MUST 以**按 weekday 升序排列下的第一個** `isActive=true` 列作為來源（本例為週一）
+
+#### Scenario: 不變更對外 v-model 契約
+
+- **GIVEN** 父元件 `app/pages/admin/queue-window.vue` 仍以 `v-model: QueueWindowItem[]` 綁定
+- **WHEN** 批次操作或單列編輯觸發 emit
+- **THEN** emit 出去的陣列型別與順序語意 MUST 與本變更前一致（每列含 `weekday / startTime / endTime / maxTickets / isActive`），後端 `PUT /nuxt-api/merchant/queue-window` 行為不變
+
+### Requirement: 排班頁警告未綁定資源
+
+當商家在「📅 預約時段」tab 將 scope 切換到某個資源(非 MERCHANT)時,系統 SHALL 即時檢查該資源是否被任何 `bookingMode === 'RESOURCE'` 的啟用服務透過 `ServiceResource` 綁定;若未綁定,SHALL 顯示橘色警告 banner 提示商家此設定對顧客不可見,並提供一鍵跳轉服務頁的入口。警告 SHALL **不阻擋**任何排班操作,商家仍可正常設定與儲存時段。
+
+#### Scenario: 未綁定資源顯示警告
+
+- **GIVEN** 商家進入 `/admin/schedule?tab=weekly`
+- **WHEN** 將 scope 切換到資源 R,且系統偵測到 R 沒有被任何 `bookingMode === 'RESOURCE' && isActive` 的服務的 `resourceIds` 包含
+- **THEN** 在 scope 切換器下方顯示橘色 ElAlert,標題:「此資源尚未被任何服務綁定,顧客在預約頁與後台代客預約都無法選到他」;按鈕「前往服務頁綁定」連到 `/admin/services`
+
+#### Scenario: 已綁定資源不顯示警告
+
+- **GIVEN** 商家進入 `/admin/schedule?tab=weekly`
+- **WHEN** 將 scope 切換到資源 R,且 R 至少被一個 RESOURCE 服務綁定
+- **THEN** 不顯示警告 banner;正常渲染 SchedulerWeeklyEditor
+
+#### Scenario: MERCHANT scope 不檢查綁定
+
+- **GIVEN** 商家進入 `/admin/schedule?tab=weekly`
+- **WHEN** scope 為 MERCHANT(整店)
+- **THEN** 不渲染未綁定警告(此 scope 與資源綁定無關)
+
+#### Scenario: 警告不阻擋儲存
+
+- **GIVEN** 顯示未綁定警告中
+- **WHEN** 使用者修改時段並點「儲存」
+- **THEN** 排班正常儲存,警告維持顯示;ElMessage success 提示「已儲存」
+
+### Requirement: 資源頁顯示綁定服務
+
+`/admin/resources` 列表 SHALL 包含「已綁服務」column,顯示每個資源被哪些 `bookingMode === 'RESOURCE'` 服務的 `resourceIds` 包含;未被任何服務綁定的資源 SHALL 以視覺方式提醒商家。資料 SHALL 由客戶端 join `GetServiceList` 與 `GetResourceList` 計算,**不新增後端 endpoint**。
+
+#### Scenario: 列表載入並 join 服務資料
+
+- **WHEN** 訪 `/admin/resources`
+- **THEN** 並行請求 `GetResourceList()` 與 `GetServiceList()`;組出 `Map<resourceId, ServiceItem[]>` 對應關係
+
+#### Scenario: 已綁服務以 ElTag 列出
+
+- **GIVEN** 資源 R 被服務 A 與服務 B 綁定
+- **WHEN** 渲染 R 那一列的「已綁服務」column
+- **THEN** 顯示兩個 ElTag,文字分別為 A.name 與 B.name
+
+#### Scenario: 未綁服務顯示提醒
+
+- **GIVEN** 資源 R 未被任何 RESOURCE 服務綁定
+- **WHEN** 渲染 R 那一列
+- **THEN** 「已綁服務」column 顯示「— 尚未綁定」(灰色文字)+ 小 hint「請在『服務』頁編輯 RESOURCE 服務時勾選此資源」
+
+#### Scenario: 非 RESOURCE 服務不計入綁定
+
+- **GIVEN** 服務 X 是 `bookingMode === 'TIME_SLOT'`,即使 schema 上未綁資源(不適用)
+- **WHEN** 計算 R 的已綁服務
+- **THEN** 不論 X 是否存在,只計入 `bookingMode === 'RESOURCE' && isActive` 的服務
+
+### Requirement: 預約管理列表預設只顯示活躍預約
+
+`/admin/appointments?view=list` SHALL 預設只顯示「活躍預約」：`status = CONFIRMED` 且 `startAt >= 當天 00:00`（以商家時區計）。篩選列 SHALL 提供顯眼的「顯示已結案」切換開關（建議 `ElSwitch`），預設關閉；開啟時 SHALL 清空 status 篩選預設值，並將 `dateFrom` 上限往前擴展至 90 天前（與 `appointment` 表保留範圍對齊），以同時顯示 `CANCELED / COMPLETED / NO_SHOW` 紀錄。「顯示已結案」開關狀態僅存在於當前 session（不持久化至 URL 或 localStorage），重新進頁面預設關閉。
+
+行事曆 view 不受此預設過濾影響，仍 SHALL 顯示所有狀態的預約，避免格子空白。
+
+#### Scenario: 預設過濾活躍預約
+
+- **GIVEN** 商家於 2026-05-19 09:00 進入 `/admin/appointments?view=list`
+- **AND** 資料庫存在多筆預約：A（CONFIRMED，2026-05-20）、B（CANCELED，2026-05-18）、C（COMPLETED，2026-05-18）、D（CONFIRMED，2026-05-19 08:00 已過）、E（CONFIRMED，2026-05-18）
+- **WHEN** 列表載入完成
+- **THEN** 只顯示 A、D（status=CONFIRMED 且 startAt >= 2026-05-19 00:00）
+- **AND** 「顯示已結案」開關預設為關閉狀態
+
+#### Scenario: 開啟「顯示已結案」顯示所有狀態
+
+- **GIVEN** 同上初始狀態
+- **WHEN** 使用者開啟「顯示已結案」開關
+- **THEN** 列表重新查詢，顯示所有 status（含 CANCELED / COMPLETED / NO_SHOW），dateFrom 擴展至今日往前 90 天
+- **AND** status 下拉篩選的預設值清空，使用者可自行選特定 status
+
+#### Scenario: 行事曆 view 不受預設過濾影響
+
+- **GIVEN** 商家在 `/admin/appointments?view=calendar`
+- **WHEN** 行事曆載入完成
+- **THEN** 顯示所有 status 的預約（包含 CANCELED / COMPLETED / NO_SHOW），不套用列表的活躍過濾
+
+#### Scenario: 從行事曆切到列表觸發預設過濾
+
+- **GIVEN** 商家在行事曆 view 看見所有狀態的預約
+- **WHEN** 切換 toggle 到列表
+- **THEN** 列表立即套用「只顯示 CONFIRMED + 今日起」的預設過濾
+- **AND** 「顯示已結案」開關狀態為關閉
+
+#### Scenario: 重新整理頁面後預設過濾仍有效
+
+- **GIVEN** 商家在列表 view 已開啟「顯示已結案」開關
+- **WHEN** 重新整理瀏覽器頁面
+- **THEN** 開關恢復為關閉狀態，列表只顯示活躍預約
+
+### Requirement: 預約狀態與顧客稱謂須經 i18n 顯示
+
+商家後台所有顯示 `AppointmentStatus`（`CONFIRMED / CANCELED / COMPLETED / NO_SHOW`）與 `CustomerTitle`（`MR / MRS / MISS / MX`）的位置 SHALL 透過 `$t()` 顯示在地化文字，禁止直接渲染英文 enum 值或在 component 內 hard-code 中文對照表。對應的 i18n key 採 enum 同名命名：
+
+- `appointment.status.<ENUM>`（4 個 key）
+- `appointment.customerTitle.<ENUM>`（4 個 key）
+
+三個語系檔（`i18n/locales/zh.js / en.js / ja.js`）SHALL 同步補齊上述 8 個 key。未翻譯時 SHALL fallback 到原始 enum 值（透過 `$t(key, fallback)` 第二參數），避免畫面顯示 key 本身。
+
+#### Scenario: 列表狀態顯示中文（zh）
+
+- **GIVEN** 商家當前語系為 zh-tw
+- **WHEN** 訪 `/admin/appointments?view=list` 且列表有 CONFIRMED / CANCELED / COMPLETED / NO_SHOW 各一筆
+- **THEN** 狀態欄分別顯示「已預約」「已取消」「已完成」「未到」，不出現英文
+
+#### Scenario: 列表狀態顯示英文（en）
+
+- **GIVEN** 商家當前語系為 en
+- **WHEN** 訪同頁面
+- **THEN** 狀態欄分別顯示 `Confirmed / Canceled / Completed / No-show`
+
+#### Scenario: 歷史紀錄狀態欄 i18n
+
+- **GIVEN** 商家在 `/admin/appointments/archive` 看到一筆 status=CANCELED 的紀錄
+- **WHEN** 語系切換為 ja
+- **THEN** 狀態欄即時更新為「キャンセル」
+
+#### Scenario: 顧客稱謂 i18n
+
+- **GIVEN** 商家在歷史紀錄或列表看到顧客欄「王先生」
+- **WHEN** 語系切到 en
+- **THEN** 顯示為「Wang Mr.」（或對應的 customerLastName + i18n title 拼接），不出現 `MR` 字串
+
+### Requirement: 歷史紀錄頁須提供返回預約管理入口
+
+`/admin/appointments/archive` SHALL 在頁面右上角（`BizPageHeader` 的 `#actions` slot）提供「← 返回預約管理」按鈕，點擊以 `router.push('/admin/appointments')` 導回主頁，禁止改用 `router.back` 以避免從外部書籤直接進入 archive 時跳出站外。
+
+#### Scenario: 從預約管理進歷史紀錄再返回
+
+- **GIVEN** 商家在 `/admin/appointments?view=list` 點擊「歷史紀錄」按鈕
+- **AND** 進入 `/admin/appointments/archive`
+- **WHEN** 點擊頁面右上角「← 返回預約管理」按鈕
+- **THEN** 跳回 `/admin/appointments`，view 為 calendar（預設）
+
+#### Scenario: 從外部書籤直接進歷史紀錄也能返回
+
+- **GIVEN** 商家透過外部書籤直接訪 `/admin/appointments/archive`
+- **WHEN** 點擊「← 返回預約管理」按鈕
+- **THEN** 進入 `/admin/appointments`（即使瀏覽器歷史只有 archive 一筆），不會跳出站外
+
+### Requirement: 列表操作欄收斂為「詳細 + 更多」
+
+`BizAppointmentTable` 的「操作」欄 SHALL 主要動作只保留兩個 link button：「詳細」與「更多▾」。「更多」下拉 SHALL 依預約狀態與時間動態決定內容：
+
+- `status = CONFIRMED` 且 `startAt > now`：更多下拉只含「取消預約」。
+- `status = CONFIRMED` 且 `startAt <= now`：更多下拉含「取消預約」「標記完成」「標記未到」。
+- 其他狀態（`CANCELED / COMPLETED / NO_SHOW`）：不顯示「更多」按鈕，只剩「詳細」。
+
+操作欄寬度 SHALL 設為 220px 且 `fixed="right"`，確保不換行且滑動表格時仍可見。
+
+#### Scenario: 未到時間的 CONFIRMED 顯示「詳細 + 更多（取消）」
+
+- **GIVEN** 列表有一筆 CONFIRMED 預約，startAt 為 2026-05-25（未到）
+- **WHEN** 觀察該列的操作欄
+- **THEN** 顯示「詳細」與「更多▾」兩個 link，「更多」下拉只含「取消預約」一個選項
+
+#### Scenario: 已過時間的 CONFIRMED 顯示「詳細 + 更多（取消／完成／未到）」
+
+- **GIVEN** 列表有一筆 CONFIRMED 預約，startAt 為昨日 14:00
+- **WHEN** 觀察該列的操作欄
+- **THEN** 顯示「詳細」與「更多▾」，下拉含「取消預約」「標記完成」「標記未到」三個選項
+
+#### Scenario: 結案狀態只顯示「詳細」
+
+- **GIVEN** 列表有一筆 CANCELED / COMPLETED / NO_SHOW 的預約
+- **WHEN** 觀察該列的操作欄
+- **THEN** 只顯示「詳細」一個 link button，不顯示「更多」
+
+#### Scenario: 操作欄不換行
+
+- **GIVEN** 列表載入完成，視窗寬度 >= 1280px
+- **WHEN** 觀察任一列操作欄
+- **THEN** 「詳細」與「更多▾」在同一行顯示，欄寬 220px 內可完整呈現，不換行
+
+### Requirement: 列表與歷史紀錄入口須提供 tooltip 或副標說明用途
+
+`/admin/appointments` 的右上角「列表」toggle 與「歷史紀錄」按鈕 SHALL 提供 tooltip 或副標說明，明確區分用途：
+
+- 「列表」tooltip 內容：「進行中的預約（可開啟『顯示已結案』查看已取消／完成／未到）」
+- 「歷史紀錄」tooltip 內容：「90 天前已歸檔的舊預約紀錄」
+
+#### Scenario: hover「列表」toggle 顯示說明
+
+- **GIVEN** 商家在 `/admin/appointments`
+- **WHEN** 滑鼠移到「列表」radio button 上停留
+- **THEN** 顯示 tooltip：「進行中的預約（可開啟『顯示已結案』查看已取消／完成／未到）」
+
+#### Scenario: hover「歷史紀錄」按鈕顯示說明
+
+- **GIVEN** 同上
+- **WHEN** 滑鼠移到「歷史紀錄」按鈕上停留
+- **THEN** 顯示 tooltip：「90 天前已歸檔的舊預約紀錄」
 

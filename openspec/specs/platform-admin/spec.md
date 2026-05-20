@@ -3,9 +3,7 @@
 ## Purpose
 
 平台管理員後台（`/sys/*`）：商家審核、停用、代理進入、AdminUser 帳號管理。所有 `/nuxt-api/sys/*` 端點需 `requireAdmin`；UI 頁面以 `back-desk` layout + `admin` middleware 守門。
-
 ## Requirements
-
 ### Requirement: Merchant 列表查詢
 
 系統 SHALL 提供 `GET /nuxt-api/sys/merchant`（admin only），支援 status / keyword / 分頁。
@@ -168,7 +166,7 @@
 
 ### Requirement: 平台後台頁面
 
-系統 SHALL 提供五個 `back-desk` layout + `admin` middleware 保護的頁面。
+系統 SHALL 提供五個 `back-desk` layout + `admin` middleware 保護的頁面。二級詳情頁 SHALL 透過擴充後的 `BizPageHeader` 的 `backTo` props 提供回到列表頁的入口；本變更先套用於 `/sys/merchants/[id]`。
 
 #### Scenario: Dashboard 路由 /sys
 
@@ -188,6 +186,7 @@
 - **GIVEN** Admin 已登入
 - **WHEN** 訪 `/sys/merchants/[id]`
 - **THEN** 顯示商家欄位、OWNER 摘要、編輯表單、依當前狀態的操作按鈕
+- **AND** 頁首 `BizPageHeader` 設定 `backTo='/sys/merchants'`，提供「← 返回」入口
 
 #### Scenario: Admin 列表路由 /sys/admins
 
@@ -208,6 +207,13 @@
 - **GIVEN** 未登入或 selfType !== 'admin'
 - **WHEN** 訪任一 /sys/* 頁面
 - **THEN** middleware 跳轉到 `/sys/sign-in`
+
+#### Scenario: 商家詳情頁返回入口
+
+- **GIVEN** Admin 已登入並進入 `/sys/merchants/[id]`
+- **WHEN** 點擊頁首左上的「← 返回」
+- **THEN** `navigateTo('/sys/merchants')`，回到列表頁並保留列表頁原有的 URL query（若有）由瀏覽器歷史機制處理
+- **AND** 行為不依賴 `router.back()`
 
 ### Requirement: Back-desk Impersonation 紅色橫條
 
@@ -251,3 +257,4 @@
 - **GIVEN** `NUXT_PUBLIC_TEST_MODE='F'`
 - **WHEN** 呼叫 `$api.SysApproveMerchant({ id })`
 - **THEN** 向 `POST /nuxt-api/sys/merchant/[id]/approve` 發請求
+

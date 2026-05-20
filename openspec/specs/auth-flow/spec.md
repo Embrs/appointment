@@ -159,7 +159,7 @@ TBD - created by archiving change auth-and-onboarding. Update Purpose after arch
 
 ### Requirement: 認證頁面
 
-系統 SHALL 提供三個 `default` layout 頁面，承載商家/管理員登入、商家註冊、忘記密碼流程。
+系統 SHALL 提供三個 `default` layout 頁面，承載商家/管理員登入、商家註冊、忘記密碼流程。三個頁面（`/sign-in`、`/sign-up`、`/forgot-password`）SHALL 使用 `BizCustomerPageHeader` 渲染統一的「← 返回」入口；既有左欄手刻連結（`← 回首頁`、`返回登入`）SHALL 移除。
 
 #### Scenario: 路由 /sign-in 預設商家版
 
@@ -193,6 +193,20 @@ TBD - created by archiving change auth-and-onboarding. Update Purpose after arch
 - **GIVEN** 使用者填寫 email 於 `/forgot-password`
 - **WHEN** API 回傳 `sent: true`
 - **THEN** 頁面顯示「若帳號存在，將寄送重設連結」通用訊息
+
+#### Scenario: /sign-in 與 /sign-up 頁首返回到站台首頁
+
+- **GIVEN** 使用者進入 `/sign-in` 或 `/sign-up`
+- **THEN** 頁面頂部以 `BizCustomerPageHeader` 渲染，左上顯示「← 返回」
+- **WHEN** 點擊返回
+- **THEN** 跳轉至 `/`（站台首頁），不依賴瀏覽器歷史
+
+#### Scenario: /forgot-password 頁首返回到登入頁
+
+- **GIVEN** 使用者進入 `/forgot-password`
+- **THEN** 頁面頂部以 `BizCustomerPageHeader` 渲染，左上顯示「← 返回登入」（使用 `backLabel` 覆蓋預設文案）
+- **WHEN** 點擊返回
+- **THEN** 跳轉至 `/sign-in`
 
 ### Requirement: 前端 API binding
 

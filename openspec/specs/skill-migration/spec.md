@@ -1,4 +1,4 @@
-## ADDED Requirements
+## Requirements
 
 ### Requirement: Skills 目錄結構遷移
 系統 SHALL 將以下 8 個 skill 目錄從 `.windsurf/skills/` 複製到 `.claude/skills/`：debugging、deployment、element-plus-ui、nuxt-backend、nuxt-frontend、prisma-database、project-knowledge、testing。每個 skill 目錄 MUST 包含完整的子目錄結構（items/、references/、scripts/）。

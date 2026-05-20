@@ -1,4 +1,4 @@
-## ADDED Requirements
+## Requirements
 
 ### Requirement: Workflow 遷移為 Claude Commands
 系統 SHALL 將 `.windsurf/workflows/git-commit.md` 和 `.windsurf/workflows/project-init.md` 遷移至 `.claude/commands/` 目錄，轉換為 Claude Code slash command 格式。
