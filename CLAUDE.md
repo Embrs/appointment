@@ -36,7 +36,7 @@ npx prisma studio        # 開啟 Prisma Studio 視覺化資料庫
 - `app/` — 應用程式核心（pages、components、composables、stores、utils、plugins、protocol、middleware）
 - `server/` — Nitro 伺服器端
   - `routes/nuxt-api/` — API 路由（使用 `@@` 別名）
-  - `utils/` — 後端工具（`auth`、`availability`、`booking`、`prisma`、`r2`、`rate-limit`、`response`、`queue`、`job-lock`）
+  - `utils/` — 後端工具（`auth`、`availability`、`booking`、`prisma`、`r2`、`rate-limit`、`response`、`queue`、`queue-window-schema`、`job-lock`）
   - `__tests__/` — Vitest 單元測試
 - `prisma/` — 資料庫 schema、遷移檔、seed 腳本
 - `i18n/locales/` — 多語系翻譯檔（zh、en、ja）
@@ -80,9 +80,9 @@ npx prisma studio        # 開啟 Prisma Studio 視覺化資料庫
 | [data-model.md](.claude/knowledge/data-model.md) | Prisma 模型分群、enum 取值、軟刪除約定、顧客三元組識別 | 查詢/修改 schema、改動任何 Prisma model 操作時 |
 | [api-modules.md](.claude/knowledge/api-modules.md) | 13 個 `nuxt-api/` 資源目錄職責、認證需求、與 spec 對應 | 找端點位置、新增 API、判斷該掛哪支守衛時 |
 | [availability-and-booking.md](.claude/knowledge/availability-and-booking.md) | `availability.ts` 純函式設計、BookingMode 分流、`createAppointment` advisory lock、取消政策 | 改動預約流程、可用時段算法、`booking.ts` / `availability.ts` 時 |
-| [queue-realtime.md](.claude/knowledge/queue-realtime.md) | QueueTicket/Window/Counter 三表協作、WebSocket 廣播、前端 WS+輪詢雙軌 | 改動號碼牌相關（領號、叫號、ws、StoreQueueRealtime）時 |
+| [queue-realtime.md](.claude/knowledge/queue-realtime.md) | 號碼牌全棧：DB 三表 + WS 廣播 + walk-in 代建 + claim QR + 店面大螢幕 + ETA 預估 | 改動號碼牌相關（領號、叫號、ws、StoreQueueRealtime、display、claim、ETA）時 |
 | [auth-and-rbac.md](.claude/knowledge/auth-and-rbac.md) | JWT 簽發/驗證、bcrypt、三身分、`HasRule` 規則、impersonation 代理鏈防護 | 改動登入、權限檢查、impersonate、`requireAdmin/Merchant` 時 |
 | [deploy-and-env.md](.claude/knowledge/deploy-and-env.md) | Dockerfile multi-stage、環境變數清單、cron jobs、R2、JobLock / RateLimit | 部署、環境變數調整、cron 排程、R2 上傳、排程互斥時 |
 
 > 知識庫結構：fact-context-layered-v1
-> 最後更新時間：2026-05-20
+> 最後更新時間：2026-05-21

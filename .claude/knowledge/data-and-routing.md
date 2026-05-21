@@ -40,8 +40,10 @@ app/pages/
     book.vue                      — 預約建立
     lookup.vue                    — 預約查詢
     my-bookings.vue               — 我的預約（跨商家彙整）
+    display.vue                   — 店面大螢幕投影（front-desk layout + displayMode meta）
     queue/index.vue               — 領號
-    queue/status.vue              — 等待頁
+    queue/status.vue              — 等待頁（支援 ?token=claim 與 ?id= 雙入口）
+    queue/find.vue                — 手機末 4 碼回查（localStorage 失效兜底）
   admin/                          — 商家後台（middleware: merchant）
     index.vue                     — Dashboard
     appointments/{index,calendar,archive}.vue
@@ -49,7 +51,8 @@ app/pages/
     resources/index.vue
     schedule/index.vue
     holidays.vue
-    queue.vue                     — 號碼牌控制台
+    queue.vue                     — 號碼牌控制台（含 walk-in 代建、開啟顯示頁）
+    queue-window.vue              — QUEUE 服務領號時段設定
     staff.vue
     settings.vue
     share-link.vue                — QR 與分享連結

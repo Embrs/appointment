@@ -6,7 +6,7 @@ type: reference
 
 # API 模組職責地圖
 
-`server/routes/nuxt-api/` 13 個資源目錄、約 59 個 handler。所有錯誤一律 `return`（見 [backend-conventions.md](./backend-conventions.md)）。
+`server/routes/nuxt-api/` 13 個資源目錄、約 67 個 handler。所有錯誤一律 `return`（見 [backend-conventions.md](./backend-conventions.md)）。
 
 ## 認證分類
 
@@ -64,6 +64,7 @@ type: reference
 | `POST /appointment/[id]/cancel` | 商家取消 |
 | `POST /appointment/[id]/complete` | 商家標記完成（CONFIRMED→COMPLETED，需 `startAt ≤ now`） |
 | `POST /appointment/[id]/no-show` | 商家標記未到（CONFIRMED→NO_SHOW，需 `startAt ≤ now`） |
+| `POST /appointment/[id]/reschedule` | 修改預約（時間 / 資源）；重跑 availability，過去時段走較寬鬆 `force` 路徑（仍檢查資源衝突） |
 | `GET /appointment/archive` | 已歸檔預約 |
 
 ### `queue/` — 號碼牌商家控制
@@ -71,8 +72,9 @@ type: reference
 |----------|------|
 | `GET /queue/today` | 當日所有號碼牌 |
 | `POST /queue/call-next` | 叫下一號（advisory lock + QueueCounter row lock） |
+| `POST /queue/create-for-customer` | 商家現場 walk-in 代客領號（跳過 QueueWindow 時間窗，phone 可省略） |
 | `POST /queue/[id]/done` `skip` | 完成／跳號 |
-| `GET /queue/ws` | WebSocket（廣播 CALL_NEXT/TICKET_DONE/...） |
+| `GET /queue/ws` | WebSocket（廣播 CALL_NEXT/TICKET_DONE/TICKET_TAKEN/...） |
 
 詳見 [queue-realtime.md](./queue-realtime.md)。
 
@@ -86,6 +88,8 @@ type: reference
 | `POST /public/appointment/lookup` | 三元組查詢 |
 | `POST /public/customer/lookup` | 三元組查跨商家 |
 | `GET /public/queue/[id]` `POST /public/queue/take` | 領號 / 查號 |
+| `POST /public/queue/find` | 手機末 4 碼回查當日票券（localStorage 失效兜底；嚴 RateLimit + 多筆模糊不選） |
+| `GET /public/queue/claim/[token]` | QR 掃碼 / walk-in 列印小單入口；以 8 碼 claim token 取回當日票券（雙桶 RateLimit、不洩漏個資） |
 
 詳見 [availability-and-booking.md](./availability-and-booking.md)。
 

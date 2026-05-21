@@ -41,7 +41,11 @@ Pinia 狀態、Nuxt 自動導入規則、彈窗體系、加密儲存與 WebSocke
 | `app/use-impersonation.ts` → `UseImpersonation()` | 平台管理員代理進入商家後台；備份 `ss_back_*` 於 cookie，退出時還原 |
 | `app/use-verify.ts` | 表單欄位驗證輔助 |
 | `app/use-open-com-option.ts` | 彈窗開關通用選項 |
+| `app/use-customer-queue-recent.ts` | 顧客端最近領號紀錄（多商家）的本地保存 |
+| `app/use-slot-reason.ts` | availability slot 不可用原因（past / taken / closed）轉 i18n 文案 |
+| `app/use-tts.ts` → `UseTts()` | 店面大螢幕語音播報（`window.speechSynthesis` + i18n BCP47 對應；持久化開關） |
 | `system/use-element-i18n.ts` | Element Plus 語系切換 |
+| `system/use-inapp-browser/` | 偵測 in-app browser（LINE / FB 內嵌等）並提示用外部瀏覽器開啟 |
 | `tool/use-encrypt-cookie.ts` → `UseEncryptCookie<T>(key, default)` | 加密 cookie（取代 `useCookie`） |
 | `tool/use-encrypt-storage.ts` → `UseEncryptStorage<T>(key, default)` | 加密 localStorage |
 | `tool/use-mitt.ts` | mitt event bus 包裝 |

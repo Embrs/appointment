@@ -22,7 +22,7 @@ type: reference
 
 | Model | 用途 | 關鍵欄位 |
 |-------|------|---------|
-| `Service` | 服務 | `bookingMode: BookingMode`、`durationMinutes`、`slotIntervalMinutes`、`capacityPerSlot`、`displayOrder`、軟刪除 |
+| `Service` | 服務 | `bookingMode: BookingMode`、`durationMinutes`、`slotIntervalMinutes`、`capacityPerSlot`、`avgServiceMinutes Int?`（QUEUE ETA 用；fallback 到 `durationMinutes`）、`displayOrder`、軟刪除 |
 | `Resource` | 資源（醫師/設備/包廂） | `displayOrder`、軟刪除 |
 | `ServiceResource` | 服務↔資源 多對多 | 複合主鍵 `(serviceId, resourceId)` |
 
@@ -39,7 +39,7 @@ type: reference
 | Model | 用途 | 關鍵欄位 |
 |-------|------|---------|
 | `QueueWindow` | 領號時間窗（按 weekday） | `(merchantId, serviceId, weekday)` 索引、`maxTickets`（0=無限） |
-| `QueueTicket` | 當日號碼牌 | `(merchantId, serviceId, ticketDate, ticketNumber)` 唯一、`status: QueueTicketStatus`、顧客三元組（`customerLastName/Title/Phone`） |
+| `QueueTicket` | 當日號碼牌 | `(merchantId, serviceId, ticketDate, ticketNumber)` 唯一、`status: QueueTicketStatus`、顧客三元組（`customerLastName/Title/Phone`，`customerPhone` 可 null 供 walk-in）、`createdByMerchant Boolean @default(false)`、`claimToken String? @unique`（partial unique；8 碼 nanoid，QR 入口用） |
 | `QueueCounter` | 叫號游標（row lock 用） | `(merchantId, serviceId, counterDate)` 唯一、`lastTicketNumber` / `lastCalledNumber` |
 
 詳見 [queue-realtime.md](./queue-realtime.md)。
