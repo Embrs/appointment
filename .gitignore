@@ -19,6 +19,9 @@ public/tinymce
 .playwright-mcp/
 /*.png
 
+# UI 驗證截圖（不入 repo）
+screenshots/
+
 # Logs
 logs
 *.log

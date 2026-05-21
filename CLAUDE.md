@@ -43,7 +43,6 @@ npx prisma studio        # 開啟 Prisma Studio 視覺化資料庫
 - `types/` — 全局 TypeScript 型別定義
 - `shared/` — 前後端共享程式碼（以 `~shared` 別名引用）
 - `openspec/` — OpenSpec 規格系統，新增功能或重構時透過 openspec skill 建立變更提案
-- `screenshots/` — UI 驗證截圖（OpenSpec 變更驗收用）
 - `scripts/` — 一次性腳本（如 TinyMCE 複製、Queue 探針）
 
 ### 業務模組總覽

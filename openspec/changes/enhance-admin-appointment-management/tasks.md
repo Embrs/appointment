@@ -94,7 +94,6 @@
 - [x] 11.10 列表視圖操作欄只顯示「詳細」link button，無「更多」下拉
 - [x] 11.11 前台 `/m/demo-clinic` 服務卡片：所有服務 priceCents=0 → 不顯示金額；durationMinutes → 顯示「{n} 分鐘」
 - [x] 11.12 切 en：「60 min / 30 min」；切 ja：「60 分 / 30 分」全部正確
-- [x] 11.13 截圖存放 `screenshots/`：calendar-week-monday-start.png / drawer-mobile-4buttons-2x2.png / drawer-mobile-2buttons.png / drawer-desktop-4buttons-single-row.png / customer-service-cards-zh.png / customer-service-cards-ja.png
 
 ## 12. 收尾
 
