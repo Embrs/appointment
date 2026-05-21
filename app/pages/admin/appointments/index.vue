@@ -324,12 +324,12 @@ onMounted(() => {
 .PageAdminAppointments
   BizPageHeader(title="預約管理" subtitle="查詢、處理與代客預約")
     template(#actions)
-      ElRadioGroup(v-model="view" size="small")
+      ElTooltip(:content="$t('appointment.tooltip.archive')" placement="bottom")
+        ElButton.PageAdminAppointments__archiveBtn(link @click="ClickGoArchive") 歷史紀錄
+      ElRadioGroup.PageAdminAppointments__viewSwitch(v-model="view")
         ElRadioButton(value="calendar") 行事曆
         ElTooltip(:content="$t('appointment.tooltip.list')" placement="bottom")
           ElRadioButton(value="list") 列表
-      ElTooltip(:content="$t('appointment.tooltip.archive')" placement="bottom")
-        ElButton(plain @click="ClickGoArchive") 歷史紀錄
       ElButton(type="primary" @click="ClickCreate") 代客預約
 
   //- 列表視圖：完整 filter
@@ -530,5 +530,21 @@ onMounted(() => {
 .PageAdminAppointments__archivedLabel {
   font-size: 13px;
   color: rgba(53, 77, 123, 0.85);
+}
+
+.PageAdminAppointments__archiveBtn {
+  font-size: 13px;
+  color: rgba(53, 77, 123, 0.6);
+  margin-right: 4px;
+
+  &:hover {
+    color: $primary;
+  }
+}
+
+.PageAdminAppointments__viewSwitch :deep(.el-radio-button__inner) {
+  padding: 10px 22px;
+  font-size: 14.5px;
+  font-weight: 600;
 }
 </style>
