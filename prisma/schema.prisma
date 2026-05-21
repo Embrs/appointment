@@ -159,6 +159,9 @@ model Service {
   durationMinutes     Int         @default(30)
   slotIntervalMinutes Int         @default(30)
   capacityPerSlot     Int         @default(1)
+  /// 平均單人服務時長（分鐘），用於號碼牌等待時間預估；null 時 fallback 使用 durationMinutes
+  avgServiceMinutes   Int?
+
   priceCents          Int?
   isActive            Boolean     @default(true)
   displayOrder        Int         @default(0)
@@ -287,20 +290,25 @@ model QueueWindow {
 
 /// 當日號碼牌
 model QueueTicket {
-  id               String            @id @default(cuid())
-  merchantId       String
-  serviceId        String
-  ticketDate       DateTime          @db.Date
-  ticketNumber     Int
-  status           QueueTicketStatus @default(WAITING)
-  customerLastName String
-  customerTitle    CustomerTitle
-  customerPhone    String
-  takenAt          DateTime          @default(now())
-  calledAt         DateTime?
-  doneAt           DateTime?
-  createdAt        DateTime          @default(now())
-  updatedAt        DateTime          @updatedAt
+  id                 String            @id @default(cuid())
+  merchantId         String
+  serviceId          String
+  ticketDate         DateTime          @db.Date
+  ticketNumber       Int
+  status             QueueTicketStatus @default(WAITING)
+  customerLastName   String
+  customerTitle      CustomerTitle
+  /// 商家現場代建可為 null（顧客未留電話）；公開拿號一律非空
+  customerPhone      String?
+  /// 是否由商家於後台代客建立（true = 現場登記）
+  createdByMerchant  Boolean           @default(false)
+  /// 顧客掃 QR 自助回查用 token（nanoid，8 碼）；歷史 row 為 null 不參與比對
+  claimToken         String?           @unique
+  takenAt            DateTime          @default(now())
+  calledAt           DateTime?
+  doneAt             DateTime?
+  createdAt          DateTime          @default(now())
+  updatedAt          DateTime          @updatedAt
 
   merchant Merchant @relation(fields: [merchantId], references: [id], onDelete: Cascade)
   service  Service  @relation(fields: [serviceId], references: [id], onDelete: Cascade)

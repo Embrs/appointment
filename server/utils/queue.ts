@@ -1,6 +1,19 @@
 // 號碼牌共用 helper：三語訊息、WebSocket peer Map、ticketDate timezone 工具、QueueWindow 校驗
 // 規範：錯誤一律 return（不 throw）；廣播 payload 統一格式
 import type { I18nMessage } from './response';
+import { prisma } from './prisma';
+import { Prisma } from '@prisma/client';
+import { customAlphabet } from 'nanoid';
+import {
+  estimateWaitMinutes,
+  getTicketsAhead,
+  type QueueCounterEtaInput,
+  type QueueTicketEtaInput,
+  type QueueTicketStatusForEta
+} from '~shared/queue-eta';
+
+export { estimateWaitMinutes, getTicketsAhead };
+export type { QueueCounterEtaInput, QueueTicketEtaInput, QueueTicketStatusForEta };
 
 // ====== 三語訊息 ======
 
@@ -99,6 +112,10 @@ export interface QueueBroadcastPayload {
   servingTicketId?: string;
   /** TICKET_TAKEN 時新發票號 */
   ticketNumber?: number;
+  /** 該服務 effective 平均服務時長（avgServiceMinutes ?? durationMinutes），給訂閱端對任意票即時計算 ETA */
+  avgServiceMinutes?: number;
+  /** 該事件後「下一位 WAITING 票」的預估等待分鐘；null 表無法估算 */
+  nextWaitMinutes?: number | null;
   timestamp: number;
 }
 
@@ -196,6 +213,71 @@ export const projectQueueServingPublic = (
   return { currentServing, ticketsTaken, waitingCount };
 };
 
+// ====== ETA helper（API + WS payload 共用） ======
+
+export interface QueueEtaServiceInput {
+  avgServiceMinutes: number | null;
+  durationMinutes: number;
+}
+
+/**
+ * 取得 service 的 effective 平均服務時長（fallback 至 durationMinutes）。
+ * 不直接讀 DB；呼叫端從 prisma 查到 service 後傳入兩欄位即可。
+ */
+export const getEffectiveAvgServiceMinutes = (
+  service: QueueEtaServiceInput
+): number => {
+  return service.avgServiceMinutes ?? service.durationMinutes;
+};
+
+/**
+ * 為單張票計算預估等待分鐘。
+ * - counter 為 null：回 null（無法估算）
+ * - ticket 非 WAITING：回 0（純函式語意）
+ * - 其餘：依純函式線性估算
+ */
+export const computeTicketEtaMinutes = (
+  ticket: QueueTicketEtaInput,
+  counter: QueueCounterEtaInput | null,
+  service: QueueEtaServiceInput
+): number | null => {
+  if (counter === null) return null;
+  const ahead = getTicketsAhead(ticket, counter);
+  return estimateWaitMinutes(ahead, getEffectiveAvgServiceMinutes(service));
+};
+
+/**
+ * 為「下一位 WAITING 票」計算預估等待分鐘（給 /public/m/[slug] 卡片用）。
+ * - counter 為 null：回 null
+ * - waitingCount=0（無人等候）：回 0
+ * - 其餘：以 waitingCount-1 估算（下一位前面剩下幾人）
+ */
+export const computeNextWaitMinutes = (
+  counter: QueueCounterEtaInput | null,
+  ticketsTaken: number,
+  service: QueueEtaServiceInput
+): number | null => {
+  if (counter === null) return null;
+  const waitingCount = Math.max(0, ticketsTaken - counter.lastCalledNumber);
+  if (waitingCount === 0) return 0;
+  return estimateWaitMinutes(waitingCount - 1, getEffectiveAvgServiceMinutes(service));
+};
+
+/**
+ * 為 broadcastQueue 組裝 ETA 欄位（avgServiceMinutes + nextWaitMinutes）。
+ * 由呼叫端確保 counter 為「事件後最新狀態」。
+ */
+export const buildBroadcastEtaFields = (
+  counter: QueueCounterEtaInput | null,
+  ticketsTaken: number,
+  service: QueueEtaServiceInput
+): { avgServiceMinutes: number; nextWaitMinutes: number | null } => {
+  return {
+    avgServiceMinutes: getEffectiveAvgServiceMinutes(service),
+    nextWaitMinutes: computeNextWaitMinutes(counter, ticketsTaken, service)
+  };
+};
+
 /** 判斷給定 timezone 下的當前時間是否在窗口內 */
 export const isWithinQueueWindow = (
   windows: QueueWindowRow[],
@@ -212,4 +294,194 @@ export const isWithinQueueWindow = (
     }
   }
   return { ok: false };
+};
+
+// ====== 共用拿號核心（公開端 / 商家代建端共用） ======
+
+export type QueueCustomerTitle = 'MR' | 'MRS' | 'MISS' | 'MX';
+
+/**
+ * claim token alphabet：排除易混淆字元 0/O/o/1/I/l，方便顧客口頭傳達短碼
+ * 55 字元 × 8 碼 ≈ 2^46 組合，碰撞期望值對單日票量可忽略
+ */
+const CLAIM_TOKEN_ALPHABET = '23456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz';
+const CLAIM_TOKEN_LENGTH = 8;
+const claimTokenNanoid = customAlphabet(CLAIM_TOKEN_ALPHABET, CLAIM_TOKEN_LENGTH);
+
+/** 產生 8 碼不可猜測 claim token（排除 0/O/o/1/I/l） */
+export const generateClaimToken = (): string => claimTokenNanoid();
+
+/** 是否為 Prisma claimToken 唯一鍵衝突（P2002） */
+const isClaimTokenCollision = (err: unknown): boolean => {
+  if (!(err instanceof Prisma.PrismaClientKnownRequestError)) return false;
+  if (err.code !== 'P2002') return false;
+  const target = (err.meta as { target?: string[] | string } | undefined)?.target;
+  if (Array.isArray(target)) return target.includes('claimToken');
+  if (typeof target === 'string') return target.includes('claimToken');
+  return false;
+};
+
+export interface InternalCreateTicketInput {
+  merchantId: string;
+  serviceId: string;
+  /** merchant timezone 當日 Date（@db.Date 用） */
+  ticketDate: Date;
+  customer: {
+    lastName: string;
+    title: QueueCustomerTitle;
+    /** 公開端必填字串；商家代建可為 null（顧客未留電話） */
+    phone: string | null;
+  };
+  /** 是否由商家後台代客建立（影響 createdByMerchant 欄位） */
+  createdByMerchant: boolean;
+  /** 當日上限（0 = 不限制）；事務內會再次精檢避免並發超發 */
+  maxTickets?: number;
+}
+
+export type InternalCreateTicketResult =
+  | {
+      ok: true;
+      ticket: {
+        id: string;
+        ticketNumber: number;
+        ticketDate: Date;
+        status: 'WAITING';
+        claimToken: string;
+      };
+      currentServing: number;
+    }
+  | { ok: false; reason: 'FULL' | 'ALREADY_TAKEN'; existingTicketId?: string };
+
+/**
+ * 共用拿號核心：
+ * - 公開端與商家代建端皆呼叫此函式，確保 Counter 序列化、advisory lock、唯一鍵防併發只有一份實作
+ * - 「同人同日重複領號」規則僅在 phone 非 null 時觸發（商家代建未留電話不套用）
+ * - claimToken 於交易內以 nanoid 產生；若觸發 P2002 重複，retry 一次（再失敗才往外拋）
+ * - 不負責廣播，由呼叫端決定（公開端與商家端皆廣播 TICKET_TAKEN）
+ */
+export const internalCreateTicket = async (
+  input: InternalCreateTicketInput
+): Promise<InternalCreateTicketResult> => {
+  const { merchantId, serviceId, ticketDate, customer, createdByMerchant, maxTickets = 0 } = input;
+
+  // 事務外粗檢：同人同日重複領號（僅 phone 非 null 才查）
+  if (customer.phone !== null) {
+    const existing = await prisma.queueTicket.findFirst({
+      where: {
+        merchantId,
+        serviceId,
+        ticketDate,
+        customerPhone: customer.phone,
+        status: { in: ['WAITING', 'CALLED'] }
+      },
+      select: { id: true }
+    });
+    if (existing) {
+      return { ok: false, reason: 'ALREADY_TAKEN', existingTicketId: existing.id };
+    }
+  }
+
+  // 事務外粗檢：當日上限（0 視為不限）
+  if (maxTickets > 0) {
+    const count = await prisma.queueTicket.count({
+      where: { merchantId, serviceId, ticketDate }
+    });
+    if (count >= maxTickets) {
+      return { ok: false, reason: 'FULL' };
+    }
+  }
+
+  const runTransaction = (claimToken: string) =>
+    prisma.$transaction(async (tx) => {
+      // 確保 counter 存在
+      await tx.queueCounter.upsert({
+        where: {
+          merchantId_serviceId_counterDate: {
+            merchantId,
+            serviceId,
+            counterDate: ticketDate
+          }
+        },
+        update: {},
+        create: {
+          merchantId,
+          serviceId,
+          counterDate: ticketDate,
+          lastTicketNumber: 0,
+          lastCalledNumber: 0
+        }
+      });
+
+      // 鎖 counter 該列（advisory lock；序列化兩並發拿號）
+      const locked = await tx.$queryRaw<Array<{ id: string; lastTicketNumber: number; lastCalledNumber: number }>>`
+        SELECT id, "lastTicketNumber", "lastCalledNumber"
+        FROM "QueueCounter"
+        WHERE "merchantId" = ${merchantId}
+          AND "serviceId" = ${serviceId}
+          AND "counterDate" = ${ticketDate}
+        FOR UPDATE
+      `;
+      const counter = locked[0];
+      if (!counter) throw new Error('counter not found after upsert');
+
+      // 事務內再次精檢上限
+      if (maxTickets > 0) {
+        const inTxCount = await tx.queueTicket.count({
+          where: { merchantId, serviceId, ticketDate }
+        });
+        if (inTxCount >= maxTickets) {
+          return { full: true as const };
+        }
+      }
+
+      const nextNumber = counter.lastTicketNumber + 1;
+      await tx.queueCounter.update({
+        where: { id: counter.id },
+        data: { lastTicketNumber: nextNumber }
+      });
+      const ticket = await tx.queueTicket.create({
+        data: {
+          merchantId,
+          serviceId,
+          ticketDate,
+          ticketNumber: nextNumber,
+          status: 'WAITING',
+          customerLastName: customer.lastName,
+          customerTitle: customer.title,
+          customerPhone: customer.phone,
+          createdByMerchant,
+          claimToken
+        },
+        select: { id: true, ticketNumber: true, ticketDate: true, status: true, claimToken: true }
+      });
+      return {
+        full: false as const,
+        ticket,
+        currentServing: counter.lastCalledNumber
+      };
+    }, { isolationLevel: 'Serializable' as Prisma.TransactionIsolationLevel, timeout: 15000, maxWait: 10000 });
+
+  let result: Awaited<ReturnType<typeof runTransaction>>;
+  try {
+    result = await runTransaction(generateClaimToken());
+  } catch (err) {
+    if (!isClaimTokenCollision(err)) throw err;
+    // 8 碼 nanoid 撞鍵極罕見，整段交易換新 token 重試一次
+    result = await runTransaction(generateClaimToken());
+  }
+
+  if (result.full) return { ok: false, reason: 'FULL' };
+  const { ticket } = result;
+  if (ticket.claimToken === null) throw new Error('claimToken unexpectedly null after create');
+  return {
+    ok: true,
+    ticket: {
+      id: ticket.id,
+      ticketNumber: ticket.ticketNumber,
+      ticketDate: ticket.ticketDate,
+      status: 'WAITING' as const,
+      claimToken: ticket.claimToken
+    },
+    currentServing: result.currentServing
+  };
 };

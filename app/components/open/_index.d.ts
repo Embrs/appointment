@@ -19,6 +19,8 @@ type OpenComponent =
   | 'OpenDialogAppointmentCreate' // 商家代客預約
   | 'OpenDialogAppointmentReschedule' // 商家修改既有預約
   | 'OpenDialogCancelReason' // 商家取消理由
+  | 'OpenDialogQueueWalkIn' // 商家現場代客領號
+  | 'OpenDialogQueueClaimQr' // 顧客領號 QR Code 對話框
 
 // 參數群 -----------------------------------------------------------------------------------------------
 type OpenParams =
@@ -38,6 +40,8 @@ type OpenParams =
   | DialogAppointmentCreateParams
   | DialogAppointmentRescheduleParams
   | DialogCancelReasonParams
+  | DialogQueueWalkInParams
+  | DialogQueueClaimQrParams
 
 // 組件參數 ---------------------------------------------------------------------------------------------
 type DialogDemoParams = {
@@ -143,3 +147,25 @@ type DialogAppointmentRescheduleParams = {
 }
 
 type DialogCancelReasonParams = Record<string, never>
+
+type DialogQueueWalkInParams = {
+  /** 服務 id */
+  serviceId: string
+  /** 服務名稱（顯示於彈窗與列印小單） */
+  serviceName: string
+  /** merchant timezone（列印小單時間用） */
+  timezone?: string
+  /** 商家名稱（列印小單表頭，可選） */
+  merchantName?: string
+  /** 商家 slug：列印小單 QR 連結用；缺省則只印短碼不印 QR */
+  merchantSlug?: string
+}
+
+type DialogQueueClaimQrParams = {
+  /** 商家 slug，用於組成 QR 內容 URL */
+  slug: string
+  /** 8 碼 nanoid claim token */
+  claimToken: string
+  /** 當下票號（提示用，可選） */
+  ticketNumber?: number
+}

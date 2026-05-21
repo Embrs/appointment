@@ -26,6 +26,12 @@ export const FindQueueTicket = (params: FindQueueTicketParams) => {
   return methods.post<FindQueueTicketRes>('/nuxt-api/public/queue/find', params as unknown as Record<string, unknown>);
 };
 
+/** 公開：用 claim token 取回自己今日票券（QR 掃碼入口；不需手機末 4 碼） */
+export const GetQueueClaim = ({ token }: GetQueueClaimParams) => {
+  if (IsMock()) return mock.GetQueueClaim();
+  return methods.get<GetQueueClaimRes>(`/nuxt-api/public/queue/claim/${encodeURIComponent(token)}`);
+};
+
 /** 商家：當日全部 ticket + counter */
 export const GetQueueToday = () => {
   if (IsMock()) return mock.GetQueueToday();
@@ -36,6 +42,12 @@ export const GetQueueToday = () => {
 export const CallNextQueueTicket = (params: CallNextQueueTicketParams) => {
   if (IsMock()) return mock.CallNextQueueTicket();
   return methods.post<CallNextQueueTicketRes>('/nuxt-api/queue/call-next', params as unknown as Record<string, unknown>);
+};
+
+/** 商家：現場代客領號（櫃台 walk-in） */
+export const CreateQueueTicketForCustomer = (params: CreateQueueTicketForCustomerParams) => {
+  if (IsMock()) return mock.CreateQueueTicketForCustomer();
+  return methods.post<CreateQueueTicketForCustomerRes>('/nuxt-api/queue/create-for-customer', params as unknown as Record<string, unknown>);
 };
 
 /** 商家：標完成 */

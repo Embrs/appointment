@@ -8,7 +8,8 @@ export default defineConfig({
   },
   resolve: {
     alias: {
-      '@@': fileURLToPath(new URL('./server', import.meta.url))
+      '@@': fileURLToPath(new URL('./server', import.meta.url)),
+      '~shared': fileURLToPath(new URL('./shared', import.meta.url))
     }
   }
 });

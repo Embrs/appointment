@@ -176,7 +176,12 @@ export default {
       intervalLabel: '枠間隔（分）',
       capacityLabel: '1枠あたり定員',
       priceLabel: '料金（セント）',
-      resourcesLabel: '紐付けリソース'
+      resourcesLabel: '紐付けリソース',
+      avgServiceMinutes: {
+        label: '平均対応時間（分）',
+        placeholder: '空欄で所要時間を使用',
+        help: '1 人あたりの平均対応時間。整理券の予想待ち時間表示に使用します'
+      }
     },
     resources: {
       listTitle: 'リソース',
@@ -437,6 +442,32 @@ export default {
       500: 'サーバーエラー'
     }
   },
+  display: {
+    calling: '只今呼び出し中',
+    noNumber: '呼び出し前',
+    next: '次のお客様',
+    nextAfter: 'その次',
+    waiting: 'お待ち',
+    waitingPeople: '{count}名',
+    estimate: '予想待ち時間',
+    minutes: '{n}分',
+    minutesShort: '1分未満',
+    noService: '現在ご利用できるサービスはありません',
+    allDone: '本日の整理券はすべて終了しました',
+    pickService: 'サービスを選択',
+    openDisplay: '表示画面を開く',
+    copyLink: 'リンクをコピー',
+    linkCopied: '表示画面のリンクをコピーしました',
+    linkCopyFailed: '自動コピーに失敗しました。手動でコピーしてください：',
+    needQueueService: '先に QUEUE モードのサービスを作成してください',
+    tts: {
+      toggle: '音声呼び出し',
+      on: '音声呼び出し：ON',
+      off: '音声呼び出し：OFF',
+      unsupported: 'このブラウザは音声呼び出しに対応していません',
+      callPhrase: '{number}番のお客様、{serviceName}までお越しください。'
+    }
+  },
   queue: {
     page: {
       landingEyebrow: '整理券サービス',
@@ -501,12 +532,58 @@ export default {
       skippedSubtitle: 'ご用の方はスタッフまでお声がけください',
       skippedCtaContact: 'お店に連絡'
     },
+    walkIn: {
+      title: '現場登録',
+      hint: '来店された方の整理券を代理で発行します。受付時間外でも発行できます。',
+      fields: {
+        lastName: '姓',
+        lastNamePlaceholder: '例：王',
+        title: '敬称',
+        phone: '電話番号（任意）',
+        phonePlaceholder: '例：0912345678（任意）',
+        phoneHint: '電話番号がない場合、下 4 桁での自己照会はできません。番号を直接お渡しください。'
+      },
+      actions: {
+        submit: '発行する',
+        cancel: 'キャンセル',
+        print: '整理券を印刷',
+        close: '閉じる'
+      },
+      success: '{ticketNumber} 番を発行しました',
+      printTicket: {
+        merchantLabel: '店舗',
+        serviceLabel: 'サービス',
+        numberLabel: '番号',
+        timeLabel: '発行時刻'
+      }
+    },
     status: {
       WAITING: '待機中',
       CALLED: '対応中',
       DONE: '完了',
       SKIPPED: 'パス',
       CANCELED: 'キャンセル'
+    },
+    eta: {
+      aheadOfYou: 'あなたの前に {n} 人',
+      estimateMinutes: '残り約 {n} 分',
+      almostYourTurn: 'まもなくお呼びします',
+      unknown: '推定時間は計算できません',
+      aboutMinutesLater: '約 {n} 分後'
+    },
+    claim: {
+      title: 'スマホで呼び出しを追跡',
+      qrHint: '下の QR コードを読み取れば、お手元のスマホで呼び出し状況を追跡できます。お食事や買い物に出ても安心です。',
+      shortCode: 'ショートコード',
+      shortCodeHint: 'QR の読み取りに失敗した場合は、下記の URL でこの 8 桁のコードを入力してください。',
+      todayOnly: '本日限り有効です。当日終了後は自動的に無効になります。',
+      printSlip: '整理券裏面の QR コードをスマホで読み取って追跡できます。',
+      scanToTrack: 'QR を読み取ってスマホで呼び出しを追跡',
+      tokenExpired: '整理券の有効期限が切れたか見つかりません。携帯番号下 4 桁で再検索してください。',
+      fallbackToPhoneLookup: '携帯下 4 桁で再検索',
+      gotIt: 'わかりました',
+      qrFallbackLabel: '下記の URL とショートコードでアクセスしてください',
+      copyLink: 'リンクをコピー'
     },
     messages: {
       takeSuccess: '整理券を発行しました',

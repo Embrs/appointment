@@ -13,7 +13,8 @@ export const TakeQueueTicket = () =>
     status: 'WAITING',
     currentServing: 0,
     serviceName: '示例號碼牌服務',
-    timezone: 'Asia/Taipei'
+    timezone: 'Asia/Taipei',
+    claimToken: 'K7m4Tp9Q'
   });
 
 export const FindQueueTicket = () =>
@@ -37,7 +38,9 @@ export const GetQueueTicket = () =>
     merchant: { id: 'mock-merchant', name: '示例商家', timezone: 'Asia/Taipei' },
     currentServing: 0,
     lastTicketNumber: 1,
-    waitingAhead: 0
+    waitingAhead: 0,
+    estimatedWaitMinutes: 0,
+    avgServiceMinutes: 15
   });
 
 export const GetQueueToday = () =>
@@ -52,6 +55,39 @@ export const CallNextQueueTicket = () =>
     ticketId: 'mock-ticket-1',
     ticketNumber: 1,
     serviceId: 'mock-service'
+  });
+
+export const CreateQueueTicketForCustomer = () =>
+  SuccessRes<CreateQueueTicketForCustomerRes>({
+    ticketId: 'mock-walkin-ticket-1',
+    ticketNumber: 12,
+    ticketDate: '2026-05-21',
+    status: 'WAITING',
+    currentServing: 5,
+    serviceName: '示例號碼牌服務',
+    timezone: 'Asia/Taipei',
+    claimToken: 'Wk8h2Vm5'
+  });
+
+export const GetQueueClaim = () =>
+  SuccessRes<GetQueueClaimRes>({
+    ticket: {
+      id: 'mock-ticket-1',
+      serviceId: 'mock-service',
+      ticketNumber: 8,
+      ticketDate: '2026-05-21',
+      status: 'WAITING',
+      takenAt: new Date().toISOString(),
+      calledAt: null,
+      doneAt: null,
+      serviceName: '示例號碼牌服務'
+    },
+    merchant: { id: 'mock-merchant', name: '示例商家', timezone: 'Asia/Taipei' },
+    currentServing: 5,
+    lastTicketNumber: 12,
+    waitingAhead: 2,
+    estimatedWaitMinutes: 20,
+    avgServiceMinutes: 10
   });
 
 export const MarkQueueTicketDone = () =>

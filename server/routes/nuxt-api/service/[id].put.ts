@@ -21,7 +21,8 @@ const ServiceUpdateSchema = z
     priceCents: z.number().int().min(0).max(99_999_999).optional().nullable(),
     isActive: z.boolean().optional(),
     displayOrder: z.number().int().min(0).max(9999).optional(),
-    resourceIds: z.array(z.string().min(1)).max(50).optional()
+    resourceIds: z.array(z.string().min(1)).max(50).optional(),
+    avgServiceMinutes: z.number().int().min(0).max(720).nullable().optional()
   })
   .strict();
 
@@ -81,7 +82,12 @@ export default defineEventHandler(async (event) => {
         capacityPerSlot: nextMode === 'TIME_CAPACITY' ? body.capacityPerSlot : (nextMode === 'TIME_CAPACITY' ? undefined : (body.capacityPerSlot ?? 1)),
         priceCents: body.priceCents ?? undefined,
         isActive: body.isActive,
-        displayOrder: body.displayOrder
+        displayOrder: body.displayOrder,
+        // QUEUE 才寫入 avgServiceMinutes；切換到非 QUEUE 一律清為 null
+        avgServiceMinutes:
+          body.avgServiceMinutes !== undefined
+            ? (nextMode === 'QUEUE' ? body.avgServiceMinutes : null)
+            : (nextMode === 'QUEUE' ? undefined : null)
       }
     });
     if (body.resourceIds !== undefined) {
@@ -112,6 +118,7 @@ export default defineEventHandler(async (event) => {
       priceCents: updated.priceCents,
       isActive: updated.isActive,
       displayOrder: updated.displayOrder,
+      avgServiceMinutes: updated.avgServiceMinutes,
       resourceIds: resourceLinks.map((r) => r.resourceId),
       updatedAt: updated.updatedAt
     }

@@ -285,6 +285,15 @@
       "    ElCheckbox(v-for=\" roleItem of roleTypeList\" :key=\"roleItem.value\" :label=\"roleItem.label\" :value=\"roleItem.value\")",
     ]
   },
+  "plan-split": {
+    "prefix": "plan-split",
+    "body": [
+      "請用 openspec 進行提案，如過於龐大則拆分階段性任務，來做細部的需求規劃處理",
+      "為了顧及生成品質，每個任務都是獨立的對話框，也幫我生成每個對話框要輸入的內容",
+      "然後每項任務完成後，如有觸及前端畫面與操作，請用 playwright 進行測試",
+      "最後幫我列出每個新對話框要輸入的內容，讓我方便複製貼到新的對話框"
+    ]
+  },
   "task": {
     "prefix": "task",
     "body": [

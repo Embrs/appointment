@@ -4,7 +4,12 @@ import { z } from 'zod';
 import { prisma } from '@@/utils/prisma';
 import { badRequestError, notFoundError, successResponse, tooManyRequestsError } from '@@/utils/response';
 import { checkRateLimit } from '@@/utils/rate-limit';
-import { getTicketDate, projectQueueServingPublic } from '@@/utils/queue';
+import {
+  getTicketDate,
+  projectQueueServingPublic,
+  computeNextWaitMinutes,
+  getEffectiveAvgServiceMinutes
+} from '@@/utils/queue';
 
 const SlugSchema = z.string().min(1).max(64).regex(/^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$/i);
 
@@ -120,8 +125,18 @@ export default defineEventHandler(async (event) => {
             : []
       };
       if (s.bookingMode !== 'QUEUE') return base;
-      const serving = projectQueueServingPublic(counterMap.get(s.id));
-      return { ...base, ...serving };
+      const counter = counterMap.get(s.id) ?? null;
+      const serving = projectQueueServingPublic(counter);
+      const estimatedNextCallMinutes = computeNextWaitMinutes(
+        counter,
+        serving.ticketsTaken,
+        { avgServiceMinutes: s.avgServiceMinutes, durationMinutes: s.durationMinutes }
+      );
+      const avgServiceMinutes = getEffectiveAvgServiceMinutes({
+        avgServiceMinutes: s.avgServiceMinutes,
+        durationMinutes: s.durationMinutes
+      });
+      return { ...base, ...serving, estimatedNextCallMinutes, avgServiceMinutes };
     }),
     resources
   });

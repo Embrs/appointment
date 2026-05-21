@@ -18,7 +18,7 @@
 - [x] 3.3 force=false 時 SlotPicker 載入該日可用 slot；force=true 時改為 `ElTimePicker` 並顯示警示文案
 - [x] 3.4 依 `service.bookingMode` 動態顯示 / 隱藏資源欄位（TIME_SLOT / TIME_CAPACITY 隱藏；RESOURCE 必選；RESOURCE_OPTIONAL 含「不指定」）
 - [x] 3.5 提交失敗回傳 `MSG_PAST_SLOT` 時顯示「啟用過號補登再送出」的回饋
-- [ ] 3.6 i18n key：`appointment.reschedule.title / fields.* / actions.* / forceHint / forcePrompt` 三語補齊（移至 Step 9 統一處理）
+- [x] 3.6 i18n key：`appointment.reschedule.title / fields.* / actions.* / forceHint / forcePrompt` 三語補齊（已於 Step 9 完成 9.1-9.5）
 
 ## 4. 改造 DrawerAppointmentInfo 為操作中樞
 
@@ -59,7 +59,7 @@
 
 - [x] 8.1 在 `app/components/biz/ServiceCard.vue` 把 `PriceLabel` 條件改為 `priceCents == null || priceCents <= 0` 返回空字串
 - [x] 8.2 把時長顯示改為 `DurationLabel`（用 `$t('service.durationLabel', { n })` 包裝）
-- [ ] 8.3 在 `i18n/locales/zh.js / en.js / ja.js` 補上 `service.durationLabel` 三語 key（合併到 Step 9）
+- [x] 8.3 在 `i18n/locales/zh.js / en.js / ja.js` 補上 `service.durationLabel` 三語 key（已於 Step 9 完成 9.7）
 - [x] 8.4 確認 `/m/{slug}/book` 服務選擇步驟也使用 `BizServiceCard`（line 288），自動共享修正
 
 ## 9. i18n 補齊

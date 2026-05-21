@@ -2,7 +2,12 @@
 // LayoutFrontDesk — 顧客面 layout
 // /m/{slug}/* 顧客頁面共用；header 顯示商家名（之後接 store/SSR data）
 // 不含登出按鈕（顧客匿名），語系切換使用 ElDropdown + useI18n().setLocale
+// displayMode：頁面在 definePageMeta 設 `displayMode: true` 時隱藏 header、移除內距、改深色背景
+//   （供 /m/[slug]/display 大螢幕投影使用）
 const merchantName = ref('');
+
+const route = useRoute();
+const displayMode = computed(() => Boolean(route.meta.displayMode));
 
 const { locale, locales, setLocale } = useI18n();
 
@@ -26,8 +31,8 @@ const ClickSetLocale = async (code: string) => {
 </script>
 
 <template lang="pug">
-.LayoutFrontDesk
-  header.LayoutFrontDesk__header
+.LayoutFrontDesk(:class="{ 'LayoutFrontDesk--display': displayMode }")
+  header.LayoutFrontDesk__header(v-if="!displayMode")
     .LayoutFrontDesk__headerInner
       .LayoutFrontDesk__brand
         .LayoutFrontDesk__brandMark A
@@ -158,6 +163,25 @@ const ClickSetLocale = async (code: string) => {
   max-width: 960px;
   margin: 0 auto;
   padding: 24px 20px 48px;
+}
+
+// 大螢幕投影模式：移除最大寬度與內距、改深色背景
+.LayoutFrontDesk--display {
+  background-color: #0b1224;
+  min-height: 100vh;
+}
+
+.LayoutFrontDesk--display .LayoutFrontDesk__main {
+  display: flex;
+  min-height: 100vh;
+}
+
+.LayoutFrontDesk--display .LayoutFrontDesk__container {
+  max-width: none;
+  width: 100vw;
+  min-height: 100vh;
+  margin: 0;
+  padding: 0;
 }
 
 @media (max-width: 640px) {

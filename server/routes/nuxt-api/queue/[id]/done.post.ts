@@ -6,7 +6,8 @@ import { badRequestError, notFoundError, successResponse } from '@@/utils/respon
 import {
   MSG_QUEUE_INVALID_TRANSITION,
   MSG_QUEUE_TICKET_NOT_FOUND,
-  broadcastQueue
+  broadcastQueue,
+  buildBroadcastEtaFields
 } from '@@/utils/queue';
 
 export default defineEventHandler(async (event) => {
@@ -19,7 +20,13 @@ export default defineEventHandler(async (event) => {
 
   const ticket = await prisma.queueTicket.findFirst({
     where: { id, merchantId },
-    select: { id: true, status: true, serviceId: true }
+    select: {
+      id: true,
+      status: true,
+      serviceId: true,
+      ticketDate: true,
+      service: { select: { avgServiceMinutes: true, durationMinutes: true } }
+    }
   });
   if (!ticket) return notFoundError(event, MSG_QUEUE_TICKET_NOT_FOUND);
   if (ticket.status !== 'CALLED') return badRequestError(event, MSG_QUEUE_INVALID_TRANSITION);
@@ -30,10 +37,29 @@ export default defineEventHandler(async (event) => {
     select: { id: true, ticketNumber: true, status: true, doneAt: true }
   });
 
+  const counter = await prisma.queueCounter.findUnique({
+    where: {
+      merchantId_serviceId_counterDate: {
+        merchantId,
+        serviceId: ticket.serviceId,
+        counterDate: ticket.ticketDate
+      }
+    },
+    select: { lastCalledNumber: true, lastTicketNumber: true }
+  });
+  const etaFields = buildBroadcastEtaFields(
+    counter ? { lastCalledNumber: counter.lastCalledNumber } : null,
+    counter?.lastTicketNumber ?? 0,
+    {
+      avgServiceMinutes: ticket.service.avgServiceMinutes,
+      durationMinutes: ticket.service.durationMinutes
+    }
+  );
   broadcastQueue(merchantId, {
     type: 'TICKET_DONE',
     serviceId: ticket.serviceId,
     servingTicketId: ticket.id,
+    ...etaFields,
     timestamp: Date.now()
   });
 

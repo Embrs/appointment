@@ -176,7 +176,12 @@ export default {
       intervalLabel: '時段間隔（分鐘）',
       capacityLabel: '每時段容量',
       priceLabel: '價格（分）',
-      resourcesLabel: '綁定資源'
+      resourcesLabel: '綁定資源',
+      avgServiceMinutes: {
+        label: '平均服務時長（分鐘）',
+        placeholder: '留空自動沿用服務時長',
+        help: '實際每位顧客的平均處理時間，用於號碼牌「預估等待時間」顯示'
+      }
     },
     resources: {
       listTitle: '資源管理',
@@ -491,12 +496,58 @@ export default {
       skippedSubtitle: '如仍需服務，請洽櫃台或重新領號',
       skippedCtaContact: '聯絡店家'
     },
+    walkIn: {
+      title: '現場登記',
+      hint: '為現場到店的顧客代為領取號碼牌；可在領號時間窗外協助補單。',
+      fields: {
+        lastName: '姓',
+        lastNamePlaceholder: '例：王',
+        title: '稱謂',
+        phone: '手機（可選）',
+        phonePlaceholder: '例：0912345678（可留空）',
+        phoneHint: '未留電話則無法以末 4 碼自助查詢，請當面交付號碼。'
+      },
+      actions: {
+        submit: '送出領號',
+        cancel: '取消',
+        print: '列印小單',
+        close: '關閉'
+      },
+      success: '已領號 {ticketNumber}',
+      printTicket: {
+        merchantLabel: '商家',
+        serviceLabel: '服務',
+        numberLabel: '號碼',
+        timeLabel: '領號時間'
+      }
+    },
     status: {
       WAITING: '等待中',
       CALLED: '服務中',
       DONE: '已完成',
       SKIPPED: '已過號',
       CANCELED: '已取消'
+    },
+    eta: {
+      aheadOfYou: '您前面還有 {n} 位',
+      estimateMinutes: '預估還需 {n} 分鐘',
+      almostYourTurn: '即將輪到您',
+      unknown: '預估時間尚無法計算',
+      aboutMinutesLater: '約 {n} 分鐘後'
+    },
+    claim: {
+      title: '掃碼追蹤您的號碼',
+      qrHint: '掃描下方 QR Code，即可在自己手機上即時追蹤叫號進度，去吃飯或逛街也不錯過。',
+      shortCode: '短碼',
+      shortCodeHint: '若 QR 掃描失敗，可至以下網址手動輸入此 8 碼短碼',
+      todayOnly: '本日有效，當日結束後自動失效',
+      printSlip: '小單背面掃碼即可在手機追蹤',
+      scanToTrack: '掃碼即可在手機追蹤叫號',
+      tokenExpired: '票券已過期或不存在，請改用手機末 4 碼回查',
+      fallbackToPhoneLookup: '改用手機末 4 碼',
+      gotIt: '我知道了',
+      qrFallbackLabel: '請使用以下連結與短碼追蹤',
+      copyLink: '複製連結'
     },
     messages: {
       takeSuccess: '領號成功',
@@ -591,6 +642,32 @@ export default {
   },
   service: {
     durationLabel: '{n} 分鐘'
+  },
+  display: {
+    calling: '現在叫號',
+    noNumber: '尚未叫號',
+    next: '下一位',
+    nextAfter: '再下一位',
+    waiting: '等待中',
+    waitingPeople: '{count} 人',
+    estimate: '預估等待',
+    minutes: '{n} 分鐘',
+    minutesShort: '< 1 分鐘',
+    noService: '目前無服務開放',
+    allDone: '今日已完成所有號碼',
+    pickService: '請選擇服務',
+    openDisplay: '開啟顯示頁',
+    copyLink: '複製連結',
+    linkCopied: '已複製顯示頁連結',
+    linkCopyFailed: '無法自動複製，請手動複製：',
+    needQueueService: '請先建立 QUEUE 服務',
+    tts: {
+      toggle: '語音廣播',
+      on: '語音廣播：開',
+      off: '語音廣播：關',
+      unsupported: '此瀏覽器不支援語音廣播',
+      callPhrase: '請 {number} 號到 {serviceName}'
+    }
   },
   enum: {
     apiStatus: {

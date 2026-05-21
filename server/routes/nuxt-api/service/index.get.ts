@@ -28,6 +28,7 @@ export default defineEventHandler(async (event) => {
       priceCents: s.priceCents,
       isActive: s.isActive,
       displayOrder: s.displayOrder,
+      avgServiceMinutes: s.avgServiceMinutes,
       resourceIds: s.resources.map((r) => r.resourceId),
       createdAt: s.createdAt,
       updatedAt: s.updatedAt

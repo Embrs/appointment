@@ -9,6 +9,7 @@ import {
   MSG_QUEUE_NO_WAITING,
   MSG_NOT_QUEUE_SERVICE,
   broadcastQueue,
+  buildBroadcastEtaFields,
   getTicketDate
 } from '@@/utils/queue';
 
@@ -32,7 +33,7 @@ export default defineEventHandler(async (event) => {
 
   const service = await prisma.service.findFirst({
     where: { id: parsed.data.serviceId, merchantId, deletedAt: null },
-    select: { id: true, bookingMode: true }
+    select: { id: true, bookingMode: true, avgServiceMinutes: true, durationMinutes: true }
   });
   if (!service) return notFoundError(event);
   if (service.bookingMode !== 'QUEUE') return badRequestError(event, MSG_NOT_QUEUE_SERVICE);
@@ -67,8 +68,8 @@ export default defineEventHandler(async (event) => {
       }
     });
     // 鎖 counter
-    const locked = await tx.$queryRaw<Array<{ id: string; lastCalledNumber: number }>>`
-      SELECT id, "lastCalledNumber" FROM "QueueCounter"
+    const locked = await tx.$queryRaw<Array<{ id: string; lastCalledNumber: number; lastTicketNumber: number }>>`
+      SELECT id, "lastCalledNumber", "lastTicketNumber" FROM "QueueCounter"
       WHERE "merchantId" = ${merchantId}
         AND "serviceId" = ${service.id}
         AND "counterDate" = ${ticketDate}
@@ -99,7 +100,12 @@ export default defineEventHandler(async (event) => {
       where: { id: counter.id },
       data: { lastCalledNumber: next.ticketNumber }
     });
-    return { ok: true as const, ticketId: next.id, ticketNumber: next.ticketNumber };
+    return {
+      ok: true as const,
+      ticketId: next.id,
+      ticketNumber: next.ticketNumber,
+      lastTicketNumber: counter.lastTicketNumber
+    };
     }, { isolationLevel: 'Serializable', timeout: 15000, maxWait: 10000 });
   } catch (err: unknown) {
     // PostgreSQL 40001 serialization_failure：兩員工並發叫號
@@ -112,11 +118,17 @@ export default defineEventHandler(async (event) => {
 
   if (!result.ok) return badRequestError(event, MSG_QUEUE_NO_WAITING);
 
+  const etaFields = buildBroadcastEtaFields(
+    { lastCalledNumber: result.ticketNumber },
+    result.lastTicketNumber,
+    { avgServiceMinutes: service.avgServiceMinutes, durationMinutes: service.durationMinutes }
+  );
   broadcastQueue(merchantId, {
     type: 'CALL_NEXT',
     serviceId: service.id,
     current: result.ticketNumber,
     servingTicketId: result.ticketId,
+    ...etaFields,
     timestamp: Date.now()
   });
 

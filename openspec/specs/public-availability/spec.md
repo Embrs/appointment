@@ -58,7 +58,7 @@ TBD - created by archiving change availability-engine. Update Purpose after arch
 
 ### Requirement: 可預約時段查詢
 
-系統 SHALL 提供無需 token 的可預約時段查詢端點，給定 `(slug, serviceId, resourceId?, date)`，依商家時區計算當日所有 slot 並回剩餘容量；對 IP 套 5/秒固定窗口速率限制。每個 slot 在 `remaining=0` 時 SHALL 附帶 `reason` 欄位標示不可選原因，便於前端顯示「為什麼這格不能選」的提示文字。
+系統 SHALL 提供無需 token 的可預約時段查詢端點，給定 `(slug, serviceId, resourceId?, date)`，依商家時區計算當日所有 slot 並回剩餘容量；對 IP 套 5/秒固定窗口速率限制。每個 slot 在 `remaining=0` 時 SHALL 附帶 `reason` 欄位標示不可選原因，便於前端顯示「為什麼這格不能選」的提示文字。對 `RESOURCE_OPTIONAL` 模式的詳細聚合行為另見「RESOURCE_OPTIONAL 模式可用時段查詢」需求。
 
 #### Scenario: 一般工作日 TIME_SLOT 切 slot
 
@@ -128,10 +128,15 @@ TBD - created by archiving change availability-engine. Update Purpose after arch
 - **WHEN** `GET .../availability?slug=test&serviceId=<RESOURCE 模式 service>&date=2026-05-22`（無 resourceId）
 - **THEN** 響應 400，三語訊息
 
-#### Scenario: 非 RESOURCE 模式不可帶 resourceId
+#### Scenario: 不允許 resourceId 的模式拒絕（TIME_SLOT / TIME_CAPACITY）
 
-- **WHEN** `GET .../availability?slug=test&serviceId=<TIME_SLOT service>&resourceId=x&date=2026-05-22`
+- **WHEN** `GET .../availability?slug=test&serviceId=<TIME_SLOT 或 TIME_CAPACITY service>&resourceId=x&date=2026-05-22`
 - **THEN** 響應 400
+
+#### Scenario: RESOURCE_OPTIONAL 允許不帶 resourceId
+
+- **WHEN** `GET .../availability?slug=test&serviceId=<RESOURCE_OPTIONAL service>&date=2026-05-22`
+- **THEN** 響應 200（走 union 聚合，不回 400）
 
 #### Scenario: RESOURCE 但 resourceId 與服務無關聯
 
@@ -173,7 +178,7 @@ TBD - created by archiving change availability-engine. Update Purpose after arch
 
 ### Requirement: 算法純函式可單測
 
-系統 SHALL 將時段切割演算法（`buildSlots`）實作為不依賴 Prisma / H3 的純函式，並提供 vitest 單元測試覆蓋邊界情境；`buildSlots` SHALL 接受 `now: Date` 參數以決定 `reason='past'` 的判定基準，且該參數在測試中可注入。
+系統 SHALL 將時段切割演算法（`buildSlots`）實作為不依賴 Prisma / H3 的純函式，並提供 vitest 單元測試覆蓋邊界情境；`buildSlots` SHALL 接受 `now: Date` 參數以決定 `reason='past'` 的判定基準，且該參數在測試中可注入。RESOURCE_OPTIONAL 的 union 聚合 SHALL 同樣以純函式（例如 `mergeResourceSlots`）實作，且其單元測試 SHALL 覆蓋「任一資源可用」、「全部被佔」、「全部不在班」三類邊界。
 
 #### Scenario: vitest 安裝且可執行
 
@@ -195,4 +200,61 @@ TBD - created by archiving change availability-engine. Update Purpose after arch
 8. 已過時段（remaining=0, reason='past'，注入固定 now）
 9. 未過 + 無預約 slot（reason=undefined）
 10. 多資源 resourceId 過濾正確（透過 helper 或外殼測）
+11. RESOURCE_OPTIONAL union 聚合：任一資源可用 → remaining=1
+12. RESOURCE_OPTIONAL union 聚合：全部資源被佔 → remaining=0, reason='taken'
+13. RESOURCE_OPTIONAL union 聚合：全部資源不在班 → 該 slot 不出現
+
+### Requirement: RESOURCE_OPTIONAL 模式可用時段查詢
+
+系統 SHALL 對 `bookingMode === 'RESOURCE_OPTIONAL'` 的服務支援 `(slug, serviceId, date, resourceId?)` 兩種查詢路徑：
+
+- **帶 `resourceId`**：行為等同 `RESOURCE` 模式——驗 ServiceResource 關聯與 Resource 啟用後，以 RESOURCE scope ScheduleRule、ScheduleOverride、僅該資源 CONFIRMED Appointment 計算 slots。
+- **未帶 `resourceId`（聚合視圖）**：對 service 所有綁定的啟用資源各自計算 slots，再以 union 合併：某 slot 只要「任一資源 `remaining > 0`」即視為 `remaining=1`，否則 `remaining=0` 並附 `reason`；`reason` 取最寬鬆原因（優先序：past > taken > 全部不在班則該 slot 不出現）。
+
+`capacity` 在 RESOURCE_OPTIONAL 模式恆為 1（每筆預約僅佔一資源 slot）。
+
+#### Scenario: RESOURCE_OPTIONAL 帶 resourceId 等同 RESOURCE
+
+- **GIVEN** Service `s3`（bookingMode=RESOURCE_OPTIONAL）綁定 Resource A、B；A 有 ScheduleRule RESOURCE scope 09:00–11:00；A 已有 1 筆 CONFIRMED Appointment 在 09:00（duration=60, step=60）
+- **WHEN** `GET /nuxt-api/public/availability?slug=test&serviceId=s3&resourceId=A&date=2026-05-22`
+- **THEN** 響應 200；回 2 個 slot：09:00（remaining=0, reason='taken'）、10:00（remaining=1, reason=undefined）；不含 B 的時段
+
+#### Scenario: RESOURCE_OPTIONAL 不帶 resourceId 走 union 聚合
+
+- **GIVEN** Service `s3`（bookingMode=RESOURCE_OPTIONAL）綁定 Resource A、B；A 09:00–11:00 排班、B 10:00–12:00 排班；A 在 09:00 已有 1 筆 CONFIRMED；B 無預約；duration=60、step=60
+- **WHEN** `GET /nuxt-api/public/availability?slug=test&serviceId=s3&date=2026-05-22`
+- **THEN** 響應 200；回 3 個 slot：
+  - 09:00：A 被佔、B 未排班 → remaining=0, reason='taken'
+  - 10:00：A 空、B 空 → remaining=1, reason=undefined
+  - 11:00：A 未排班、B 空 → remaining=1, reason=undefined
+
+#### Scenario: RESOURCE_OPTIONAL 未帶 resourceId 全部資源被佔
+
+- **GIVEN** Service `s3` 綁定 A、B；某 slot A 與 B 皆有 CONFIRMED Appointment
+- **WHEN** `GET .../availability?slug=test&serviceId=s3&date=...`
+- **THEN** 該 slot remaining=0, reason='taken'
+
+#### Scenario: RESOURCE_OPTIONAL 未帶 resourceId 全部資源不在班
+
+- **GIVEN** Service `s3` 綁定 A、B；某時間範圍 A 與 B 皆無 ScheduleRule、無 override
+- **WHEN** `GET .../availability?slug=test&serviceId=s3&date=...`
+- **THEN** 該時間範圍不出現任何 slot（與既有「不在班不出 slot」一致）
+
+#### Scenario: RESOURCE_OPTIONAL 帶 resourceId 與服務無關聯
+
+- **GIVEN** Resource Z 存在但未綁定到 Service `s3`
+- **WHEN** `GET .../availability?slug=test&serviceId=s3&resourceId=Z&date=...`
+- **THEN** 響應 400（與 RESOURCE 同保護）
+
+#### Scenario: RESOURCE_OPTIONAL 過濾停用資源
+
+- **GIVEN** Service `s3` 綁定 A（active=true）、C（active=false）
+- **WHEN** `GET .../availability?slug=test&serviceId=s3&date=...`（未帶 resourceId）
+- **THEN** 聚合僅計算 A 的時段；C 完全忽略
+
+#### Scenario: RESOURCE_OPTIONAL 整店休假
+
+- **GIVEN** Service `s3` 綁定 A、B；當日存在 MerchantHoliday
+- **WHEN** `GET .../availability?slug=test&serviceId=s3&date=...`
+- **THEN** `data.slots = []`
 

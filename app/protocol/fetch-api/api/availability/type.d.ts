@@ -37,6 +37,10 @@ interface PublicServiceItem {
   ticketsTaken?: number;
   /** 僅 bookingMode='QUEUE' 時提供：等待中人數 = max(0, ticketsTaken - currentServing) */
   waitingCount?: number;
+  /** 僅 bookingMode='QUEUE' 時提供：下一位 WAITING 票的預估等待分鐘；無 counter 為 null */
+  estimatedNextCallMinutes?: number | null;
+  /** 僅 bookingMode='QUEUE' 時提供：effective 平均服務時長（已 fallback 至 durationMinutes） */
+  avgServiceMinutes?: number;
 }
 
 interface PublicResourceItem {

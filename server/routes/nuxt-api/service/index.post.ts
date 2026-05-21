@@ -20,7 +20,8 @@ const ServiceCreateSchema = z
     priceCents: z.number().int().min(0).max(99_999_999).optional().nullable(),
     isActive: z.boolean().optional(),
     displayOrder: z.number().int().min(0).max(9999).optional(),
-    resourceIds: z.array(z.string().min(1)).max(50).optional()
+    resourceIds: z.array(z.string().min(1)).max(50).optional(),
+    avgServiceMinutes: z.number().int().min(0).max(720).nullable().optional()
   })
   .strict();
 
@@ -65,6 +66,10 @@ export default defineEventHandler(async (event) => {
   const durationMinutes = body.bookingMode === 'QUEUE' ? 30 : (body.durationMinutes ?? 30);
   const slotIntervalMinutes = body.bookingMode === 'QUEUE' ? 30 : (body.slotIntervalMinutes ?? 30);
 
+  // QUEUE 模式才接受 avgServiceMinutes；其他模式一律 null（避免誤用）
+  const avgServiceMinutes =
+    body.bookingMode === 'QUEUE' ? (body.avgServiceMinutes ?? null) : null;
+
   const created = await prisma.$transaction(async (tx) => {
     const s = await tx.service.create({
       data: {
@@ -77,7 +82,8 @@ export default defineEventHandler(async (event) => {
         capacityPerSlot,
         priceCents: body.priceCents ?? null,
         isActive: body.isActive ?? true,
-        displayOrder: body.displayOrder ?? 0
+        displayOrder: body.displayOrder ?? 0,
+        avgServiceMinutes
       }
     });
     if (isResourceMode && resourceIds.length > 0) {
@@ -99,6 +105,7 @@ export default defineEventHandler(async (event) => {
       priceCents: created.priceCents,
       isActive: created.isActive,
       displayOrder: created.displayOrder,
+      avgServiceMinutes: created.avgServiceMinutes,
       resourceIds: isResourceMode ? resourceIds : []
     }
   });

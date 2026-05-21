@@ -7,7 +7,8 @@ definePageMeta({ layout: 'front-desk' });
 const route = useRoute();
 const localePath = useLocalePath();
 const slug = computed(() => String(route.params.slug ?? ''));
-const ticketId = computed(() => String(route.query.id ?? ''));
+const ticketId = ref<string>(String(route.query.id ?? ''));
+const claimToken = computed(() => String(route.query.token ?? ''));
 
 const { t } = useI18n();
 const queueStore = StoreQueueRealtime();
@@ -27,6 +28,30 @@ const IsCalled = computed(() => MyStatus.value === 'CALLED');
 const IsDone = computed(() => MyStatus.value === 'DONE');
 const IsSkipped = computed(() => MyStatus.value === 'SKIPPED');
 const WaitingAhead = computed(() => MyTicket.value?.waitingAhead ?? 0);
+
+// ETA 區塊：優先用 store 即時計算（隨 WS 推播即時推進），fallback 至 myTicket.estimatedWaitMinutes
+const EtaMinutes = computed<number | null>(() => {
+  const t = MyTicket.value;
+  if (!t) return null;
+  const sid = (t.ticket as { serviceId?: string }).serviceId || '';
+  if (sid) {
+    const live = queueStore.GetEtaForTicket(
+      { ticketNumber: t.ticket.ticketNumber, status: t.ticket.status as 'WAITING' | 'CALLED' | 'DONE' | 'SKIPPED' },
+      sid
+    );
+    if (live !== null) return live;
+  }
+  return t.estimatedWaitMinutes ?? null;
+});
+
+const EtaText = computed(() => {
+  if (IsCalled.value || IsDone.value || IsSkipped.value) return '';
+  if (EtaMinutes.value === null) return t('queue.eta.unknown');
+  if (WaitingAhead.value === 0) return t('queue.eta.almostYourTurn');
+  const ahead = t('queue.eta.aheadOfYou', { n: WaitingAhead.value });
+  const minutes = t('queue.eta.estimateMinutes', { n: EtaMinutes.value });
+  return `${ahead} ・ ${minutes}`;
+});
 
 const StatusHint = computed(() => {
   if (IsCalled.value) return t('queue.page.statusCalledHint');
@@ -62,13 +87,27 @@ watch(IsCalled, (now) => {
 });
 
 const ApiLoad = async () => {
-  if (!ticketId.value) {
-    initError.value = t('queue.messages.ticketNotFound');
-    loading.value = false;
-    return;
-  }
   loading.value = true;
   try {
+    // 入口優先序：?token=（QR 掃碼）→ ?id=（既有手機末 4 碼 / localStorage 還原路徑）
+    if (claimToken.value) {
+      const res = await $api.GetQueueClaim({ token: claimToken.value });
+      if (res.status.code !== $enum.apiStatus.success) {
+        // token 失敗（過期 / RateLimited）：一次性提示 + 降級到手機末 4 碼回查
+        ElMessage.warning(t('queue.claim.tokenExpired'));
+        navigateTo(localePath(`/m/${slug.value}/queue/find`));
+        return;
+      }
+      ticketId.value = res.data.ticket.id;
+      queueStore.SetMyTicket(ticketId.value, res.data);
+      queueStore.Connect(res.data.merchant.id);
+      return;
+    }
+
+    if (!ticketId.value) {
+      initError.value = t('queue.messages.ticketNotFound');
+      return;
+    }
     const res = await $api.GetQueueTicket({ id: ticketId.value });
     if (res.status.code !== $enum.apiStatus.success) {
       initError.value = res.status.message?.zh_tw || t('queue.messages.ticketNotFound');
@@ -172,6 +211,10 @@ onBeforeUnmount(() => {
         :total-taken="TotalTaken"
         :my-status="MyStatus"
       )
+
+      //- ETA 預估等待時間
+      .PageQueueStatus__eta(v-if="EtaText" data-testid="queue-eta")
+        .PageQueueStatus__etaText {{ EtaText }}
 
       BizAdSlot(name="queue-status-below")
 
@@ -320,6 +363,24 @@ onBeforeUnmount(() => {
 
 .PageQueueStatus__closeActions > * {
   min-width: 140px;
+}
+
+// ETA 預估等待時間 ----
+.PageQueueStatus__eta {
+  display: flex;
+  justify-content: center;
+  padding: 14px 16px;
+  background-color: rgba(53, 77, 123, 0.06);
+  border-radius: 12px;
+  border: 1px solid rgba(53, 77, 123, 0.12);
+}
+
+.PageQueueStatus__etaText {
+  font-size: 14.5px;
+  font-weight: 600;
+  color: $primary;
+  text-align: center;
+  line-height: 1.5;
 }
 
 .PageQueueStatus__actions {

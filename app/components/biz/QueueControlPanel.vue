@@ -18,12 +18,28 @@ type Emit = {
   'click-call-next': [serviceId: string];
   'click-done': [ticketId: string];
   'click-skip': [ticketId: string];
+  'click-walk-in': [serviceId: string];
 };
 const emit = defineEmits<Emit>();
 
 const WaitingTickets = computed(() =>
   props.service.tickets.filter((t) => t.status === 'WAITING')
 );
+
+const queueStore = StoreQueueRealtime();
+const { t } = useI18n();
+
+// 取每張 WAITING 票的即時 ETA：優先用 store 即時計算（隨 WS 推進），fallback 至 ticket.estimatedWaitMinutes
+const GetTicketEtaText = (ticket: QueueTodayTicketItem): string => {
+  if (ticket.status !== 'WAITING') return '';
+  const live = queueStore.GetEtaForTicket(
+    { ticketNumber: ticket.ticketNumber, status: ticket.status as 'WAITING' | 'CALLED' | 'DONE' | 'SKIPPED' },
+    props.service.serviceId
+  );
+  const eta = live ?? ticket.estimatedWaitMinutes;
+  if (eta === null || eta === undefined) return '';
+  return t('queue.eta.aboutMinutesLater', { n: eta });
+};
 
 const CalledTickets = computed(() =>
   props.service.tickets.filter((t) => t.status === 'CALLED')
@@ -39,6 +55,7 @@ const ServingNumber = computed(() => ServingTicket.value?.ticketNumber ?? props.
 const ClickCallNext = () => emit('click-call-next', props.service.serviceId);
 const ClickDone = (ticketId: string) => emit('click-done', ticketId);
 const ClickSkip = (ticketId: string) => emit('click-skip', ticketId);
+const ClickWalkIn = () => emit('click-walk-in', props.service.serviceId);
 
 const StatusLabel = (status: string) => {
   switch (status) {
@@ -61,7 +78,9 @@ const TitleLabel = (title: string) => {
 };
 
 // 與顧客「找回我的號碼」find 頁的「末 4 碼」對齊：商家現場唸「末 4 碼 1234 的顧客」、顧客 find 也用末 4 查
-const MaskPhone = (phone: string) => {
+// 商家現場代建未留電話時為 null，顯示「未留電話」標記
+const MaskPhone = (phone: string | null) => {
+  if (phone === null) return '（未留電話）';
   if (!phone) return '';
   if (phone.length <= 4) return phone;
   return `••••${phone.slice(-4)}`;
@@ -109,6 +128,12 @@ const MaskPhone = (phone: string) => {
         :loading="loading"
         @click="ClickSkip(ServingTicket?.id || '')"
       ) 過號
+    ElButton.BizQueueControlPanel__walk-in(
+      size="large"
+      :disabled="loading || !service.isActive"
+      data-testid="queue-walk-in-entry"
+      @click="ClickWalkIn"
+    ) {{ $t('queue.walkIn.title') }}
 
   .BizQueueControlPanel__list
     .BizQueueControlPanel__list-title
@@ -124,6 +149,13 @@ const MaskPhone = (phone: string) => {
       .BizQueueControlPanel__row-customer
         span.BizQueueControlPanel__row-name {{ t.customerLastName }} {{ TitleLabel(t.customerTitle) }}
         span.BizQueueControlPanel__row-phone {{ MaskPhone(t.customerPhone) }}
+      ElTag.BizQueueControlPanel__row-eta(
+        v-if="t.status === 'WAITING' && GetTicketEtaText(t)"
+        type="info"
+        effect="plain"
+        size="small"
+        data-testid="queue-row-eta"
+      ) {{ GetTicketEtaText(t) }}
       .BizQueueControlPanel__row-status {{ StatusLabel(t.status) }}
 </template>
 
@@ -247,5 +279,9 @@ const MaskPhone = (phone: string) => {
 .BizQueueControlPanel__row-status {
   font-size: 12px;
   color: #606266;
+}
+
+.BizQueueControlPanel__row-eta {
+  font-variant-numeric: tabular-nums;
 }
 </style>

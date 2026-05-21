@@ -7,7 +7,11 @@ import {
   tooManyRequestsError
 } from '@@/utils/response';
 import { checkRateLimit } from '@@/utils/rate-limit';
-import { MSG_QUEUE_TICKET_NOT_FOUND } from '@@/utils/queue';
+import {
+  MSG_QUEUE_TICKET_NOT_FOUND,
+  estimateWaitMinutes,
+  getEffectiveAvgServiceMinutes
+} from '@@/utils/queue';
 
 export default defineEventHandler(async (event) => {
   const ip = getRequestIP(event, { xForwardedFor: true }) ?? 'unknown';
@@ -32,7 +36,7 @@ export default defineEventHandler(async (event) => {
       takenAt: true,
       calledAt: true,
       doneAt: true,
-      service: { select: { name: true } },
+      service: { select: { name: true, avgServiceMinutes: true, durationMinutes: true } },
       merchant: { select: { timezone: true, name: true } }
     }
   });
@@ -60,6 +64,16 @@ export default defineEventHandler(async (event) => {
     }
   });
 
+  const effectiveAvg = getEffectiveAvgServiceMinutes(ticket.service);
+  let estimatedWaitMinutes: number | null;
+  if (!counter) {
+    estimatedWaitMinutes = null;
+  } else if (ticket.status !== 'WAITING') {
+    estimatedWaitMinutes = 0;
+  } else {
+    estimatedWaitMinutes = estimateWaitMinutes(waitingAhead, effectiveAvg);
+  }
+
   return successResponse({
     ticket: {
       id: ticket.id,
@@ -79,6 +93,8 @@ export default defineEventHandler(async (event) => {
     },
     currentServing: counter?.lastCalledNumber ?? 0,
     lastTicketNumber: counter?.lastTicketNumber ?? 0,
-    waitingAhead
+    waitingAhead,
+    estimatedWaitMinutes,
+    avgServiceMinutes: effectiveAvg
   });
 });

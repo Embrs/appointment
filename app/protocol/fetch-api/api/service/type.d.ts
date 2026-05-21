@@ -19,6 +19,8 @@ interface ServiceItem {
   isActive: boolean;
   displayOrder: number;
   resourceIds: string[];
+  /** 平均單人服務時長（分鐘），null 時 fallback 至 durationMinutes；僅 QUEUE 服務使用 */
+  avgServiceMinutes?: number | null;
   createdAt?: string;
   updatedAt?: string;
 }
@@ -42,6 +44,8 @@ interface CreateServiceParams {
   isActive?: boolean;
   displayOrder?: number;
   resourceIds?: string[];
+  /** QUEUE 服務的平均服務時長；null 或省略表示沿用 durationMinutes */
+  avgServiceMinutes?: number | null;
 }
 
 interface CreateServiceRes {
@@ -72,6 +76,8 @@ interface UpdateServiceParams {
   isActive?: boolean;
   displayOrder?: number;
   resourceIds?: string[];
+  /** QUEUE 服務的平均服務時長；null 表示沿用 durationMinutes */
+  avgServiceMinutes?: number | null;
 }
 
 interface UpdateServiceRes {

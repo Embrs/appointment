@@ -2,6 +2,11 @@
 // 規範：頁面 mounted 時呼叫 Connect(merchantId)；unmounted 時 Disconnect
 // 雙軌制：WS 為主、HTTP polling 為 fallback；onmessage 直接 patch 本地 state
 // 連線狀態四態：live / reconnecting / fallback / offline，state 切換 1.5s debounce（避免短瞬斷抖動）
+import {
+  estimateWaitMinutes,
+  getTicketsAhead,
+  type QueueTicketStatusForEta
+} from '~shared/queue-eta';
 
 export type QueueConnectionState = 'live' | 'reconnecting' | 'fallback' | 'offline';
 
@@ -12,6 +17,8 @@ interface ServiceServingState {
   currentServing: number;
   /** 服務中票 id（CALL_NEXT 推播帶入；TICKET_DONE/SKIPPED 後清空） */
   servingTicketId: string;
+  /** 該服務的 effective 平均服務時長（avgServiceMinutes ?? durationMinutes） */
+  avgServiceMinutes: number;
   /** 最後一次推播時間 */
   lastEventAt: number;
 }
@@ -22,6 +29,10 @@ interface QueueBroadcastMessage {
   current?: number;
   servingTicketId?: string;
   ticketNumber?: number;
+  /** 廣播當下服務的 effective 平均服務時長（給訂閱端校準 ETA） */
+  avgServiceMinutes?: number;
+  /** 廣播當下下一位 WAITING 票的預估等待分鐘（領號頁卡片用） */
+  nextWaitMinutes?: number | null;
   timestamp: number;
 }
 
@@ -140,11 +151,25 @@ export const StoreQueueRealtime = defineStore('StoreQueueRealtime', () => {
 
     if (msg.type === 'HELLO') return;
 
+    // 統一更新 serviceMap 內該服務的 avgServiceMinutes（任何含此欄位的 payload）
+    if (msg.serviceId && typeof msg.avgServiceMinutes === 'number') {
+      const prev = serviceMap.value[msg.serviceId];
+      serviceMap.value[msg.serviceId] = {
+        serviceId: msg.serviceId,
+        currentServing: prev?.currentServing ?? 0,
+        servingTicketId: prev?.servingTicketId ?? '',
+        avgServiceMinutes: msg.avgServiceMinutes,
+        lastEventAt: msg.timestamp
+      };
+    }
+
     if (msg.type === 'CALL_NEXT' && msg.serviceId && typeof msg.current === 'number') {
+      const prev = serviceMap.value[msg.serviceId];
       serviceMap.value[msg.serviceId] = {
         serviceId: msg.serviceId,
         currentServing: msg.current,
         servingTicketId: msg.servingTicketId ?? '',
+        avgServiceMinutes: msg.avgServiceMinutes ?? prev?.avgServiceMinutes ?? 0,
         lastEventAt: msg.timestamp
       };
       // 同步 myTicket（如果是自己被叫）
@@ -153,10 +178,21 @@ export const StoreQueueRealtime = defineStore('StoreQueueRealtime', () => {
           ...myTicket.value,
           ticket: { ...myTicket.value.ticket, status: 'CALLED', calledAt: new Date(msg.timestamp).toISOString() },
           currentServing: msg.current,
-          waitingAhead: 0
+          waitingAhead: 0,
+          estimatedWaitMinutes: 0
         };
       } else if (myTicket.value) {
-        myTicket.value = { ...myTicket.value, currentServing: msg.current };
+        // 自己沒被叫到：currentServing 推進，重算 myTicket 的 ETA
+        const newAhead = Math.max(0, (myTicket.value.ticket.ticketNumber - msg.current - 1));
+        const avg = msg.avgServiceMinutes ?? myTicket.value.avgServiceMinutes ?? 0;
+        const newEta = avg > 0 ? estimateWaitMinutes(newAhead, avg) : null;
+        myTicket.value = {
+          ...myTicket.value,
+          currentServing: msg.current,
+          waitingAhead: newAhead,
+          estimatedWaitMinutes: newEta,
+          avgServiceMinutes: avg
+        };
       }
     }
     if (msg.type === 'TICKET_DONE' && msg.serviceId) {
@@ -186,6 +222,18 @@ export const StoreQueueRealtime = defineStore('StoreQueueRealtime', () => {
     // TICKET_TAKEN 不更新 currentServing（號碼還沒被叫），但商家控制台會自己重抓
   };
 
+  // ====== ETA 計算 getter（供 status.vue / admin queue.vue 即時讀取） ======
+  /** 算指定票的當下預估等待分鐘；無法估算回 null */
+  const GetEtaForTicket = (
+    ticket: { ticketNumber: number; status: QueueTicketStatusForEta },
+    serviceId: string
+  ): number | null => {
+    const svc = serviceMap.value[serviceId];
+    if (!svc || svc.avgServiceMinutes <= 0) return null;
+    const ahead = getTicketsAhead(ticket, { lastCalledNumber: svc.currentServing });
+    return estimateWaitMinutes(ahead, svc.avgServiceMinutes);
+  };
+
   // ====== 輪詢兜底 ======
   const StartPolling = () => {
     if (pollTimerId !== null) return;
@@ -200,10 +248,12 @@ export const StoreQueueRealtime = defineStore('StoreQueueRealtime', () => {
           const serviceId = (res.data.ticket as any).serviceId || '';
           // currentServing 同步進 serviceMap（無 serviceId 時跳過，避免汙染）
           if (serviceId) {
+            const prev = serviceMap.value[serviceId];
             serviceMap.value[serviceId] = {
               serviceId,
               currentServing: res.data.currentServing,
-              servingTicketId: serviceMap.value[serviceId]?.servingTicketId ?? '',
+              servingTicketId: prev?.servingTicketId ?? '',
+              avgServiceMinutes: res.data.avgServiceMinutes ?? prev?.avgServiceMinutes ?? 0,
               lastEventAt: Date.now()
             };
           }
@@ -319,6 +369,26 @@ export const StoreQueueRealtime = defineStore('StoreQueueRealtime', () => {
     }
   };
 
+  /** 自 SetMyTicket 同步進 serviceMap，避免初始載入時 ETA 無法計算 */
+  const SyncMyTicketIntoServiceMap = (ticket: GetQueueTicketRes | null) => {
+    if (!ticket) return;
+    const serviceId = (ticket.ticket as { serviceId?: string }).serviceId || '';
+    if (!serviceId) return;
+    const prev = serviceMap.value[serviceId];
+    serviceMap.value[serviceId] = {
+      serviceId,
+      currentServing: ticket.currentServing,
+      servingTicketId: prev?.servingTicketId ?? '',
+      avgServiceMinutes: ticket.avgServiceMinutes ?? prev?.avgServiceMinutes ?? 0,
+      lastEventAt: Date.now()
+    };
+  };
+
+  const SetMyTicketWithSync = (ticketId: string, ticket: GetQueueTicketRes | null) => {
+    SetMyTicket(ticketId, ticket);
+    SyncMyTicketIntoServiceMap(ticket);
+  };
+
   return {
     serviceMap,
     myTicket,
@@ -331,8 +401,9 @@ export const StoreQueueRealtime = defineStore('StoreQueueRealtime', () => {
     Connect,
     Disconnect,
     ForceReconnect,
-    SetMyTicket,
+    SetMyTicket: SetMyTicketWithSync,
     ClearMyTicket,
-    RefreshMyTicket
+    RefreshMyTicket,
+    GetEtaForTicket
   };
 });

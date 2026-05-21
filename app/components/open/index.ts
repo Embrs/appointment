@@ -108,5 +108,11 @@ export default {
     Open<{ done: boolean }>('OpenDialogAppointmentReschedule', params),
   /** 商家取消預約理由 */
   DialogCancelReason: (params: DialogCancelReasonParams) =>
-    Open<{ done: boolean; reason?: string }>('OpenDialogCancelReason', params)
+    Open<{ done: boolean; reason?: string }>('OpenDialogCancelReason', params),
+  /** 商家現場代客領號 */
+  DialogQueueWalkIn: (params: DialogQueueWalkInParams) =>
+    Open<{ done: boolean; ticketId?: string; ticketNumber?: number }>('OpenDialogQueueWalkIn', params),
+  /** 顧客領號 QR Code 對話框 */
+  DialogQueueClaimQr: (params: DialogQueueClaimQrParams) =>
+    Open<{ done: boolean }>('OpenDialogQueueClaimQr', params)
 };

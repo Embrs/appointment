@@ -82,8 +82,15 @@ const ApiTake = async (serviceId: string, customer: CustomerTripletShape) => {
       phoneLast4: normalizedPhone.slice(-4),
       takenAt: Date.now()
     });
-    // 直接導向 status 頁，由 status 頁負責建立 WS 連線
-    navigateTo(localePath(`/m/${slug.value}/queue/status?id=${res.data.ticketId}`));
+    // 先彈 QR Code dialog 讓顧客有機會掃碼離場；關閉後再導向 status 頁
+    await $open.DialogQueueClaimQr({
+      slug: slug.value,
+      claimToken: res.data.claimToken,
+      ticketNumber: res.data.ticketNumber
+    });
+    navigateTo(localePath(
+      `/m/${slug.value}/queue/status?id=${res.data.ticketId}&token=${encodeURIComponent(res.data.claimToken)}`
+    ));
   } finally {
     taking.value = false;
   }

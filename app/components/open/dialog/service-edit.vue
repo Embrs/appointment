@@ -28,10 +28,13 @@ const form = reactive({
   priceCents: typeof initial?.priceCents === 'number' ? initial.priceCents : 0,
   isActive: initial?.isActive ?? true,
   displayOrder: initial?.displayOrder ?? 0,
-  resourceIds: initial?.resourceIds ?? []
+  resourceIds: initial?.resourceIds ?? [],
+  /** QUEUE 服務的平均服務時長（分鐘）；空字串表示留空 → 後端 null（fallback durationMinutes） */
+  avgServiceMinutes: typeof initial?.avgServiceMinutes === 'number' ? String(initial.avgServiceMinutes) : ''
 });
 
 const showDurationFields = computed(() => form.bookingMode !== 'QUEUE');
+const showAvgServiceMinutes = computed(() => form.bookingMode === 'QUEUE');
 const showCapacity = computed(() => form.bookingMode === 'TIME_CAPACITY');
 const showResource = computed(
   () => form.bookingMode === 'RESOURCE' || form.bookingMode === 'RESOURCE_OPTIONAL'
@@ -73,7 +76,10 @@ const BuildPayload = () => {
     displayOrder: Number(form.displayOrder) || 0
   };
   if (form.bookingMode === 'QUEUE') {
-    return base;
+    // 空字串視為 null（沿用 durationMinutes）；數字字串轉為整數
+    const trimmed = String(form.avgServiceMinutes).trim();
+    const avgServiceMinutes = trimmed === '' ? null : Number(trimmed);
+    return { ...base, avgServiceMinutes };
   }
   const extra: Record<string, unknown> = {
     durationMinutes: Number(form.durationMinutes),
@@ -185,6 +191,16 @@ onMounted(() => {
               min="5"
               max="720"
             )
+        ElFormItem(v-if="showAvgServiceMinutes" :label="$t('admin.services.avgServiceMinutes.label')")
+          ElInput(
+            v-model="form.avgServiceMinutes"
+            type="number"
+            inputmode="numeric"
+            maxlength="4"
+            min="0"
+            :placeholder="$t('admin.services.avgServiceMinutes.placeholder')"
+          )
+          p.OpenDialogServiceEdit__hint--info {{ $t('admin.services.avgServiceMinutes.help') }}
         ElFormItem(v-if="showCapacity" label="每時段容量")
           ElInput(
             v-model="form.capacityPerSlot"

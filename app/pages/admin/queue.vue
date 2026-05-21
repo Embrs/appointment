@@ -2,6 +2,7 @@
 // PageAdminQueue — 商家叫號控制台
 definePageMeta({ layout: 'back-desk', middleware: 'merchant' });
 
+const { t } = useI18n();
 const storeSelf = StoreSelf();
 const queueStore = StoreQueueRealtime();
 const useAsk = UseAsk();
@@ -10,6 +11,39 @@ const loading = ref(true);
 const actionLoading = ref(false);
 const today = ref<GetQueueTodayRes | null>(null);
 const hasAnyWindow = ref(true);
+const merchantSlug = ref('');
+
+const HasAnyQueueService = computed(() =>
+  (today.value?.services?.length ?? 0) > 0
+);
+
+const DisplayUrl = computed(() => {
+  if (!merchantSlug.value) return '';
+  if (typeof window === 'undefined') return `/m/${merchantSlug.value}/display`;
+  return `${window.location.origin}/m/${merchantSlug.value}/display`;
+});
+
+const ApiLoadMerchantSlug = async () => {
+  const res = await $api.GetSelfMerchant();
+  if (res.status.code === $enum.apiStatus.success) {
+    merchantSlug.value = res.data.merchant.slug ?? '';
+  }
+};
+
+const ClickOpenDisplay = () => {
+  if (!DisplayUrl.value) return;
+  window.open(DisplayUrl.value, '_blank', 'noopener,noreferrer');
+};
+
+const ClickCopyDisplayLink = async () => {
+  if (!DisplayUrl.value) return;
+  try {
+    await navigator.clipboard.writeText(DisplayUrl.value);
+    ElMessage.success(t('display.linkCopied'));
+  } catch {
+    ElMessage.warning(`${t('display.linkCopyFailed')} ${DisplayUrl.value}`);
+  }
+};
 
 const ApiCheckWindows = async () => {
   if (!today.value || today.value.services.length === 0) {
@@ -51,15 +85,15 @@ const ApiLoad = async () => {
     today.value = res.data;
     // 初始化 serviceMap（避免 WS 連上前畫面空白）
     for (const s of res.data.services) {
-      if (!queueStore.serviceMap[s.serviceId]) {
-        const called = s.tickets.find((t) => t.status === 'CALLED');
-        queueStore.serviceMap[s.serviceId] = {
-          serviceId: s.serviceId,
-          currentServing: s.lastCalledNumber,
-          servingTicketId: called?.id ?? '',
-          lastEventAt: Date.now()
-        };
-      }
+      const prev = queueStore.serviceMap[s.serviceId];
+      const called = s.tickets.find((t) => t.status === 'CALLED');
+      queueStore.serviceMap[s.serviceId] = {
+        serviceId: s.serviceId,
+        currentServing: s.lastCalledNumber,
+        servingTicketId: prev?.servingTicketId ?? called?.id ?? '',
+        avgServiceMinutes: s.avgServiceMinutes,
+        lastEventAt: Date.now()
+      };
     }
   } finally {
     loading.value = false;
@@ -113,6 +147,18 @@ const ApiSkip = async (ticketId: string) => {
   }
 };
 
+// 現場登記：開啟 OpenDialogQueueWalkIn；領號成功由 WS TICKET_TAKEN 觸發 ApiLoad，這裡不需手動重抓
+const ClickWalkIn = async (serviceId: string) => {
+  const svc = today.value?.services.find((s) => s.serviceId === serviceId);
+  if (!svc) return;
+  await $open.DialogQueueWalkIn({
+    serviceId,
+    serviceName: svc.serviceName,
+    timezone: today.value?.timezone,
+    merchantSlug: merchantSlug.value || undefined
+  });
+};
+
 // WS 收到事件後自動重抓（讓列表狀態同步）
 watch(() => queueStore.lastEventAt, (v) => {
   if (v && !loading.value) ApiLoad();
@@ -124,6 +170,7 @@ onMounted(async () => {
     queueStore.Connect(storeSelf.merchantId);
   }
   await ApiCheckWindows();
+  await ApiLoadMerchantSlug();
 });
 
 onBeforeUnmount(() => {
@@ -135,9 +182,41 @@ onBeforeUnmount(() => {
 .PageAdminQueue
   BizPageHeader(title="號碼牌叫號台" :subtitle="today ? `今日 ${today.ticketDate}` : '即時叫號控制台'")
     template(#actions)
-      span.PageAdminQueue__conn(:class="{ 'PageAdminQueue__conn--off': !queueStore.isWsConnected }")
-        span.PageAdminQueue__connDot
-        span {{ queueStore.isWsConnected ? '即時連線中' : '連線中斷' }}
+      .PageAdminQueue__headerActions
+        ElTooltip(
+          v-if="!HasAnyQueueService"
+          :content="$t('display.needQueueService')"
+          placement="top"
+        )
+          span
+            ElButton(
+              size="default"
+              :disabled="true"
+              data-testid="admin-open-display-btn"
+            )
+              NuxtIcon.PageAdminQueue__btnIcon(name="mdi:monitor")
+              span {{ $t('display.openDisplay') }}
+        template(v-else)
+          ElButton(
+            size="default"
+            type="primary"
+            plain
+            data-testid="admin-open-display-btn"
+            @click="ClickOpenDisplay"
+          )
+            NuxtIcon.PageAdminQueue__btnIcon(name="mdi:monitor")
+            span {{ $t('display.openDisplay') }}
+          ElButton(
+            size="default"
+            :disabled="!DisplayUrl"
+            data-testid="admin-copy-display-link-btn"
+            @click="ClickCopyDisplayLink"
+          )
+            NuxtIcon.PageAdminQueue__btnIcon(name="mdi:link-variant")
+            span {{ $t('display.copyLink') }}
+        span.PageAdminQueue__conn(:class="{ 'PageAdminQueue__conn--off': !queueStore.isWsConnected }")
+          span.PageAdminQueue__connDot
+          span {{ queueStore.isWsConnected ? '即時連線中' : '連線中斷' }}
 
   ElAlert(
     v-if="!loading && today && today.services.length > 0 && !hasAnyWindow"
@@ -165,6 +244,7 @@ onBeforeUnmount(() => {
       @click-call-next="ApiCallNext"
       @click-done="ApiDone"
       @click-skip="ApiSkip"
+      @click-walk-in="ClickWalkIn"
     )
 </template>
 
@@ -173,6 +253,20 @@ onBeforeUnmount(() => {
   display: flex;
   flex-direction: column;
   gap: 16px;
+}
+
+.PageAdminQueue__headerActions {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.PageAdminQueue__btnIcon {
+  font-size: 16px;
+  display: inline-flex;
+  align-items: center;
+  margin-right: 4px;
 }
 
 .PageAdminQueue__conn {

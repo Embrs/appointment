@@ -1,8 +1,12 @@
 # Capability：customer-booking
+
+## Purpose
+
+顧客公開預約流程：無需登入即可選服務 / slot、填寫三元組（lastName, title, phone）送出，後端以 advisory lock 防併發、依商家 cancelPolicy 控管取消、提供顧客手機末 4 碼自助查預約與取消。涵蓋 TIME_SLOT / TIME_CAPACITY / RESOURCE / RESOURCE_OPTIONAL / QUEUE 多模式。
 ## Requirements
 ### Requirement: 顧客建立預約
 
-The system SHALL allow customers to create appointments via public API without authentication, identifying themselves with a triplet (lastName, title, phone), and enforce a per-merchant active appointment limit per phone.
+The system SHALL allow customers to create appointments via public API without authentication, identifying themselves with a triplet (lastName, title, phone), and enforce a per-merchant active appointment limit per phone. For services with `bookingMode === 'RESOURCE_OPTIONAL'`, customers MAY omit `resourceId`; the server SHALL auto-assign a bound active resource per the rules in the "RESOURCE_OPTIONAL 模式預約建立" requirement.
 
 #### Scenario: 預約成功
 
@@ -25,6 +29,11 @@ The system SHALL allow customers to create appointments via public API without a
 
 - **When** 服務 `bookingMode=RESOURCE` 但未帶 `resourceId`
 - **Then** 回 400 `MSG_RESOURCE_REQUIRED`
+
+#### Scenario: RESOURCE_OPTIONAL 模式可不帶資源
+
+- **When** 服務 `bookingMode=RESOURCE_OPTIONAL` 未帶 `resourceId` 且至少一個綁定資源可用
+- **Then** 後端 auto-assign 成功、Appointment.resourceId 寫入分配結果、回 200
 
 #### Scenario: 達顧客預約上限拒絕
 
@@ -168,13 +177,23 @@ The frontend SHALL persist the customer triplet locally so subsequent visits ski
 
 ### Requirement: 步驟式預約流程
 
-The booking page SHALL guide customers through Service → Resource? → DateTime → Triplet → Confirm steps with back navigation. Date selection and slot selection MUST be presented on the same step ("datetime") so that picking a date immediately reveals the available time slots without an extra "next" click. Advancing from the "datetime" step to "info" MUST require an explicit "next" click after a slot is picked, to avoid accidental progression on a mis-tap.
+The booking page SHALL guide customers through Service → Resource? → DateTime → Triplet → Confirm steps with back navigation. Date selection and slot selection MUST be presented on the same step ("datetime") so that picking a date immediately reveals the available time slots without an extra "next" click. Advancing from the "datetime" step to "info" MUST require an explicit "next" click after a slot is picked, to avoid accidental progression on a mis-tap. Services with `bookingMode ∈ {RESOURCE, RESOURCE_OPTIONAL}` MUST go through the `resource` step; `RESOURCE_OPTIONAL` additionally MUST include "不指定（由系統自動分配）" as the first option.
 
 #### Scenario: 跳過 Resource 步驟
 
-- **Given** 選的 Service `bookingMode != RESOURCE`
+- **Given** 選的 Service `bookingMode ∉ {RESOURCE, RESOURCE_OPTIONAL}`
 - **When** 顧客在步驟一點擊服務卡片
 - **Then** 步驟器自動跳到 `datetime`（不再先進入 `date` 再進入 `slot`）
+
+#### Scenario: RESOURCE 進入 resource 步驟需選具名資源
+
+- **Given** Service `bookingMode=RESOURCE` 綁 A、B
+- **Then** resource 步驟列出 A、B 兩個選項；無「不指定」選項；未選不可進入 datetime
+
+#### Scenario: RESOURCE_OPTIONAL 進入 resource 步驟提供「不指定」
+
+- **Given** Service `bookingMode=RESOURCE_OPTIONAL` 綁 A、B
+- **Then** resource 步驟列出三個選項：「不指定（由系統自動分配）」、A、B；預設未選；可選任一進入 datetime
 
 #### Scenario: 選日期立即載入時段
 
@@ -276,7 +295,7 @@ The system SHALL render each public service card (`BizServiceCard`) as a single 
 
 #### Scenario: 非號碼牌服務點擊卡片
 
-- **Given** 服務 `bookingMode ∈ {TIME_SLOT, TIME_CAPACITY, RESOURCE}`
+- **Given** 服務 `bookingMode ∈ {TIME_SLOT, TIME_CAPACITY, RESOURCE, RESOURCE_OPTIONAL}`
 - **When** 顧客在 `/m/{slug}` 或 `/m/{slug}/book` 的服務列表上點擊整張卡片任意處
 - **Then** 系統 emit `click-book` 並導向 `/m/{slug}/book?serviceId={service.id}`
 
@@ -297,4 +316,122 @@ The system SHALL render each public service card (`BizServiceCard`) as a single 
 - **Given** 桌機環境
 - **When** 滑鼠移到卡片上
 - **Then** 卡片有可見的 hover 回饋（陰影加深 / 微幅上浮），且右下角顯示箭頭符號暗示可進入
+
+### Requirement: RESOURCE_OPTIONAL 模式預約建立
+
+系統 SHALL 對 `bookingMode === 'RESOURCE_OPTIONAL'` 的服務支援兩種下單路徑：
+
+- **顧客指定 resourceId**：與 RESOURCE 模式相同（驗 ServiceResource 關聯與資源啟用、advisory lock key 用 `(merchantId, resourceId, startAt)`）。
+- **顧客未帶 resourceId（auto-assign）**：advisory lock key 用 `(merchantId, serviceId, startAt)`；在 transaction 內重新查所有綁定 active 資源在該 startAt 的 CONFIRMED 占用與排班狀態，從未被佔且在班的資源中選擇「未來 30 天 CONFIRMED 預約數最少」者；若多者並列取 `id` 升序最小者；將該 `resourceId` 寫入 `Appointment.resourceId`。若無任何資源符合條件回 409 `MSG_SLOT_TAKEN`。
+
+兩種路徑都將 `Appointment.mode` 寫為 `RESOURCE_OPTIONAL`（不論顧客是否指定）。
+
+#### Scenario: 顧客指定資源下單成功
+
+- **GIVEN** Service `s3`（RESOURCE_OPTIONAL，綁 A、B）；A 在目標 slot 無預約且在班
+- **WHEN** 顧客 POST `/nuxt-api/public/appointment` 帶 `serviceId=s3, resourceId=A, startAt, ...`
+- **THEN** 建立 Appointment：`mode=RESOURCE_OPTIONAL, resourceId=A, status=CONFIRMED`
+
+#### Scenario: 顧客不指定資源 auto-assign 成功
+
+- **GIVEN** Service `s3`（RESOURCE_OPTIONAL，綁 A、B）；A 與 B 在目標 slot 皆空且在班；A 未來 30d CONFIRMED 預約 3 筆、B 為 1 筆
+- **WHEN** 顧客 POST `/nuxt-api/public/appointment` 帶 `serviceId=s3, startAt, ...`（不帶 resourceId）
+- **THEN** 建立 Appointment：`mode=RESOURCE_OPTIONAL, resourceId=B`（B 預約數少，被分配）
+
+#### Scenario: auto-assign tie-breaker id 升序
+
+- **GIVEN** Service `s3` 綁 A、B；兩者未來 30d 預約數相同（皆 0）且皆可用
+- **WHEN** 顧客不帶 resourceId 下單
+- **THEN** 分配給 `id` 較小者（確定性，方便測試）
+
+#### Scenario: auto-assign 跳過不在班資源
+
+- **GIVEN** Service `s3` 綁 A、B；目標 slot 09:00，A 在班但被佔、B 該時段沒有 ScheduleRule
+- **WHEN** 顧客不帶 resourceId 下單 09:00
+- **THEN** 回 409 `MSG_SLOT_TAKEN`（A 被佔、B 不在班，無可分配資源）
+
+#### Scenario: auto-assign 全部資源被佔
+
+- **GIVEN** Service `s3` 綁 A、B；目標 slot 兩者都已被 CONFIRMED 佔
+- **WHEN** 顧客不帶 resourceId 下單
+- **THEN** 回 409 `MSG_SLOT_TAKEN`
+
+#### Scenario: 並發 auto-assign 不會把同資源分給兩位顧客
+
+- **GIVEN** Service `s3` 綁 A、B；目標 slot 兩者皆空
+- **WHEN** 兩個 request 幾乎同時提交不帶 resourceId 的下單
+- **THEN** Advisory lock 序列化兩筆事務；兩筆 Appointment 分別分到 A 與 B；不會兩筆都拿到同一資源
+
+#### Scenario: 並發指定 + auto 不會把指定資源讓 auto 搶走
+
+- **GIVEN** Service `s3` 綁 A、B；目標 slot 兩者皆空
+- **WHEN** 顧客 X 指定 A、顧客 Y 不指定，幾乎同時提交
+- **THEN** 最壞情況：兩 transaction 都進行 → X 佔 A → Y auto-assign 重檢時 A 已佔 → Y 改分到 B；兩筆都成功且資源不重複
+
+#### Scenario: RESOURCE_OPTIONAL 但帶不屬於該服務的 resourceId
+
+- **GIVEN** Resource Z 屬於商家但未綁 Service `s3`
+- **WHEN** 顧客 POST `serviceId=s3, resourceId=Z`
+- **THEN** 回 400 `MSG_RESOURCE_NOT_LINKED`
+
+#### Scenario: RESOURCE_OPTIONAL 帶停用資源拒絕
+
+- **GIVEN** Resource A 已 `isActive=false`，但仍綁定 Service `s3`
+- **WHEN** 顧客 POST `serviceId=s3, resourceId=A`
+- **THEN** 回 400 `MSG_RESOURCE_NOT_LINKED`（與 RESOURCE 同保護）
+
+#### Scenario: auto-assign 過濾停用資源
+
+- **GIVEN** Service `s3` 綁 A（active）、C（active=false）；目標 slot A 被佔
+- **WHEN** 顧客不帶 resourceId 下單
+- **THEN** 回 409 `MSG_SLOT_TAKEN`（C 雖然空閒但已停用，不納入分配）
+
+#### Scenario: 商家代客預約 RESOURCE_OPTIONAL
+
+- **GIVEN** 商家後台
+- **WHEN** 商家 POST `/nuxt-api/appointment` 服務為 RESOURCE_OPTIONAL（含或不含 resourceId）
+- **THEN** 與顧客路徑同邏輯；不檢查 cancelPolicy；auto-assign 仍生效
+
+### Requirement: RESOURCE_OPTIONAL 顧客預約 UI 流程
+
+顧客預約頁 `m/[slug]/book.vue` SHALL 在選定 `bookingMode === 'RESOURCE_OPTIONAL'` 的服務後進入 `resource` 步驟，並 SHALL 在資源選項列表第一項固定提供「不指定（由系統自動分配）」選項；顧客若選「不指定」，後續 availability 查詢與 appointment 提交 SHALL **不帶** `resourceId` 參數；顧客若選具名資源，行為與 RESOURCE 模式相同。
+
+#### Scenario: 進入 RESOURCE_OPTIONAL 服務出現資源步驟
+
+- **GIVEN** 顧客點擊 `bookingMode=RESOURCE_OPTIONAL` 服務
+- **THEN** 步驟器進入 `resource` 步驟（不是直接到 `datetime`）
+
+#### Scenario: 資源步驟出現「不指定」首選項
+
+- **GIVEN** Service `s3` 綁定 `[王醫師, 李醫師]`
+- **WHEN** 顧客進入 resource 步驟
+- **THEN** 選項列表為三項：「不指定（由系統自動分配）」、「王醫師」、「李醫師」（順序固定，不指定永遠在第一）
+
+#### Scenario: 選「不指定」走聚合 availability
+
+- **GIVEN** 顧客選「不指定」並進入 datetime 步驟
+- **WHEN** 選擇日期觸發 availability 查詢
+- **THEN** 請求 URL 不帶 `resourceId` 參數；後端回 union 聚合結果
+
+#### Scenario: 選具名資源走指定 availability
+
+- **GIVEN** 顧客選「王醫師」並進入 datetime
+- **WHEN** 選擇日期觸發 availability 查詢
+- **THEN** 請求 URL 帶 `resourceId=<王醫師 id>`；後端只算該資源時段
+
+#### Scenario: 「不指定」下單不送 resourceId
+
+- **GIVEN** 顧客選擇了「不指定」與某 slot 並送出
+- **WHEN** POST `/nuxt-api/public/appointment`
+- **THEN** payload 不含 `resourceId` 欄位（或值為 undefined / null）
+
+#### Scenario: 具名資源下單帶 resourceId
+
+- **GIVEN** 顧客選擇了「王醫師」與某 slot 並送出
+- **THEN** POST payload 含 `resourceId=<王醫師 id>`
+
+#### Scenario: 三語文案
+
+- **GIVEN** 顧客切換 locale 為 en / ja
+- **THEN** 「不指定（由系統自動分配）」對應 `Any available (auto-assign)` / `指定なし（自動割り当て）`
 

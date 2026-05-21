@@ -176,7 +176,12 @@ export default {
       intervalLabel: 'Slot interval (minutes)',
       capacityLabel: 'Capacity per slot',
       priceLabel: 'Price (cents)',
-      resourcesLabel: 'Bound resources'
+      resourcesLabel: 'Bound resources',
+      avgServiceMinutes: {
+        label: 'Average service time (minutes)',
+        placeholder: 'Leave empty to use Duration',
+        help: 'Average per-customer service time used to estimate queue wait time'
+      }
     },
     resources: {
       listTitle: 'Resources',
@@ -437,6 +442,32 @@ export default {
       500: 'Server Error'
     }
   },
+  display: {
+    calling: 'Now Serving',
+    noNumber: 'Not started',
+    next: 'Next',
+    nextAfter: 'After next',
+    waiting: 'Waiting',
+    waitingPeople: '{count} people',
+    estimate: 'Estimated wait',
+    minutes: '{n} min',
+    minutesShort: '< 1 min',
+    noService: 'No queue service available',
+    allDone: 'All tickets served for today',
+    pickService: 'Select a service',
+    openDisplay: 'Open display screen',
+    copyLink: 'Copy link',
+    linkCopied: 'Display link copied',
+    linkCopyFailed: 'Unable to copy automatically, please copy manually:',
+    needQueueService: 'Create a QUEUE service first',
+    tts: {
+      toggle: 'Voice call-out',
+      on: 'Voice call-out: ON',
+      off: 'Voice call-out: OFF',
+      unsupported: 'Voice call-out is not supported in this browser',
+      callPhrase: 'Number {number}, please proceed to {serviceName}.'
+    }
+  },
   queue: {
     page: {
       landingEyebrow: 'Queue ticket service',
@@ -501,12 +532,58 @@ export default {
       skippedSubtitle: 'Please contact staff or take a new ticket if you still need service',
       skippedCtaContact: 'Contact merchant'
     },
+    walkIn: {
+      title: 'Walk-in registration',
+      hint: 'Create a queue ticket on behalf of an on-site walk-in customer. Allowed outside the queue window.',
+      fields: {
+        lastName: 'Last name',
+        lastNamePlaceholder: 'e.g. Wang',
+        title: 'Title',
+        phone: 'Phone (optional)',
+        phonePlaceholder: 'e.g. 0912345678 (optional)',
+        phoneHint: 'Without a phone number, the customer cannot self-recover the ticket by last-4 digits. Hand off the number in person.'
+      },
+      actions: {
+        submit: 'Issue ticket',
+        cancel: 'Cancel',
+        print: 'Print ticket',
+        close: 'Close'
+      },
+      success: 'Ticket #{ticketNumber} issued',
+      printTicket: {
+        merchantLabel: 'Merchant',
+        serviceLabel: 'Service',
+        numberLabel: 'Number',
+        timeLabel: 'Issued at'
+      }
+    },
     status: {
       WAITING: 'Waiting',
       CALLED: 'Now serving',
       DONE: 'Done',
       SKIPPED: 'Skipped',
       CANCELED: 'Canceled'
+    },
+    eta: {
+      aheadOfYou: '{n} people ahead of you',
+      estimateMinutes: 'About {n} min more',
+      almostYourTurn: 'You are next',
+      unknown: 'Estimate not available',
+      aboutMinutesLater: 'In ~{n} min'
+    },
+    claim: {
+      title: 'Track your ticket on your phone',
+      qrHint: 'Scan the QR code below to track your queue progress on your own phone — feel free to grab a bite or run errands.',
+      shortCode: 'Short code',
+      shortCodeHint: 'If the QR scan fails, type this 8-character code at the URL below.',
+      todayOnly: 'Valid today only — expires when the queue closes.',
+      printSlip: 'Scan the QR on the back of your slip to track on your phone.',
+      scanToTrack: 'Scan to track your number on your phone',
+      tokenExpired: 'Ticket expired or not found. Please use the last 4 digits of your phone instead.',
+      fallbackToPhoneLookup: 'Use phone last 4 digits',
+      gotIt: 'Got it',
+      qrFallbackLabel: 'Open this URL with the short code below',
+      copyLink: 'Copy link'
     },
     messages: {
       takeSuccess: 'Ticket issued',

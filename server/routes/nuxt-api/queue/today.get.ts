@@ -3,7 +3,11 @@ import { defineEventHandler } from 'h3';
 import { prisma } from '@@/utils/prisma';
 import { requireMerchant } from '@@/utils/auth';
 import { successResponse } from '@@/utils/response';
-import { getTicketDate } from '@@/utils/queue';
+import {
+  getTicketDate,
+  computeTicketEtaMinutes,
+  getEffectiveAvgServiceMinutes
+} from '@@/utils/queue';
 
 export default defineEventHandler(async (event) => {
   const auth = requireMerchant(event);
@@ -20,7 +24,13 @@ export default defineEventHandler(async (event) => {
   const services = await prisma.service.findMany({
     where: { merchantId, bookingMode: 'QUEUE', deletedAt: null },
     orderBy: { displayOrder: 'asc' },
-    select: { id: true, name: true, isActive: true }
+    select: {
+      id: true,
+      name: true,
+      isActive: true,
+      avgServiceMinutes: true,
+      durationMinutes: true
+    }
   });
 
   const counters = await prisma.queueCounter.findMany({
@@ -40,6 +50,7 @@ export default defineEventHandler(async (event) => {
       customerLastName: true,
       customerTitle: true,
       customerPhone: true,
+      createdByMerchant: true,
       takenAt: true,
       calledAt: true,
       doneAt: true
@@ -47,7 +58,9 @@ export default defineEventHandler(async (event) => {
   });
 
   const grouped = services.map((s) => {
-    const counter = counterMap.get(s.id);
+    const counter = counterMap.get(s.id) ?? null;
+    const counterForEta = counter ? { lastCalledNumber: counter.lastCalledNumber } : null;
+    const serviceForEta = { avgServiceMinutes: s.avgServiceMinutes, durationMinutes: s.durationMinutes };
     const list = tickets.filter((t) => t.serviceId === s.id).map((t) => ({
       id: t.id,
       ticketNumber: t.ticketNumber,
@@ -55,9 +68,15 @@ export default defineEventHandler(async (event) => {
       customerLastName: t.customerLastName,
       customerTitle: t.customerTitle,
       customerPhone: t.customerPhone,
+      createdByMerchant: t.createdByMerchant,
       takenAt: t.takenAt.toISOString(),
       calledAt: t.calledAt ? t.calledAt.toISOString() : null,
-      doneAt: t.doneAt ? t.doneAt.toISOString() : null
+      doneAt: t.doneAt ? t.doneAt.toISOString() : null,
+      estimatedWaitMinutes: computeTicketEtaMinutes(
+        { ticketNumber: t.ticketNumber, status: t.status },
+        counterForEta,
+        serviceForEta
+      )
     }));
     return {
       serviceId: s.id,
@@ -65,6 +84,7 @@ export default defineEventHandler(async (event) => {
       isActive: s.isActive,
       lastTicketNumber: counter?.lastTicketNumber ?? 0,
       lastCalledNumber: counter?.lastCalledNumber ?? 0,
+      avgServiceMinutes: getEffectiveAvgServiceMinutes(serviceForEta),
       tickets: list
     };
   });
