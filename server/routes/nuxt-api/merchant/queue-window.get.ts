@@ -12,7 +12,7 @@ const QuerySchema = z.object({
 });
 
 export default defineEventHandler(async (event) => {
-  const auth = requireMerchant(event);
+  const auth = await requireMerchant(event);
   if ('status' in auth) return auth;
 
   const parsed = QuerySchema.safeParse(getQuery(event));

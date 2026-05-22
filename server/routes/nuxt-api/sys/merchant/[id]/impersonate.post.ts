@@ -32,7 +32,7 @@ const NO_OWNER = {
 };
 
 export default defineEventHandler(async (event) => {
-  const auth = requireAdmin(event);
+  const auth = await requireAdmin(event);
   if ('status' in auth) return auth;
 
   // 拒絕代理鏈：來源 token 已是代理

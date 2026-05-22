@@ -57,7 +57,7 @@ const SLUG_CONFLICT = {
 };
 
 export default defineEventHandler(async (event) => {
-  const auth = requireMerchant(event, { role: 'OWNER' });
+  const auth = await requireMerchant(event, { role: 'OWNER' });
   if ('status' in auth) return auth;
 
   const id = getRouterParam(event, 'id') ?? '';

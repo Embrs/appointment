@@ -55,7 +55,7 @@ const slugifyFilename = (filename: string): string => {
 };
 
 export default defineEventHandler(async (event) => {
-  const auth = requireMerchant(event);
+  const auth = await requireMerchant(event);
   if ('status' in auth) return auth;
 
   const qParsed = QuerySchema.safeParse(getQuery(event));

@@ -17,15 +17,19 @@ Dockerfile、環境變數、cron 觸發、Cloudflare R2、排程互斥鎖。
 | `builder` | `node:24.11-alpine` | 先複製 `package*.json`、`prisma/`、`scripts/`（postinstall 依賴 `scripts/copy-tinymce.mjs`）→ `npm ci` → `prisma generate`（冪等保險）→ 複製其餘原始碼 → `npm run build` → 驗 `.output/server/index.mjs` 存在 → `npm prune --omit=dev` 精簡至 production 依賴 |
 | `runner` | `node:24.11-alpine` | 複製 `.output/`、`version.ts`、`prisma/`、`package.json`、完整精簡後的 `node_modules/` |
 
-啟動指令（在 runner stage）：
+啟動由 `docker-entrypoint.sh` 接管（runner stage）：
 ```sh
-node ./node_modules/prisma/build/index.js migrate deploy && node ./.output/server/index.mjs
+#!/bin/sh
+set -e
+node ./node_modules/prisma/build/index.js migrate deploy
+exec node ./.output/server/index.mjs
 ```
 
-- 直接以 `node` 執行 prisma 入口，避開 `node_modules/.bin` 軟連結未複製到 runner 的問題（不再依賴 `npx`）
-- runner 整包複製 `node_modules`（而非僅 `@prisma`/`.prisma`/`prisma` 三個資料夾），確保 `@prisma/config → effect` 等 transitive deps 齊全；透過 builder stage 的 `npm prune --omit=dev` 控制體積
+- `set -e` 確保 `migrate deploy` 失敗時 entrypoint 以非 0 exit，**Nitro 不啟動**，避免 schema 與程式碼不一致就上線；Railway / orchestrator 偵測 unhealthy 後保留前一個健康容器
+- 直接以 `node` 執行 prisma 入口，避開 `node_modules/.bin` 軟連結未複製到 runner 的問題（不依賴 `npx`）
+- runner 整包複製 `node_modules`（透過 builder stage 的 `npm prune --omit=dev` 控制體積），確保 `@prisma/config → effect` 等 transitive deps 齊全
 - `prisma migrate deploy` 冪等，只套未套用的 migrations
-- 失敗則容器啟動失敗（部署 platform 會自動 rollback）
+- Dockerfile runner stage 接 `ARG GIT_COMMIT_SHA="" ` + `ENV GIT_COMMIT_SHA=$GIT_COMMIT_SHA`，由 CI 用 `docker build --build-arg GIT_COMMIT_SHA=$(git rev-parse --short HEAD)` 注入
 - `EXPOSE 3000`、`NUXT_HOST=0.0.0.0`
 
 ## 環境變數清單
@@ -69,6 +73,12 @@ node ./node_modules/prisma/build/index.js migrate deploy && node ./.output/serve
 | 變數 | 用途 |
 |------|------|
 | `CRON_SECRET` | 外部 cron service 呼叫 `/nuxt-api/cron/*` 需帶 `x-cron-secret` header |
+
+### 部署版本資訊
+
+| 變數 | 用途 |
+|------|------|
+| `GIT_COMMIT_SHA` | build 階段由 CI 注入的 git short SHA；runtime 透過 `/nuxt-api/health` 與啟動日誌回報；本地可留空（fallback `dev`） |
 
 ## Cron jobs
 
@@ -122,9 +132,36 @@ if (!limit.ok) return tooManyRequestsError(event);
 - `(bucketKey, windowStart)` 唯一鍵 + `count` 累加
 - 過 1 小時由 cron 清理
 
+## 健康檢查與啟動可觀測性
+
+### `/nuxt-api/health`
+
+`server/routes/nuxt-api/health.get.ts`：
+
+- 公開端點，無 `requireXxx` 守衛
+- DB 連線正常 → 200，回 `{ status: 'ok', db: 'connected', migration, commit, uptimeSec }`
+- DB 斷線 → 503，回 `{ status: 'degraded', db: 'disconnected', commit, uptimeSec }`
+- `migration`：查 `_prisma_migrations` 表最新 `finished_at` 的 `migration_name`；查不到回 `'none'`
+- `commit`：讀 `process.env.GIT_COMMIT_SHA` 前 12 碼；缺值依 `NODE_ENV` fallback `'dev'`（dev）或 `'unknown'`（production）
+- 不回傳 `DATABASE_URL` / `JWT_SECRET` 等敏感欄位
+
+### 啟動日誌
+
+`server/plugins/boot-log.ts`：Nitro plugin，啟動完成印一行：
+
+```
+[boot] migration=<name> commit=<sha> nodeEnv=<env>
+```
+
+migration 查失敗不影響啟動，只標 `unknown`。
+
+### Railway 配置
+
+`railway.json` 設定 `healthcheckPath: "/nuxt-api/health"`、`healthcheckTimeout: 30`、`ON_FAILURE` 重啟策略，確保部署後 platform 主動驗證健康狀態，失敗自動 rollback。
+
 ## 測試
 
 - 框架：Vitest（`vitest.config.ts`）
 - 位置：`server/__tests__/`
-- 現有覆蓋：`availability.test.ts`（純函式 `buildSlots`）
+- 現有覆蓋：`availability.test.ts`、`auth-guard.test.ts`（守衛純函式 20 case）、`deploy-info.test.ts`（commit hash 讀取 6 case）等
 - 執行：`npm test`

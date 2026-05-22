@@ -44,14 +44,27 @@ interface AuthPayload {
 
 ## 後端守衛
 
-`requireAdmin` / `requireMerchant` **失敗時回傳 `ApiResponse`**，呼叫端用 in-check 模式：
+`requireAdmin` / `requireMerchant` **為 async**，失敗時回傳 `ApiResponse`，呼叫端用 in-check 模式：
 
 ```typescript
-const auth = requireMerchant(event, { role: 'OWNER' });
+const auth = await requireMerchant(event, { role: 'OWNER' });
 if ('status' in auth) return auth;     // 401 直接 return
 ```
 
 `requireMerchant(event, { role: 'OWNER' })` 加上 `role` 過濾，STAFF 也會被拒。
+
+### DB 存在性驗證（重要）
+
+守衛在 JWT 簽章驗證通過後 **會再查一次 Prisma** 確認身分主體仍存在：
+
+- `requireMerchant`：查 `MerchantUser`（含 `merchant` join）必須 `isActive=true`、`deletedAt=null`、`user.merchantId === payload.merchantId`、`merchant.status='ACTIVE'`、`merchant.deletedAt=null`
+- `requireAdmin`：查 `AdminUser` 必須 `isActive=true`、`deletedAt=null`
+
+不滿足時回 **401**（不是 404），訊息為三語 `MSG_SESSION_EXPIRED`「會話已失效，請重新登入 / Session expired, please sign in again / セッションが失効しました。再度ログインしてください」。
+
+> 此設計保證 reseed / 軟刪除 / 商家停用後，舊 token 進站不會看到「滿屏 404」，而是被前端 401 處理機制乾淨地踢回登入頁。
+
+純判斷邏輯抽出為 `evaluateMerchantSession(payload, user, options)` 與 `evaluateAdminSession(payload, admin)`，可單測。守衛內負責 IO（getAuth + prisma.findUnique）、純函式回 `{ ok, reason, useExpiredMsg }`。
 
 ## 密碼雜湊
 
@@ -109,7 +122,30 @@ OWNER_ONLY 字首寫死在 `store-self.ts` 頂部常數 `OWNER_ONLY_PREFIXES`。
 
 | Middleware | 守衛 |
 |-----------|------|
-| `admin` | `selfType !== 'admin'` → `/sys/sign-in` |
-| `merchant` | `selfType !== 'merchant'` → `/sign-in` |
+| `admin` | `selfType !== 'admin'` → `/sys/sign-in`；其餘進站前 await `$api.MeInfo()` 驗 session |
+| `merchant` | `selfType !== 'merchant'` → `/sign-in`；其餘進站前 await `$api.MeInfo()` 驗 session |
+
+兩支都 **async** + me 預檢：
+
+```typescript
+if (import.meta.server) return;             // SSR 短路
+if (!isSignIn || selfType !== '...') return navigateTo('/...');
+const result = await checkMe();              // 模組 scope 共享 in-flight promise
+if (result === 'fail') { storeSelf.ClearInfo(); return navigateTo('/...'); }
+```
+
+- 失敗清 cookie：`storeSelf.ClearInfo()`（清 ss_t / ss_type / ss_role / ss_mid / ss_name / ss_email 全部 6 個）
+- 並發去重：middleware 模組 scope 放 `let pendingMe: Promise<...> | null`；microtask 後重置
 
 兩支只查 `selfType`，**不**做 role 細項檢查（細項由 `HasRule` + 後端守衛把關）。詳見 [data-and-routing.md](./data-and-routing.md#middleware)。
+
+## 前端 401 處理（redirect lock）
+
+`app/protocol/fetch-api/methods.ts` 的 `onResponseError` 收到 401 時呼叫 `HandleUnauthorized`：
+
+1. 若 `isRedirecting` 已 true，直接 return（避免並發多 API 同時 401 觸發多次 navigate）
+2. `guest` 不跳轉
+3. 設 `isRedirecting=true`，呼叫 `storeSelf.SignOut()`（內部 ClearInfo + navigateTo 對應登入頁）
+4. 5 秒後重置 `isRedirecting=false`
+
+`xhrFileUpload` 401 分支也走同一 `HandleUnauthorized`，lock 一體適用。

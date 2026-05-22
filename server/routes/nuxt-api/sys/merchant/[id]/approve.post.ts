@@ -11,7 +11,7 @@ const STATUS_CONFLICT = {
 };
 
 export default defineEventHandler(async (event) => {
-  const auth = requireAdmin(event);
+  const auth = await requireAdmin(event);
   if ('status' in auth) return auth;
 
   const id = getRouterParam(event, 'id') ?? '';

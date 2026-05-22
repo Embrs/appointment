@@ -34,6 +34,10 @@ RUN npm prune --omit=dev
 FROM node:24.11-alpine AS runner
 WORKDIR /app
 
+# Build-arg：由 CI 注入 git short SHA；runtime 透過 /nuxt-api/health 與啟動日誌回報
+ARG GIT_COMMIT_SHA=""
+ENV GIT_COMMIT_SHA=$GIT_COMMIT_SHA
+
 # 複製 Nuxt 構建產物
 COPY --from=builder /app/.output ./.output
 COPY --from=builder /app/version.ts ./version.ts
@@ -44,6 +48,11 @@ COPY --from=builder /app/prisma ./prisma
 COPY --from=builder /app/package.json ./package.json
 COPY --from=builder /app/node_modules ./node_modules
 
+# 複製 entrypoint：set -e 確保 migrate deploy 失敗即 exit 非 0，
+# 避免在 schema 與程式碼不一致的半套狀態下啟動 server
+COPY docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
+RUN chmod +x /usr/local/bin/docker-entrypoint.sh
+
 # 環境變數
 ENV NODE_ENV=production
 ENV NUXT_HOST=0.0.0.0
@@ -51,7 +60,5 @@ ENV NUXT_PORT=3000
 
 EXPOSE 3000
 
-# 啟動前先跑 prisma migrate deploy（冪等，只套未套用的 migrations）
-# 直接用 node 執行 prisma 入口，避開 node_modules/.bin 軟連結未複製的問題
-# 失敗則容器啟動失敗，由 Railway 自動 rollback
-CMD ["sh", "-c", "node ./node_modules/prisma/build/index.js migrate deploy && node ./.output/server/index.mjs"]
+# Entrypoint：先 prisma migrate deploy，再啟動 Nitro server；任一步失敗 exit 非 0
+ENTRYPOINT ["/usr/local/bin/docker-entrypoint.sh"]

@@ -32,7 +32,7 @@ const PASSWORD_INVALID = {
 };
 
 export default defineEventHandler(async (event) => {
-  const auth = requireAdmin(event);
+  const auth = await requireAdmin(event);
   if ('status' in auth) return auth;
 
   const raw = await readBody(event).catch(() => null);

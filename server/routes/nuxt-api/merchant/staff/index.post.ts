@@ -27,7 +27,7 @@ const EMAIL_TAKEN = {
 };
 
 export default defineEventHandler(async (event) => {
-  const auth = requireMerchant(event, { role: 'OWNER' });
+  const auth = await requireMerchant(event, { role: 'OWNER' });
   if ('status' in auth) return auth;
 
   const raw = await readBody(event).catch(() => null);

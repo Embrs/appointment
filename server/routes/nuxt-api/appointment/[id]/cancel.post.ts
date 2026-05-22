@@ -11,7 +11,7 @@ const BodySchema = z.object({
 });
 
 export default defineEventHandler(async (event) => {
-  const auth = requireMerchant(event);
+  const auth = await requireMerchant(event);
   if ('status' in auth) return auth;
 
   const id = getRouterParam(event, 'id');

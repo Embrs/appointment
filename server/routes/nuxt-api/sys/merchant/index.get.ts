@@ -23,7 +23,7 @@ const STATUS_PRIORITY: Record<MerchantStatus, number> = {
 };
 
 export default defineEventHandler(async (event) => {
-  const auth = requireAdmin(event);
+  const auth = await requireAdmin(event);
   if ('status' in auth) return auth;
 
   const parsed = QuerySchema.safeParse(getQuery(event));

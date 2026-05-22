@@ -8,7 +8,7 @@ import { MSG_NOT_QUEUE_SERVICE } from '@@/utils/queue';
 import { QueueWindowPutBodySchema } from '@@/utils/queue-window-schema';
 
 export default defineEventHandler(async (event) => {
-  const auth = requireMerchant(event);
+  const auth = await requireMerchant(event);
   if ('status' in auth) return auth;
 
   const raw = await readBody(event).catch(() => null);

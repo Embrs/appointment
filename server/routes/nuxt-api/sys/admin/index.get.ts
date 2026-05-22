@@ -5,7 +5,7 @@ import { requireAdmin } from '@@/utils/auth';
 import { successResponse } from '@@/utils/response';
 
 export default defineEventHandler(async (event) => {
-  const auth = requireAdmin(event);
+  const auth = await requireAdmin(event);
   if ('status' in auth) return auth;
 
   const items = await prisma.adminUser.findMany({

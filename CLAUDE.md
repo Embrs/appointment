@@ -80,8 +80,8 @@ npx prisma studio        # 開啟 Prisma Studio 視覺化資料庫
 | [api-modules.md](.claude/knowledge/api-modules.md) | 13 個 `nuxt-api/` 資源目錄職責、認證需求、與 spec 對應 | 找端點位置、新增 API、判斷該掛哪支守衛時 |
 | [availability-and-booking.md](.claude/knowledge/availability-and-booking.md) | `availability.ts` 純函式設計、BookingMode 分流、`createAppointment` advisory lock、取消政策 | 改動預約流程、可用時段算法、`booking.ts` / `availability.ts` 時 |
 | [queue-realtime.md](.claude/knowledge/queue-realtime.md) | 號碼牌全棧：DB 三表 + WS 廣播 + walk-in 代建 + claim QR + 店面大螢幕 + ETA 預估 + 商家叫號台 UX（多 CALLED、tabs、搜尋、RWD） | 改動號碼牌相關（領號、叫號、ws、StoreQueueRealtime、display、claim、ETA、admin 叫號台）時 |
-| [auth-and-rbac.md](.claude/knowledge/auth-and-rbac.md) | JWT 簽發/驗證、bcrypt、三身分、`HasRule` 規則、impersonation 代理鏈防護 | 改動登入、權限檢查、impersonate、`requireAdmin/Merchant` 時 |
-| [deploy-and-env.md](.claude/knowledge/deploy-and-env.md) | Dockerfile multi-stage、環境變數清單、cron jobs、R2、JobLock / RateLimit | 部署、環境變數調整、cron 排程、R2 上傳、排程互斥時 |
+| [auth-and-rbac.md](.claude/knowledge/auth-and-rbac.md) | JWT 簽發/驗證、bcrypt、三身分、`HasRule` 規則、守衛 DB 存在性驗證、middleware me 預檢、401 redirect lock | 改動登入、權限檢查、impersonate、`requireAdmin/Merchant`、middleware 預檢時 |
+| [deploy-and-env.md](.claude/knowledge/deploy-and-env.md) | Dockerfile multi-stage + entrypoint、環境變數清單、cron jobs、R2、JobLock / RateLimit、`/health` 端點、啟動日誌 | 部署、環境變數調整、cron 排程、R2 上傳、排程互斥、健康檢查、版本驗證時 |
 
 > 知識庫結構：fact-context-layered-v1
-> 最後更新時間：2026-05-22
+> 最後更新時間：2026-05-22（含 session 失效偵測與部署同步章節）

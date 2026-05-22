@@ -1,4 +1,9 @@
 // 401 自動跳轉：由 StoreSelf.SignOut() 依 selfType 決定跳 /sys/sign-in 或 /sign-in；guest 不跳
+// redirect lock：第一次 401 觸發 SignOut 後設旗標，5 秒內後續 401 不重複 navigate，
+// 避免「並發多支 API 同時 401 → 多次 navigateTo」造成閃跳。
+
+let isRedirecting = false;
+const REDIRECT_LOCK_MS = 5000;
 
 // 回傳調整
 const FilterRes = (response: any, errCode = 9999, _showErr = true) => {
@@ -12,11 +17,14 @@ const FilterRes = (response: any, errCode = 9999, _showErr = true) => {
   return _res as ApiRes<any>;
 };
 
-// 401 自動處理：清除身分並依 selfType 跳轉登入頁
+// 401 自動處理：清除身分並依 selfType 跳轉登入頁；同一波並發只 navigate 一次
 const HandleUnauthorized = () => {
+  if (isRedirecting) return;
   const storeSelf = StoreSelf();
   if (storeSelf.selfType === 'guest') return; // 顧客頁面不跳轉
+  isRedirecting = true;
   storeSelf.SignOut();
+  setTimeout(() => { isRedirecting = false; }, REDIRECT_LOCK_MS);
 };
 
 // 預設請求
@@ -47,7 +55,7 @@ const Fetch = <T>(url: string, option: AnyObject, _showErr = true): Promise<ApiR
         // 錯誤處理（非 2xx）
         onResponseError({ response }) {
           const _res = FilterRes(response, 9998, _showErr);
-          // 401 自動清除身分並依 selfType 跳轉登入頁
+          // 401 自動清除身分並依 selfType 跳轉登入頁（帶 lock 避免並發多 redirect）
           if (response?.status === 401) {
             HandleUnauthorized();
           }
@@ -62,7 +70,6 @@ const Fetch = <T>(url: string, option: AnyObject, _showErr = true): Promise<ApiR
 };
 
 // -----------------------------------------------------------------------------------------------
-// 自動導出
 export default {
   /** 取得  */
   get: <T>(url: string, query: AnyObject = {}, _showErr = true) =>

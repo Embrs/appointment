@@ -5,7 +5,7 @@ import { requireMerchant } from '@@/utils/auth';
 import { successResponse } from '@@/utils/response';
 
 export default defineEventHandler(async (event) => {
-  const auth = requireMerchant(event);
+  const auth = await requireMerchant(event);
   if ('status' in auth) return auth;
 
   const items = await prisma.resource.findMany({
