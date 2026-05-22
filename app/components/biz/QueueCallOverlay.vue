@@ -8,11 +8,36 @@ import { onMounted, onBeforeUnmount } from 'vue';
 interface CallOverlayProps {
   ticketNumber: number;
   serviceName?: string;
+  /** 多 resource 號池：CALLED 時提示去哪間（empty 或 '' 表單號池） */
+  resourceName?: string;
+  /** Provider 顯示名稱；空值不渲染副標（沿用既有邏輯：providerModeEnabled=false 父層傳 null） */
+  providerName?: string | null;
+  /** 商家 self / public 資料；用於 useProviderLabel 自訂稱呼解析 */
+  merchant?: ProviderLabelInputCompat | null;
+}
+
+/** 接受 SelfMerchantFull 或 PublicMerchantItem 兩種；皆有 providerLabel + timezone 欄位 */
+interface ProviderLabelInputCompat {
+  providerLabel?: { zh?: string | null; en?: string | null; ja?: string | null } | null;
+  timezone?: string | null;
 }
 
 const props = withDefaults(defineProps<CallOverlayProps>(), {
-  serviceName: ''
+  serviceName: '',
+  resourceName: '',
+  providerName: null,
+  merchant: null
 });
+
+const { t } = useI18n();
+const merchantRef = computed(() => props.merchant);
+const { FormatProviderDisplay } = UseProviderLabel(merchantRef);
+const ProviderText = computed(() => FormatProviderDisplay(props.providerName));
+const Subtitle = computed(() =>
+  props.resourceName
+    ? t('queue.page.statusCalledHintWithRoom', { room: props.resourceName })
+    : t('queue.page.callOverlaySubtitle')
+);
 
 const emit = defineEmits<{
   (e: 'dismiss'): void;
@@ -48,8 +73,12 @@ onBeforeUnmount(() => {
     .BizQueueCallOverlay__bell 🔔
     h2.BizQueueCallOverlay__title {{ $t('queue.page.callOverlayTitle') }}
     .BizQueueCallOverlay__service(v-if="serviceName") {{ serviceName }}
+    .BizQueueCallOverlay__provider(
+      v-if="ProviderText"
+      data-testid="queue-call-overlay-provider"
+    ) {{ ProviderText }}
     .BizQueueCallOverlay__number {{ PrimaryText }}
-    p.BizQueueCallOverlay__subtitle {{ $t('queue.page.callOverlaySubtitle') }}
+    p.BizQueueCallOverlay__subtitle {{ Subtitle }}
     button.BizQueueCallOverlay__dismiss(
       type="button"
       data-testid="queue-call-overlay-dismiss"
@@ -128,6 +157,17 @@ onBeforeUnmount(() => {
   border-radius: 999px;
   background-color: rgba(255, 255, 255, 0.18);
   max-width: 80vw;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.BizQueueCallOverlay__provider {
+  font-size: clamp(18px, 5vw, 28px);
+  font-weight: 700;
+  opacity: 0.96;
+  text-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
+  max-width: 90vw;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;

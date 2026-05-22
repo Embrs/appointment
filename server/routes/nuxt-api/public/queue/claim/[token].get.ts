@@ -14,7 +14,9 @@ import {
   MSG_QUEUE_TICKET_NOT_FOUND,
   estimateWaitMinutes,
   getEffectiveAvgServiceMinutes,
-  getTicketDate
+  getTicketDate,
+  resolveProviderByResourceMap,
+  getResourceProviderEntry
 } from '@@/utils/queue';
 
 export default defineEventHandler(async (event) => {
@@ -43,6 +45,7 @@ export default defineEventHandler(async (event) => {
       id: true,
       merchantId: true,
       serviceId: true,
+      resourceId: true,
       ticketDate: true,
       ticketNumber: true,
       status: true,
@@ -50,7 +53,8 @@ export default defineEventHandler(async (event) => {
       calledAt: true,
       doneAt: true,
       service: { select: { name: true, avgServiceMinutes: true, durationMinutes: true } },
-      merchant: { select: { timezone: true, name: true } }
+      merchant: { select: { timezone: true, name: true, providerLabel: true } },
+      resource: { select: { name: true } }
     }
   });
   if (!ticket) return notFoundError(event, MSG_QUEUE_TICKET_NOT_FOUND);
@@ -66,9 +70,10 @@ export default defineEventHandler(async (event) => {
 
   const counter = await prisma.queueCounter.findUnique({
     where: {
-      merchantId_serviceId_counterDate: {
+      merchantId_serviceId_resourceId_counterDate: {
         merchantId: ticket.merchantId,
         serviceId: ticket.serviceId,
+        resourceId: ticket.resourceId,
         counterDate: ticket.ticketDate
       }
     },
@@ -79,11 +84,15 @@ export default defineEventHandler(async (event) => {
     where: {
       merchantId: ticket.merchantId,
       serviceId: ticket.serviceId,
+      resourceId: ticket.resourceId,
       ticketDate: ticket.ticketDate,
       status: 'WAITING',
       ticketNumber: { lt: ticket.ticketNumber }
     }
   });
+
+  const providerMap = await resolveProviderByResourceMap(ticket.merchantId);
+  const providerEntry = getResourceProviderEntry(providerMap, ticket.resourceId);
 
   const effectiveAvg = getEffectiveAvgServiceMinutes(ticket.service);
   let estimatedWaitMinutes: number | null;
@@ -99,18 +108,23 @@ export default defineEventHandler(async (event) => {
     ticket: {
       id: ticket.id,
       serviceId: ticket.serviceId,
+      resourceId: ticket.resourceId,
+      resourceName: ticket.resource?.name ?? null,
       ticketNumber: ticket.ticketNumber,
       ticketDate: ticket.ticketDate.toISOString().slice(0, 10),
       status: ticket.status,
       takenAt: ticket.takenAt.toISOString(),
       calledAt: ticket.calledAt ? ticket.calledAt.toISOString() : null,
       doneAt: ticket.doneAt ? ticket.doneAt.toISOString() : null,
-      serviceName: ticket.service.name
+      serviceName: ticket.service.name,
+      providerId: providerEntry?.providerId ?? null,
+      providerName: providerEntry?.providerName ?? null
     },
     merchant: {
       id: ticket.merchantId,
       name: ticket.merchant.name,
-      timezone: ticket.merchant.timezone
+      timezone: ticket.merchant.timezone,
+      providerLabel: ticket.merchant.providerLabel
     },
     currentServing: counter?.lastCalledNumber ?? 0,
     lastTicketNumber: counter?.lastTicketNumber ?? 0,

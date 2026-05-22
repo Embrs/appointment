@@ -11,7 +11,8 @@ export default defineEventHandler(async (event) => {
   const services = await prisma.service.findMany({
     where: { merchantId: auth.merchantId, deletedAt: null },
     include: {
-      resources: { select: { resourceId: true } }
+      resources: { select: { resourceId: true } },
+      providers: { select: { providerId: true } }
     },
     orderBy: [{ displayOrder: 'asc' }, { createdAt: 'asc' }]
   });
@@ -29,7 +30,9 @@ export default defineEventHandler(async (event) => {
       isActive: s.isActive,
       displayOrder: s.displayOrder,
       avgServiceMinutes: s.avgServiceMinutes,
+      requiresProvider: s.requiresProvider,
       resourceIds: s.resources.map((r) => r.resourceId),
+      providerIds: s.providers.map((p) => p.providerId),
       createdAt: s.createdAt,
       updatedAt: s.updatedAt
     }))

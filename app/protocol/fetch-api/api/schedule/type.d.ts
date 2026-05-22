@@ -1,11 +1,13 @@
 // 時段規則 + 特定日期覆寫 type 定義
 
-type ScheduleScopeType = 'MERCHANT' | 'RESOURCE';
+type ScheduleScopeType = 'MERCHANT' | 'RESOURCE' | 'PROVIDER';
 
 interface ScheduleRuleItem {
   id?: string;
   scope: ScheduleScopeType;
   resourceId: string | null;
+  /** PROVIDER scope 必填；其他 scope 為 null */
+  providerId?: string | null;
   weekday: number;
   startTime: string;
   endTime: string;
@@ -15,6 +17,7 @@ interface ScheduleRuleItem {
 interface GetScheduleRulesParams {
   scope?: ScheduleScopeType;
   resourceId?: string;
+  providerId?: string;
 }
 
 interface GetScheduleRulesRes {
@@ -24,10 +27,14 @@ interface GetScheduleRulesRes {
 interface UpdateScheduleRulesParams {
   scope: ScheduleScopeType;
   resourceId?: string | null;
+  /** PROVIDER scope 必填 */
+  providerId?: string | null;
   rules: Array<{
     weekday: number;
     startTime: string;
     endTime: string;
+    /** 僅 PROVIDER scope：該時段預綁診間（選填） */
+    resourceId?: string | null;
   }>;
 }
 
@@ -41,6 +48,7 @@ interface ScheduleOverrideItem {
   id: string;
   scope: ScheduleScopeType;
   resourceId: string | null;
+  providerId?: string | null;
   date: string;
   startTime: string | null;
   endTime: string | null;
@@ -53,6 +61,7 @@ interface GetScheduleOverridesParams {
   to?: string;
   scope?: ScheduleScopeType;
   resourceId?: string;
+  providerId?: string;
 }
 
 interface GetScheduleOverridesRes {
@@ -62,6 +71,7 @@ interface GetScheduleOverridesRes {
 interface CreateScheduleOverrideParams {
   scope: ScheduleScopeType;
   resourceId?: string | null;
+  providerId?: string | null;
   date: string;
   startTime?: string;
   endTime?: string;

@@ -8,8 +8,9 @@ import { badRequestError, successResponse } from '@@/utils/response';
 
 const QuerySchema = z
   .object({
-    scope: z.enum(['MERCHANT', 'RESOURCE']).optional(),
-    resourceId: z.string().min(1).optional()
+    scope: z.enum(['MERCHANT', 'RESOURCE', 'PROVIDER']).optional(),
+    resourceId: z.string().min(1).optional(),
+    providerId: z.string().min(1).optional()
   })
   .passthrough();
 
@@ -23,6 +24,7 @@ export default defineEventHandler(async (event) => {
   const where: Prisma.ScheduleRuleWhereInput = { merchantId: auth.merchantId };
   if (parsed.data.scope) where.scope = parsed.data.scope;
   if (parsed.data.resourceId !== undefined) where.resourceId = parsed.data.resourceId;
+  if (parsed.data.providerId !== undefined) where.providerId = parsed.data.providerId;
 
   const rules = await prisma.scheduleRule.findMany({
     where,
@@ -34,6 +36,7 @@ export default defineEventHandler(async (event) => {
       id: r.id,
       scope: r.scope,
       resourceId: r.resourceId,
+      providerId: r.providerId,
       weekday: r.weekday,
       startTime: r.startTime,
       endTime: r.endTime,

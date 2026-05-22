@@ -106,6 +106,17 @@ export default {
       serviceEditEdit: 'サービス編集',
       resourceEditCreate: 'リソース追加',
       resourceEditEdit: 'リソース編集',
+      providerEditCreate: '{label}を追加',
+      providerEditEdit: '{label}を編集',
+      providerDeleteConfirm: 'この{label}を停止しますか？（ソフト削除で復元可能）',
+      providerModeWizardTitle: '{label}制を有効化',
+      providerModeWizardBody: '有効にすると、お客様は予約時にまず{label}を選びます。少なくとも 1 名の登録をおすすめします。',
+      providerModeWizardCreate: '最初の{label}を作成',
+      providerCreatedTitle: '{label}を追加しました',
+      providerCreatedBody: 'スケジュールページで{label}の対応可能時間を設定してください。',
+      providerCreatedGoSchedule: 'スケジュールへ',
+      requiresProviderToggleTitle: '「{label}指定」設定を変更',
+      requiresProviderToggleBody: 'この変更は今後の予約のみに反映されます。既存予約は更新されません。続行しますか？',
       appointmentCreateTitle: '代理予約',
       holidayCreateTitle: '休業日追加',
       holidayEditTitle: '休業日編集',
@@ -132,6 +143,7 @@ export default {
       shareLink: '共有リンク',
       services: 'サービス',
       resources: 'リソース',
+      providers: '{label}',
       appointments: '予約管理',
       queue: '呼び出し',
       schedule: 'スケジュール',
@@ -166,7 +178,20 @@ export default {
       uploadCover: 'カバー画像をアップロード',
       policyFree: 'お客様はいつでもキャンセル可能',
       policyCutoff: '予約開始 N 時間前以降はキャンセル不可',
-      cutoffHours: 'N 時間'
+      cutoffHours: 'N 時間',
+      providerMode: {
+        title: 'スタッフ（Provider）制',
+        enabledLabel: 'スタッフ制を有効化',
+        enabledHint: '有効にすると、お客様は予約時にスタッフ（医師／セラピスト／コーチ等）を指名できます。既存店舗はデフォルトで無効、動作は変わりません。',
+        labelTitle: '呼称をカスタム',
+        labelHint: 'お客様への表示名。空欄なら既定（「服務人員 / Provider / スタッフ」）',
+        labelZh: '中国語表記',
+        labelEn: '英語表記',
+        labelJa: '日本語表記',
+        labelPlaceholderZh: '例：醫師、技師、老師',
+        labelPlaceholderEn: 'e.g. Doctor, Therapist, Coach',
+        labelPlaceholderJa: '例：医師、セラピスト、コーチ'
+      }
     },
     services: {
       listTitle: 'サービス',
@@ -188,13 +213,16 @@ export default {
       nameLabel: 'リソース名',
       boundServices: '紐付けサービス',
       boundServicesEmpty: '— 紐付け無し',
-      boundServicesHint: 'RESOURCE モードのサービスを編集してこのリソースを選択すると、お客様が指定できるようになります。'
+      boundServicesHint: 'サービスを編集してこのリソースを選択すると、お客様が指定できるようになります。'
     },
     schedule: {
       title: 'スケジュール',
       subtitle: '週時間・単日調整・定休日・整理券時間をまとめて管理します',
       scopeMerchant: '店舗全体',
       scopeResource: 'リソース',
+      scopeProvider: '{label}',
+      providerScopeResourceLabel: '優先ルーム（任意）',
+      providerScopeResourceHint: 'この時間帯に{label}が使うルーム／席を任意で固定できます。空欄なら人だけを排程します。',
       addSlot: '+ 枠を追加',
       // @deprecated 単日調整に置き換え
       overrides: '単日調整',
@@ -271,6 +299,29 @@ export default {
       slugTaken: 'URL スラッグはすでに使用されています',
       uploadFailed: '画像のアップロードに失敗しました',
       saveFailed: '保存に失敗しました'
+    },
+    queue: {
+      tabs: {
+        waiting: 'お待ち',
+        called: '案内中',
+        history: '履歴',
+        countSuffix: '（{n}）'
+      },
+      search: {
+        placeholder: '番号または電話下4桁を入力',
+        empty: '該当する整理券がありません',
+        clear: '検索をクリア'
+      },
+      serving: {
+        empty: '現在ご案内中の番号はありません'
+      },
+      conn: {
+        live: 'リアルタイム接続中',
+        off: '接続が切断されました'
+      },
+      operatingRoom: {
+        label: '操作中'
+      }
     }
   },
   sys: {
@@ -321,6 +372,7 @@ export default {
     },
     steps: {
       service: 'サービス',
+      provider: '{label}',
       resource: 'リソース',
       datetime: '日付と時間帯',
       // @deprecated datetime に置換済み
@@ -345,12 +397,19 @@ export default {
     },
     panel: {
       pickService: 'サービスを選択',
+      pickProvider: '{label}を選択',
       pickResource: 'リソースを選択',
       pickDateTime: '日付と時間を選択'
     },
     resource: {
       anyLabel: '指定なし（自動割り当て）',
       anyDescription: 'システムが空きリソースから自動で選択します'
+    },
+    provider: {
+      cardTitleFallback: 'この{label}',
+      bioEmpty: '紹介はまだありません',
+      unavailable: 'この{label}は予約可能な時間がありません',
+      pickHint: '対応してほしい{label}をお選びください'
     },
     fields: {
       date: '日付',
@@ -416,7 +475,11 @@ export default {
       limitExceeded: 'この店舗での予約数が上限に達しました。既存の予約をキャンセルしてから再度お試しください',
       limitExceededTitle: '予約上限に達しました',
       limitExceededHint: '「マイ予約」で不要な予約をキャンセルできます',
-      goMyBookings: 'マイ予約へ'
+      goMyBookings: 'マイ予約へ',
+      providerRequired: '{label}を選択してください',
+      providerNotForService: 'この{label}はこのサービスを提供していません',
+      providerInactive: 'この{label}は現在停止中です',
+      providerTaken: 'この{label}はこの時間帯すでに予約済みです'
     },
     queryTitle: '予約照会',
     querySubmit: '検索',
@@ -460,12 +523,15 @@ export default {
     linkCopied: '表示画面のリンクをコピーしました',
     linkCopyFailed: '自動コピーに失敗しました。手動でコピーしてください：',
     needQueueService: '先に QUEUE モードのサービスを作成してください',
+    gotoRoom: '{room} へお進みください',
     tts: {
       toggle: '音声呼び出し',
       on: '音声呼び出し：ON',
       off: '音声呼び出し：OFF',
       unsupported: 'このブラウザは音声呼び出しに対応していません',
-      callPhrase: '{number}番のお客様、{serviceName}までお越しください。'
+      callPhraseSimple: '{number}番のお客様、お越しください。',
+      callPhraseWithCustomer: '{number}番のお客様、{customerName}、お越しください。',
+      callPhraseWithRoom: '{number}番のお客様、{room} へお越しください。'
     }
   },
   queue: {
@@ -530,7 +596,14 @@ export default {
       doneCtaRetake: '再発行',
       skippedTitle: 'あなたの番号はスキップされました',
       skippedSubtitle: 'ご用の方はスタッフまでお声がけください',
-      skippedCtaContact: 'お店に連絡'
+      skippedCtaContact: 'お店に連絡',
+      ticketWithRoom: '{room} {number} 番',
+      statusCalledHintWithRoom: '{room} へお越しください、あなたの番です！'
+    },
+    take: {
+      selectRoomLabel: '診察室／カウンターを選択',
+      selectRoomHint: '各窓口の待ち状況で選びやすくなります',
+      roomStat: '現在 {current} 番・待ち {waiting} 人'
     },
     walkIn: {
       title: '現場登録',
@@ -597,6 +670,16 @@ export default {
       findAmbiguous: '複数件見つかりました。携帯電話をご持参のうえカウンターまでお越しください。',
       findNotFound: '本日の整理券は見つかりません',
       findInvalid: '4 桁の数字を入力してください'
+    },
+    checkIn: {
+      title: '受付待ち',
+      empty: '受付待ちのお客様はいません',
+      assignedRoom: '部屋を指定',
+      confirm: '受付を確定',
+      confirmed: '受付しました',
+      reassigned: '{from} から {to} に変更',
+      unassignedProvider: '担当者未指定',
+      assignFailed: '変更に失敗しました。もう一度お試しください'
     }
   },
   slot: {
@@ -625,6 +708,11 @@ export default {
       CANCELED: 'キャンセル',
       COMPLETED: '完了',
       NO_SHOW: '未来店'
+    },
+    fields: {
+      provider: '{label}',
+      providerUnspecified: '未指定',
+      providerInactiveSuffix: '（停止中）'
     },
     customerTitle: {
       MR: '様（男性）',
@@ -677,6 +765,41 @@ export default {
     }
   },
   service: {
-    durationLabel: '{n} 分'
+    durationLabel: '{n} 分',
+    edit: {
+      queueResourcesLabel: '呼び出し可能な診察室／カウンター／スタッフ（任意）',
+      queueResourcesHint: '紐付けた各リソースが独立した整理券列を持ちます。空欄なら単一の整理券プールのままです。',
+      requiresProviderLabel: '{label}指定',
+      requiresProviderHint: '有効にすると、お客様はこのサービスを予約する際に{label}を選ぶ必要があります。先に少なくとも 1 名紐付けてください。',
+      providersLabel: '対応する{label}',
+      providersHint: 'このサービスを提供する{label}を選択してください。お客様はこのリストから選びます。',
+      providersEmptyError: '「{label}指定」を有効にする場合、少なくとも 1 名選択してください。'
+    }
+  },
+  provider: {
+    listTitle: '{label}管理',
+    addButton: '+ {label}を追加',
+    fields: {
+      avatar: 'アバター',
+      name: '氏名',
+      title: '役職',
+      bio: '紹介',
+      displayOrder: '順序',
+      isActive: '有効',
+      boundServices: '提供サービス',
+      boundServicesEmpty: '— サービス未紐付け'
+    },
+    placeholders: {
+      name: '例：田中医師、Lisa 先生',
+      title: '例：主治医、シニアセラピスト',
+      bio: '短い紹介（複数行可）'
+    },
+    actions: {
+      edit: '編集',
+      delete: '停止'
+    },
+    bannerNotEnabled: '「スタッフ制」が未有効です。店舗設定で有効化するとサイドバーに表示されます。',
+    bannerGoSettings: '店舗設定へ',
+    empty: '{label}はまだ登録されていません'
   }
 };

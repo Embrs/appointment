@@ -15,6 +15,25 @@ const merchant = ref<PublicMerchantItem | null>(null);
 const queueServices = ref<PublicServiceItem[]>([]);
 const recentEntries = ref<CustomerQueueRecentEntry[]>([]);
 const dismissedTicketIds = ref<Set<string>>(new Set());
+/** key=serviceId、value=resourceId（多 resource 時必須選一個；單 resource 自動選；未綁時為 null） */
+const selectedResourceByService = ref<Record<string, string | null>>({});
+
+/** 後端 sanitizeNulls 會把 null 轉為空字串；fallback bucket 的 id 在 client 端為 ""（不是 null） */
+const IsFallbackResource = (r: { id: string | null | undefined } | undefined): boolean => {
+  if (!r) return true;
+  return r.id === null || r.id === undefined || r.id === '';
+};
+
+/** 該 service 是否綁了至少一個非 fallback 的 resource（決定是否顯示選擇器） */
+const HasResources = (s: PublicServiceItem): boolean => {
+  const rs = s.resources ?? [];
+  return rs.some((r) => !IsFallbackResource(r));
+};
+
+/** 取該 service 用於顯示的 resources（過濾掉 fallback bucket） */
+const EffectiveResources = (s: PublicServiceItem) => {
+  return (s.resources ?? []).filter((r) => !IsFallbackResource(r));
+};
 
 // 載入商家公開資訊，並只保留 QUEUE 模式服務
 const ApiLoad = async () => {
@@ -29,6 +48,33 @@ const ApiLoad = async () => {
     merchant.value = res.data.merchant;
     queueServices.value = res.data.services.filter((s) => s.bookingMode === 'QUEUE');
     sessionStore.AddSlug(slug.value);
+    // 把每個 QUEUE service 的 resources snapshot 灌入 store（fallback id="" 正規化為 null）
+    for (const s of queueServices.value) {
+      const rs = s.resources ?? [];
+      if (rs.length === 0) continue;
+      queueStore.UpsertResourcesSnapshot({
+        serviceId: s.id,
+        avgServiceMinutes: s.avgServiceMinutes ?? 0,
+        resources: rs.map((r) => ({
+          id: r.id === '' ? null : (r.id ?? null),
+          name: r.name === '' ? null : (r.name ?? null),
+          currentServing: r.currentServing ?? 0,
+          ticketsTaken: r.ticketsTaken ?? 0,
+          waitingCount: r.waitingCount ?? 0,
+          avgServiceMinutes: r.avgServiceMinutes ?? s.avgServiceMinutes ?? 0,
+          provider: r.provider ?? null
+        }))
+      });
+    }
+    // 自動選定：單一 resource 時自動選；多 resource 時保留 null（顧客必須手動選）
+    for (const s of queueServices.value) {
+      const effective = EffectiveResources(s);
+      if (effective.length === 1) {
+        selectedResourceByService.value[s.id] = effective[0]!.id ?? null;
+      } else if (effective.length > 1 && !(s.id in selectedResourceByService.value)) {
+        selectedResourceByService.value[s.id] = null;
+      }
+    }
   } finally {
     loading.value = false;
   }
@@ -55,13 +101,31 @@ const DisplayState = (s: PublicServiceItem): ServingDisplay => {
   return { kind: 'serving', currentServing, waitingCount };
 };
 
+/** 顯示單一 resource 的即時 stat（優先 WS、否則 snapshot） */
+const ResourceLiveState = (serviceId: string, resourceId: string | null | undefined) => {
+  const rid = resourceId === '' || resourceId == null ? null : resourceId;
+  const live = queueStore.GetResourceState(serviceId, rid);
+  if (live) {
+    return { currentServing: live.currentServing, waitingCount: live.waitingCount };
+  }
+  // fallback: 從 queueServices snapshot 找
+  const svc = queueServices.value.find((x) => x.id === serviceId);
+  const r = svc?.resources?.find((x) => x.id === rid);
+  return {
+    currentServing: r?.currentServing ?? 0,
+    waitingCount: r?.waitingCount ?? 0
+  };
+};
+
 const ApiTake = async (serviceId: string, customer: CustomerTripletShape) => {
   if (!merchant.value) return;
   taking.value = true;
   try {
+    const resourceId = selectedResourceByService.value[serviceId] ?? null;
     const res = await $api.TakeQueueTicket({
       slug: slug.value,
       serviceId,
+      ...(resourceId ? { resourceId } : {}),
       customer: { lastName: customer.lastName, title: customer.title, phone: customer.phone }
     });
     if (res.status.code !== $enum.apiStatus.success) {
@@ -99,6 +163,12 @@ const ApiTake = async (serviceId: string, customer: CustomerTripletShape) => {
 const { t } = useI18n();
 
 const ClickTake = async (serviceId: string) => {
+  const svc = queueServices.value.find((x) => x.id === serviceId);
+  // 多 resource 必須先選一個才能領號（單一已自動選定、未綁時為 null 也允許）
+  if (svc && EffectiveResources(svc).length > 1 && !selectedResourceByService.value[serviceId]) {
+    ElMessage.warning(t('queue.take.selectRoomLabel'));
+    return;
+  }
   const prefill = sessionStore.triplet;
   const result = await $open.DialogCustomerForm({
     title: t('queue.page.formTitle'),
@@ -191,8 +261,30 @@ const TitleHint = (mode: string) => mode === 'QUEUE' ? t('admin.bookingMode.QUEU
           .PageQueueLanding__cardMode {{ TitleHint(s.bookingMode) }}
         .PageQueueLanding__cardDesc(v-if="s.description") {{ s.description }}
 
-        //- 當前叫號狀態（即時 via WS；無 WS 訊息時讀初始載入值）
-        .PageQueueLanding__cardServing(:data-testid="`queue-serving-${s.id}`")
+        //- 多 resource 選擇器（綁了 ≥2 個 resource 才顯示；單一自動選定隱藏；未綁完全跳過）
+        .PageQueueLanding__roomPicker(
+          v-if="HasResources(s) && EffectiveResources(s).length >= 2"
+          :data-testid="`queue-room-picker-${s.id}`"
+        )
+          .PageQueueLanding__roomPickerLabel {{ $t('queue.take.selectRoomLabel') }}
+          .PageQueueLanding__roomPickerHint {{ $t('queue.take.selectRoomHint') }}
+          .PageQueueLanding__roomOptions
+            button.PageQueueLanding__roomOption(
+              v-for="r in EffectiveResources(s)"
+              :key="r.id ?? '__null__'"
+              type="button"
+              :class="{ 'PageQueueLanding__roomOption--active': selectedResourceByService[s.id] === r.id }"
+              :data-testid="`queue-room-option-${s.id}-${r.id ?? 'null'}`"
+              @click="selectedResourceByService[s.id] = r.id"
+            )
+              .PageQueueLanding__roomOptionName {{ r.name }}
+              .PageQueueLanding__roomOptionStat {{ $t('queue.take.roomStat', { current: ResourceLiveState(s.id, r.id).currentServing, waiting: ResourceLiveState(s.id, r.id).waitingCount }) }}
+
+        //- 當前叫號狀態（未綁 resource：顯示既有單一號池狀態；綁了 resource：上方 picker 已顯示分間狀態，這裡隱藏避免重複）
+        .PageQueueLanding__cardServing(
+          v-if="!HasResources(s)"
+          :data-testid="`queue-serving-${s.id}`"
+        )
           template(v-if="DisplayState(s).kind === 'not-started'")
             .PageQueueLanding__servingNot {{ $t('queue.page.notStarted') }}
           template(v-else-if="DisplayState(s).kind === 'no-called'")
@@ -499,6 +591,74 @@ const TitleHint = (mode: string) => mode === 'QUEUE' ? t('admin.bookingMode.QUEU
 .PageQueueLanding__cardFoot {
   display: flex;
   justify-content: flex-end;
+}
+
+// 多 resource 選擇器 ----
+.PageQueueLanding__roomPicker {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 12px 14px;
+  background-color: rgba(53, 77, 123, 0.04);
+  border: 1px solid rgba(53, 77, 123, 0.08);
+  border-radius: 12px;
+}
+
+.PageQueueLanding__roomPickerLabel {
+  font-size: 13px;
+  font-weight: 700;
+  color: $primary;
+}
+
+.PageQueueLanding__roomPickerHint {
+  font-size: 12px;
+  color: rgba(69, 69, 69, 0.6);
+}
+
+.PageQueueLanding__roomOptions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.PageQueueLanding__roomOption {
+  cursor: pointer;
+  display: inline-flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  min-width: 140px;
+  flex: 1 1 140px;
+  padding: 10px 14px;
+  background-color: $white;
+  border: 1.5px solid rgba(53, 77, 123, 0.12);
+  border-radius: 10px;
+  color: rgba(69, 69, 69, 0.85);
+  transition: border-color 0.15s ease, background-color 0.15s ease, color 0.15s ease, transform 0.15s ease;
+  text-align: left;
+}
+
+.PageQueueLanding__roomOption:hover {
+  border-color: rgba(0, 173, 169, 0.4);
+  background-color: rgba(0, 173, 169, 0.04);
+}
+
+.PageQueueLanding__roomOption--active {
+  border-color: $secondary;
+  background-color: rgba(0, 173, 169, 0.12);
+  color: $secondary;
+}
+
+.PageQueueLanding__roomOptionName {
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.PageQueueLanding__roomOptionStat {
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  opacity: 0.8;
 }
 
 // 找回我的號碼次要入口 ----

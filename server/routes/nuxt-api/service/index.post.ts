@@ -21,7 +21,9 @@ const ServiceCreateSchema = z
     isActive: z.boolean().optional(),
     displayOrder: z.number().int().min(0).max(9999).optional(),
     resourceIds: z.array(z.string().min(1)).max(50).optional(),
-    avgServiceMinutes: z.number().int().min(0).max(720).nullable().optional()
+    avgServiceMinutes: z.number().int().min(0).max(720).nullable().optional(),
+    requiresProvider: z.boolean().optional(),
+    providerIds: z.array(z.string().min(1)).max(50).optional()
   })
   .strict();
 
@@ -35,6 +37,16 @@ const RESOURCE_BAD = {
   en: 'Resource not found in this merchant',
   ja: 'リソースが見つかりません'
 };
+const PROVIDER_REQUIRED = {
+  zh_tw: '啟用「需指定服務人員」時必須選擇至少一位',
+  en: 'When "Requires provider" is enabled, pick at least one provider',
+  ja: '「スタッフ指定」を有効にする場合、少なくとも 1 名選択してください'
+};
+const PROVIDER_BAD = {
+  zh_tw: '服務人員不存在或不屬於此商家',
+  en: 'Provider not found in this merchant',
+  ja: 'スタッフが見つかりません'
+};
 
 export default defineEventHandler(async (event) => {
   const auth = requireMerchant(event);
@@ -45,11 +57,13 @@ export default defineEventHandler(async (event) => {
   if (!parsed.success) return badRequestError(event);
   const body = parsed.data;
 
-  const isResourceMode =
+  // RESOURCE / RESOURCE_OPTIONAL：必須綁至少一個 resource；QUEUE：可選綁（空陣列維持單號池）；其他模式：不寫 ServiceResource
+  const isResourceRequiredMode =
     body.bookingMode === 'RESOURCE' || body.bookingMode === 'RESOURCE_OPTIONAL';
+  const acceptsResources = isResourceRequiredMode || body.bookingMode === 'QUEUE';
   const resourceIds = body.resourceIds ?? [];
 
-  if (isResourceMode && resourceIds.length === 0) {
+  if (isResourceRequiredMode && resourceIds.length === 0) {
     return badRequestError(event, RESOURCE_REQUIRED);
   }
 
@@ -59,6 +73,20 @@ export default defineEventHandler(async (event) => {
       select: { id: true }
     });
     if (owned.length !== resourceIds.length) return forbiddenError(event, RESOURCE_BAD);
+  }
+
+  // Provider 驗證：requiresProvider=true 時必須帶非空 providerIds，且都屬該商家
+  const requiresProvider = body.requiresProvider ?? false;
+  const providerIds = Array.from(new Set(body.providerIds ?? []));
+  if (requiresProvider && providerIds.length === 0) {
+    return badRequestError(event, PROVIDER_REQUIRED);
+  }
+  if (providerIds.length > 0) {
+    const ownedProviders = await prisma.provider.findMany({
+      where: { id: { in: providerIds }, merchantId: auth.merchantId, deletedAt: null },
+      select: { id: true }
+    });
+    if (ownedProviders.length !== providerIds.length) return forbiddenError(event, PROVIDER_BAD);
   }
 
   // 依 bookingMode 收斂欄位
@@ -83,12 +111,18 @@ export default defineEventHandler(async (event) => {
         priceCents: body.priceCents ?? null,
         isActive: body.isActive ?? true,
         displayOrder: body.displayOrder ?? 0,
-        avgServiceMinutes
+        avgServiceMinutes,
+        requiresProvider
       }
     });
-    if (isResourceMode && resourceIds.length > 0) {
+    if (acceptsResources && resourceIds.length > 0) {
       await tx.serviceResource.createMany({
         data: resourceIds.map((rid) => ({ serviceId: s.id, resourceId: rid }))
+      });
+    }
+    if (providerIds.length > 0) {
+      await tx.providerService.createMany({
+        data: providerIds.map((pid) => ({ serviceId: s.id, providerId: pid }))
       });
     }
     return s;
@@ -106,7 +140,9 @@ export default defineEventHandler(async (event) => {
       isActive: created.isActive,
       displayOrder: created.displayOrder,
       avgServiceMinutes: created.avgServiceMinutes,
-      resourceIds: isResourceMode ? resourceIds : []
+      requiresProvider: created.requiresProvider,
+      resourceIds: acceptsResources ? resourceIds : [],
+      providerIds
     }
   });
 });

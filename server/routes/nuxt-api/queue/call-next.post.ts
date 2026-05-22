@@ -8,9 +8,14 @@ import type { I18nMessage } from '@@/utils/response';
 import {
   MSG_QUEUE_NO_WAITING,
   MSG_NOT_QUEUE_SERVICE,
+  MSG_QUEUE_RESOURCE_INVALID,
+  MSG_QUEUE_RESOURCE_REQUIRED,
   broadcastQueue,
   buildBroadcastEtaFields,
-  getTicketDate
+  getTicketDate,
+  validateResourceIdForQueueService,
+  resolveProviderByResourceMap,
+  getResourceProviderEntry
 } from '@@/utils/queue';
 
 const MSG_QUEUE_CONCURRENT: I18nMessage = {
@@ -20,7 +25,8 @@ const MSG_QUEUE_CONCURRENT: I18nMessage = {
 };
 
 const BodySchema = z.object({
-  serviceId: z.string().min(1)
+  serviceId: z.string().min(1),
+  resourceId: z.string().min(1).optional()
 });
 
 export default defineEventHandler(async (event) => {
@@ -38,6 +44,17 @@ export default defineEventHandler(async (event) => {
   if (!service) return notFoundError(event);
   if (service.bookingMode !== 'QUEUE') return badRequestError(event, MSG_NOT_QUEUE_SERVICE);
 
+  // 驗 resourceId（service 已綁 resources 時必填、未綁不可帶）
+  const rv = await validateResourceIdForQueueService(service.id, parsed.data.resourceId);
+  if (!rv.ok) {
+    return badRequestError(
+      event,
+      rv.code === 'REQUIRED' ? MSG_QUEUE_RESOURCE_REQUIRED : MSG_QUEUE_RESOURCE_INVALID
+    );
+  }
+  const resource = rv.resource;
+  const resourceId: string | null = resource?.id ?? null;
+
   const merchant = await prisma.merchant.findUnique({
     where: { id: merchantId },
     select: { timezone: true }
@@ -45,49 +62,53 @@ export default defineEventHandler(async (event) => {
   const tz = merchant?.timezone ?? 'Asia/Taipei';
   const ticketDate = getTicketDate(tz);
 
-  // 事務 + FOR UPDATE
+  // 事務 + FOR UPDATE（按 resource 分群鎖；不同 resource 的 counter row 互不阻塞）
   let result;
   try {
     result = await prisma.$transaction(async (tx) => {
     // 確保 counter 存在
-    await tx.queueCounter.upsert({
-      where: {
-        merchantId_serviceId_counterDate: {
+    // 注意：Prisma compound unique 對 nullable 欄位拒絕 null，upsert 不適用 resourceId=null。
+    // 改先鎖 service row 序列化建立、再 findFirst + create。
+    await tx.$executeRaw`SELECT 1 FROM "Service" WHERE id = ${service.id} FOR UPDATE`;
+    const existingCounter = await tx.queueCounter.findFirst({
+      where: { merchantId, serviceId: service.id, resourceId, counterDate: ticketDate },
+      select: { id: true }
+    });
+    if (!existingCounter) {
+      await tx.queueCounter.create({
+        data: {
           merchantId,
           serviceId: service.id,
-          counterDate: ticketDate
+          resourceId,
+          counterDate: ticketDate,
+          lastTicketNumber: 0,
+          lastCalledNumber: 0
         }
-      },
-      update: {},
-      create: {
-        merchantId,
-        serviceId: service.id,
-        counterDate: ticketDate,
-        lastTicketNumber: 0,
-        lastCalledNumber: 0
-      }
-    });
-    // 鎖 counter
+      });
+    }
+    // 鎖 counter row（IS NOT DISTINCT FROM 正確處理 resourceId=NULL 路徑）
     const locked = await tx.$queryRaw<Array<{ id: string; lastCalledNumber: number; lastTicketNumber: number }>>`
       SELECT id, "lastCalledNumber", "lastTicketNumber" FROM "QueueCounter"
       WHERE "merchantId" = ${merchantId}
         AND "serviceId" = ${service.id}
+        AND "resourceId" IS NOT DISTINCT FROM ${resourceId}
         AND "counterDate" = ${ticketDate}
       FOR UPDATE
     `;
     const counter = locked[0];
     if (!counter) return { ok: false as const };
 
-    // 找最小 WAITING 票
+    // 找該 resource 上最小 WAITING 票
     const next = await tx.queueTicket.findFirst({
       where: {
         merchantId,
         serviceId: service.id,
+        resourceId,
         ticketDate,
         status: 'WAITING'
       },
       orderBy: { ticketNumber: 'asc' },
-      select: { id: true, ticketNumber: true }
+      select: { id: true, ticketNumber: true, customerLastName: true, customerTitle: true }
     });
     if (!next) return { ok: false as const };
 
@@ -104,6 +125,8 @@ export default defineEventHandler(async (event) => {
       ok: true as const,
       ticketId: next.id,
       ticketNumber: next.ticketNumber,
+      customerLastName: next.customerLastName,
+      customerTitle: next.customerTitle,
       lastTicketNumber: counter.lastTicketNumber
     };
     }, { isolationLevel: 'Serializable', timeout: 15000, maxWait: 10000 });
@@ -123,18 +146,28 @@ export default defineEventHandler(async (event) => {
     result.lastTicketNumber,
     { avgServiceMinutes: service.avgServiceMinutes, durationMinutes: service.durationMinutes }
   );
+  const providerMap = await resolveProviderByResourceMap(merchantId);
+  const providerEntry = getResourceProviderEntry(providerMap, resourceId);
   broadcastQueue(merchantId, {
     type: 'CALL_NEXT',
     serviceId: service.id,
+    resourceId,
+    resourceName: resource?.name,
     current: result.ticketNumber,
     servingTicketId: result.ticketId,
+    servingCustomerLastName: result.customerLastName,
+    servingCustomerTitle: result.customerTitle,
     ...etaFields,
+    providerId: providerEntry?.providerId ?? null,
+    providerName: providerEntry?.providerName ?? null,
     timestamp: Date.now()
   });
 
   return successResponse({
     ticketId: result.ticketId,
     ticketNumber: result.ticketNumber,
-    serviceId: service.id
+    serviceId: service.id,
+    resourceId,
+    resourceName: resource?.name ?? null
   });
 });

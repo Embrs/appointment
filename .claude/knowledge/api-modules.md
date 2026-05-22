@@ -44,8 +44,11 @@ type: reference
 | `GET /merchant/staff` `POST /merchant/staff` `PUT /merchant/staff/[id]` `POST /merchant/staff/[id]/toggle-active` | 員工管理（OWNER 限定） |
 | `GET /merchant/queue-window` `PUT /merchant/queue-window` | QUEUE 服務每週領號時段（PUT 為整批覆寫；body schema 共用 `server/utils/queue-window-schema.ts`） |
 
-### `service/` / `resource/` — 服務、資源 CRUD
+### `service/` / `resource/` / `provider/` — 服務、診間、服務人員 CRUD
 標準 RESTful：`index.{get,post}` + `[id].{get,put,delete}`，五個 handler 各一支。
+
+- `service/*`：POST/PUT 接受 `requiresProvider?` + `providerIds?[]`；transaction 內 deleteMany + createMany ProviderService；`requiresProvider=true` 但 `providerIds` 空 → 400
+- `provider/*`（**新增於 introduce-provider-model**）：商家服務人員 CRUD；`requireMerchant` 守衛 + 跨商家校驗（回 404）。商家 `providerModeEnabled=false` 時頁面仍可訪問但 sidebar 隱藏入口
 
 ### `schedule/` — 排程
 | Endpoint | 用途 |
@@ -81,9 +84,10 @@ type: reference
 ### `public/` — 顧客公開介面（無守衛）
 | Endpoint | 用途 |
 |----------|------|
-| `GET /public/m/[slug]` | 商家公開資料 + 服務 + 資源 |
-| `GET /public/availability` | 可用時段查詢 |
-| `POST /public/appointment` | 顧客建立預約 |
+| `GET /public/m/[slug]` | 商家公開資料 + 服務 + 資源；含 `providerModeEnabled` / `providerLabel`、`services[].requiresProvider` / `providerIds` |
+| `GET /public/provider?slug=...` | 公開服務人員列表（商家 `providerModeEnabled=false` 時回空陣列） |
+| `GET /public/availability` | 可用時段查詢；支援 `providerId?` query（啟用 Provider 制 + 服務 `requiresProvider=true` 時必填，引擎走 PROVIDER 分支） |
+| `POST /public/appointment` | 顧客建立預約；支援 `providerId?`（啟用商家寫入 + advisory lock 內檢查 Provider 衝堂） |
 | `POST /public/appointment/[id]/cancel` | 顧客取消（受 cancelPolicy 限制） |
 | `POST /public/appointment/lookup` | 三元組查詢 |
 | `POST /public/customer/lookup` | 三元組查跨商家 |

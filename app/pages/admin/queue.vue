@@ -12,6 +12,8 @@ const actionLoading = ref(false);
 const today = ref<GetQueueTodayRes | null>(null);
 const hasAnyWindow = ref(true);
 const merchantSlug = ref('');
+const merchant = ref<SelfMerchantFull | null>(null);
+const IsProviderModeEnabled = computed(() => merchant.value?.providerModeEnabled === true);
 
 const HasAnyQueueService = computed(() =>
   (today.value?.services?.length ?? 0) > 0
@@ -26,6 +28,7 @@ const DisplayUrl = computed(() => {
 const ApiLoadMerchantSlug = async () => {
   const res = await $api.GetSelfMerchant();
   if (res.status.code === $enum.apiStatus.success) {
+    merchant.value = res.data.merchant;
     merchantSlug.value = res.data.merchant.slug ?? '';
   }
 };
@@ -43,6 +46,10 @@ const ClickCopyDisplayLink = async () => {
   } catch {
     ElMessage.warning(`${t('display.linkCopyFailed')} ${DisplayUrl.value}`);
   }
+};
+
+const HandleDisplayMenuCmd = (cmd: string | number | object) => {
+  if (cmd === 'copy') ClickCopyDisplayLink();
 };
 
 const ApiCheckWindows = async () => {
@@ -91,6 +98,8 @@ const ApiLoad = async () => {
         serviceId: s.serviceId,
         currentServing: s.lastCalledNumber,
         servingTicketId: prev?.servingTicketId ?? called?.id ?? '',
+        servingCustomerLastName: prev?.servingCustomerLastName ?? called?.customerLastName ?? '',
+        servingCustomerTitle: prev?.servingCustomerTitle ?? called?.customerTitle ?? '',
         avgServiceMinutes: s.avgServiceMinutes,
         lastEventAt: Date.now()
       };
@@ -100,10 +109,13 @@ const ApiLoad = async () => {
   }
 };
 
-const ApiCallNext = async (serviceId: string) => {
+const ApiCallNext = async (serviceId: string, resourceId: string | null = null) => {
   actionLoading.value = true;
   try {
-    const res = await $api.CallNextQueueTicket({ serviceId });
+    const res = await $api.CallNextQueueTicket({
+      serviceId,
+      ...(resourceId ? { resourceId } : {})
+    });
     if (res.status.code !== $enum.apiStatus.success) {
       ElMessage.error(res.status.message?.zh_tw || '叫號失敗');
       return;
@@ -148,12 +160,18 @@ const ApiSkip = async (ticketId: string) => {
 };
 
 // 現場登記：開啟 OpenDialogQueueWalkIn；領號成功由 WS TICKET_TAKEN 觸發 ApiLoad，這裡不需手動重抓
-const ClickWalkIn = async (serviceId: string) => {
+const ClickWalkIn = async (
+  serviceId: string,
+  resourceId: string | null = null,
+  resourceName: string | null = null
+) => {
   const svc = today.value?.services.find((s) => s.serviceId === serviceId);
   if (!svc) return;
   await $open.DialogQueueWalkIn({
     serviceId,
     serviceName: svc.serviceName,
+    resourceId,
+    resourceName,
     timezone: today.value?.timezone,
     merchantSlug: merchantSlug.value || undefined
   });
@@ -184,39 +202,34 @@ onBeforeUnmount(() => {
     template(#actions)
       .PageAdminQueue__headerActions
         ElTooltip(
-          v-if="!HasAnyQueueService"
+          :disabled="HasAnyQueueService"
           :content="$t('display.needQueueService')"
           placement="top"
         )
-          span
-            ElButton(
-              size="default"
-              :disabled="true"
+          span.PageAdminQueue__displayDropdownWrap
+            ElDropdown(
+              split-button
+              type="primary"
+              trigger="click"
+              :disabled="!HasAnyQueueService"
               data-testid="admin-open-display-btn"
+              @click="ClickOpenDisplay"
+              @command="HandleDisplayMenuCmd"
             )
-              NuxtIcon.PageAdminQueue__btnIcon(name="mdi:monitor")
-              span {{ $t('display.openDisplay') }}
-        template(v-else)
-          ElButton(
-            size="default"
-            type="primary"
-            plain
-            data-testid="admin-open-display-btn"
-            @click="ClickOpenDisplay"
-          )
-            NuxtIcon.PageAdminQueue__btnIcon(name="mdi:monitor")
-            span {{ $t('display.openDisplay') }}
-          ElButton(
-            size="default"
-            :disabled="!DisplayUrl"
-            data-testid="admin-copy-display-link-btn"
-            @click="ClickCopyDisplayLink"
-          )
-            NuxtIcon.PageAdminQueue__btnIcon(name="mdi:link-variant")
-            span {{ $t('display.copyLink') }}
+              span.PageAdminQueue__displayBtnLabel
+                NuxtIcon.PageAdminQueue__btnIcon(name="mdi:monitor")
+                span {{ $t('display.openDisplay') }}
+              template(#dropdown)
+                ElDropdownMenu
+                  ElDropdownItem(
+                    command="copy"
+                    data-testid="admin-copy-display-link-btn"
+                  )
+                    NuxtIcon.PageAdminQueue__btnIcon(name="mdi:link-variant")
+                    span {{ $t('display.copyLink') }}
         span.PageAdminQueue__conn(:class="{ 'PageAdminQueue__conn--off': !queueStore.isWsConnected }")
           span.PageAdminQueue__connDot
-          span {{ queueStore.isWsConnected ? '即時連線中' : '連線中斷' }}
+          span {{ queueStore.isWsConnected ? $t('admin.queue.conn.live') : $t('admin.queue.conn.off') }}
 
   ElAlert(
     v-if="!loading && today && today.services.length > 0 && !hasAnyWindow"
@@ -234,12 +247,23 @@ onBeforeUnmount(() => {
     p 尚未建立號碼牌服務
     p.PageAdminQueue__empty-hint 請至「服務」頁新增 bookingMode=QUEUE 的服務並設定每週領號時段。
 
-  .PageAdminQueue__grid(v-else)
+  template(v-else)
+    BizQueueCheckInPanel(
+      v-if="IsProviderModeEnabled"
+      :today="today"
+      :merchant="merchant"
+      :loading="actionLoading"
+      @after-assign="ApiLoad"
+    )
+
+    .PageAdminQueue__grid
     BizQueueControlPanel(
       v-for="s in today.services"
       :key="s.serviceId"
       :service="s"
       :serving-ticket-id="ServingTicketIdMap[s.serviceId] ?? ''"
+      :merchant-id="storeSelf.merchantId || ''"
+      :merchant="merchant"
       :loading="actionLoading"
       @click-call-next="ApiCallNext"
       @click-done="ApiDone"
@@ -258,8 +282,17 @@ onBeforeUnmount(() => {
 .PageAdminQueue__headerActions {
   display: inline-flex;
   align-items: center;
-  gap: 8px;
+  gap: 12px;
   flex-wrap: wrap;
+}
+
+.PageAdminQueue__displayDropdownWrap {
+  display: inline-flex;
+}
+
+.PageAdminQueue__displayBtnLabel {
+  display: inline-flex;
+  align-items: center;
 }
 
 .PageAdminQueue__btnIcon {
@@ -279,6 +312,7 @@ onBeforeUnmount(() => {
   background-color: rgba(0, 173, 169, 0.1);
   padding: 6px 12px;
   border-radius: 999px;
+  margin-left: auto;
 }
 
 .PageAdminQueue__connDot {
@@ -324,6 +358,29 @@ onBeforeUnmount(() => {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(360px, 1fr));
   gap: 16px;
+}
+
+// 綁多 resource 的服務卡片跨更多欄，讓子卡能橫排
+// 768~1279px：跨 2 欄；≥ 1280px：跨 2 欄；≥ 1640px：跨 3 欄；< 768px：自然單欄
+:deep(.BizQueueControlPanel--multi-resource) {
+  @media (min-width: 768px) {
+    grid-column: span 2;
+  }
+  @media (min-width: 1640px) {
+    grid-column: span 3;
+  }
+}
+
+@media (max-width: 1279px) {
+  .PageAdminQueue__grid {
+    grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  }
+}
+
+@media (max-width: 767px) {
+  .PageAdminQueue__grid {
+    grid-template-columns: 1fr;
+  }
 }
 
 .PageAdminQueue__alertLink {

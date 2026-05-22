@@ -2,7 +2,9 @@
 // LayoutBackDesk — 平台管理員 / 商家後台 layout
 // 提供：側邊 nav、header（登出）、admin 標記、代理中橫條
 // 代理橫條僅當 selfType='merchant' 且 /auth/me 回傳 impersonatedBy 有值時顯示
-const { t } = useI18n();
+import { resolveProviderLabel } from '~shared/i18n/provider-label';
+
+const { t, locale } = useI18n();
 const storeSelf = StoreSelf();
 const impersonation = UseImpersonation();
 const useAsk = UseAsk();
@@ -10,9 +12,25 @@ const useAsk = UseAsk();
 const isAdmin = computed(() => storeSelf.selfType === 'admin');
 const meImpersonatedBy = ref<string>('');
 const isImpersonating = computed(() => !isAdmin.value && !! meImpersonatedBy.value);
+const merchant = ref<SelfMerchantFull | null>(null);
 
 const displayName = computed(() => storeSelf.userName || (isAdmin.value ? '管理員' : '商家'));
 const brandLabel = computed(() => isAdmin.value ? '平台後台' : '商家後台');
+
+const resolveLocale = (): 'zh' | 'en' | 'ja' => {
+  const l = locale.value;
+  if (l.startsWith('en')) return 'en';
+  if (l.startsWith('ja')) return 'ja';
+  return 'zh';
+};
+const providerLabel = computed(() => {
+  if (!merchant.value) {
+    const lo = resolveLocale();
+    return lo === 'zh' ? '服務人員' : lo === 'en' ? 'Provider' : 'スタッフ';
+  }
+  return resolveProviderLabel(merchant.value, resolveLocale());
+});
+const providerModeEnabled = computed(() => merchant.value?.providerModeEnabled === true);
 
 const ApiLoadMe = async () => {
   // /auth/me 是真相來源：JWT 解析後的 impersonatedBy 才能信任
@@ -25,6 +43,12 @@ const ApiLoadMe = async () => {
   } else {
     meImpersonatedBy.value = '';
   }
+};
+
+const ApiLoadMerchant = async () => {
+  if (isAdmin.value || !storeSelf.isSignIn) return;
+  const res = await $api.GetSelfMerchant();
+  if (res.status.code === $enum.apiStatus.success) merchant.value = res.data.merchant;
 };
 
 const ClickSignOut = async () => {
@@ -41,6 +65,7 @@ const ClickExitImpersonation = async () => {
 
 onMounted(() => {
   ApiLoadMe();
+  ApiLoadMerchant();
 });
 </script>
 
@@ -75,6 +100,10 @@ onMounted(() => {
             NuxtLinkLocale.LayoutBackDesk__navLink(to="/admin") {{ t('admin.nav.home') }}
             NuxtLinkLocale.LayoutBackDesk__navLink(to="/admin/appointments") {{ t('admin.nav.appointments') }}
             NuxtLinkLocale.LayoutBackDesk__navLink(to="/admin/queue") {{ t('admin.nav.queue') }}
+            NuxtLinkLocale.LayoutBackDesk__navLink(
+              v-if="providerModeEnabled"
+              to="/admin/providers"
+            ) {{ t('admin.nav.providers', { label: providerLabel }) }}
           .LayoutBackDesk__navSection
             .LayoutBackDesk__navSectionTitle {{ t('admin.nav.sectionSchedule') }}
             NuxtLinkLocale.LayoutBackDesk__navLink(to="/admin/schedule") {{ t('admin.nav.schedule') }}

@@ -15,6 +15,7 @@ const BodySchema = z.object({
   slug: z.string().min(1).max(64),
   serviceId: z.string().min(1),
   resourceId: z.string().min(1).optional(),
+  providerId: z.string().min(1).optional(),
   startAt: z.string().min(1),
   customer: z.object({
     lastName: z.string().min(1).max(20),
@@ -58,6 +59,7 @@ export default defineEventHandler(async (event) => {
     merchantId: merchant.id,
     serviceId: parsed.data.serviceId,
     resourceId: parsed.data.resourceId,
+    providerId: parsed.data.providerId,
     startAtIso: parsed.data.startAt,
     customer: parsed.data.customer,
     note: parsed.data.note

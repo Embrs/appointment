@@ -72,20 +72,45 @@ export default defineEventHandler(async (event) => {
       customerPhone: { endsWith: parsed.data.phoneLast4 },
       status: { in: ['WAITING', 'CALLED'] }
     },
-    // 多取一筆即可判定模糊；避免 over-fetch
-    select: { id: true },
-    take: 2,
+    select: {
+      id: true,
+      ticketNumber: true,
+      status: true,
+      resourceId: true,
+      claimToken: true,
+      service: { select: { name: true } },
+      resource: { select: { name: true } }
+    },
+    // 多取一筆即可判定模糊；避免 over-fetch；上限拉至 8 處理 ≤8 個 resource 場景
+    take: 8,
     orderBy: { ticketNumber: 'asc' }
   });
 
   if (matches.length === 0) {
     return recordFailureOr(event, ip, notFoundError(event, MSG_QUEUE_FIND_NOT_FOUND));
   }
-  if (matches.length > 1) {
-    // 多筆視為模糊：不洩漏任何 ticketId、不計入失敗鎖（已是有效查詢）
+
+  // 命中單筆：沿用既有 contract
+  if (matches.length === 1) {
+    return successResponse({ ticketId: matches[0]!.id });
+  }
+
+  // 多筆：必須每筆都在不同 resource（同 resource 不應出現 — internalCreateTicket 已擋同手機 + 同 resource 重複）
+  // 若仍出現同 resource 多筆（罕見、髒資料），視為 ambiguous 不洩漏
+  const distinctResource = new Set(matches.map((m) => m.resourceId ?? '__null__'));
+  if (distinctResource.size !== matches.length) {
     return badRequestError(event, MSG_QUEUE_FIND_AMBIGUOUS);
   }
 
-  // 命中單一票，回 ticketId（不洩漏 phone / lastName / title）
-  return successResponse({ ticketId: matches[0].id });
+  return successResponse({
+    tickets: matches.map((m) => ({
+      ticketId: m.id,
+      ticketNumber: m.ticketNumber,
+      status: m.status,
+      resourceId: m.resourceId,
+      resourceName: m.resource?.name ?? null,
+      serviceName: m.service?.name ?? '',
+      claimToken: m.claimToken
+    }))
+  });
 });

@@ -20,7 +20,7 @@ const MAX_BYTES = 5 * 1024 * 1024;
 
 const QuerySchema = z
   .object({
-    kind: z.enum(['logo', 'cover', 'service', 'other']).optional()
+    kind: z.enum(['logo', 'cover', 'service', 'provider-avatar', 'other']).optional()
   })
   .passthrough();
 

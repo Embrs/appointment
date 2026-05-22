@@ -1,13 +1,17 @@
 <script setup lang="ts">
 // PageBook — 顧客預約步驟器
-// 步驟：service → (resource?) → date → slot → info → confirm
+// 步驟：service → (provider?) → (resource?) → date → slot → info → confirm
+// provider 步驟僅當 merchant.providerModeEnabled && service.requiresProvider 時啟用
+import { resolveProviderLabel } from '~shared/i18n/provider-label';
+
 definePageMeta({ layout: 'front-desk' });
 
-const { t } = useI18n();
+const { t, locale } = useI18n();
 const route = useRoute();
 const localePath = useLocalePath();
 const slug = computed(() => String(route.params.slug ?? ''));
 const initialServiceId = computed(() => String(route.query.serviceId ?? ''));
+const initialProviderId = computed(() => String(route.query.providerId ?? ''));
 
 const sessionStore = StoreCustomerSession();
 
@@ -15,22 +19,39 @@ const loading = ref(true);
 const merchant = ref<PublicMerchantItem | null>(null);
 const services = ref<PublicServiceItem[]>([]);
 const resources = ref<PublicResourceItem[]>([]);
+const providers = ref<PublicProviderItem[]>([]);
 
 const slots = ref<AvailabilitySlot[]>([]);
 const slotsLoading = ref(false);
 const timezone = ref('Asia/Taipei');
 
+const resolveLocale = (): 'zh' | 'en' | 'ja' => {
+  const l = locale.value;
+  if (l.startsWith('en')) return 'en';
+  if (l.startsWith('ja')) return 'ja';
+  return 'zh';
+};
+const providerLabel = computed(() => {
+  if (!merchant.value) return resolveLocale() === 'zh' ? '服務人員' : resolveLocale() === 'en' ? 'Provider' : 'スタッフ';
+  return resolveProviderLabel(merchant.value, resolveLocale());
+});
+
 // 步驟狀態
-type StepName = 'service' | 'resource' | 'datetime' | 'info';
+type StepName = 'service' | 'provider' | 'resource' | 'datetime' | 'info';
 // '__any__' 為「不指定（自動分配）」的 sentinel，僅 RESOURCE_OPTIONAL 模式會出現
 const ANY_RESOURCE = '__any__';
 const isResourceMode = (mode: string | undefined): boolean =>
   mode === 'RESOURCE' || mode === 'RESOURCE_OPTIONAL';
+const needsProviderStep = computed(() =>
+  merchant.value?.providerModeEnabled === true && selectedService.value?.requiresProvider === true
+);
 const stepOrder = computed<StepName[]>(() => {
   const needRes = isResourceMode(selectedService.value?.bookingMode);
-  return needRes
-    ? ['service', 'resource', 'datetime', 'info']
-    : ['service', 'datetime', 'info'];
+  const steps: StepName[] = ['service'];
+  if (needsProviderStep.value) steps.push('provider');
+  if (needRes) steps.push('resource');
+  steps.push('datetime', 'info');
+  return steps;
 });
 const currentStep = ref<StepName>('service');
 const stepIndex = computed(() => stepOrder.value.indexOf(currentStep.value));
@@ -38,6 +59,7 @@ const stepIndex = computed(() => stepOrder.value.indexOf(currentStep.value));
 const form = reactive({
   serviceId: '',
   resourceId: '',
+  providerId: '',
   date: '',
   startAt: '',
   endAt: '',
@@ -72,6 +94,20 @@ const availableResources = computed(() => {
   return resources.value.filter((r) => ids.includes(r.id));
 });
 
+const availableProviders = computed(() => {
+  if (!selectedService.value) return [];
+  const ids = selectedService.value.providerIds || [];
+  return providers.value.filter((p) => ids.includes(p.id));
+});
+
+const selectedProvider = computed(() =>
+  providers.value.find((p) => p.id === form.providerId) ?? null
+);
+
+const apiProviderId = computed(() =>
+  needsProviderStep.value && form.providerId ? form.providerId : undefined
+);
+
 // 載入 merchant
 const ApiLoad = async () => {
   loading.value = true;
@@ -85,16 +121,44 @@ const ApiLoad = async () => {
     services.value = res.data.services.filter((s) => s.bookingMode !== 'QUEUE');
     resources.value = res.data.resources;
     timezone.value = res.data.merchant.timezone;
+
+    // 啟用 Provider 制商家：載入公開 Provider 列表
+    if (res.data.merchant.providerModeEnabled) {
+      const pRes = await $api.GetPublicProviderList({ slug: slug.value });
+      if (pRes.status.code === $enum.apiStatus.success) {
+        providers.value = pRes.data.items;
+      }
+    }
+
     // URL 帶 serviceId：直接預選並推進
     if (initialServiceId.value) {
       const s = services.value.find((x) => x.id === initialServiceId.value);
       if (s) {
         form.serviceId = s.id;
         const needRes = isResourceMode(s.bookingMode);
-        currentStep.value = needRes ? 'resource' : 'datetime';
-        if (!needRes) {
-          form.date = TodayStr(1);
-          await ApiLoadSlots();
+        const needProv = res.data.merchant.providerModeEnabled && s.requiresProvider;
+        // URL 也帶 providerId：兩步皆預選
+        if (needProv && initialProviderId.value) {
+          const p = providers.value.find((x) => x.id === initialProviderId.value && (s.providerIds || []).includes(x.id));
+          if (p) {
+            form.providerId = p.id;
+            // 跳過 provider 步直接進下一步
+            currentStep.value = needRes ? 'resource' : 'datetime';
+            if (!needRes) {
+              form.date = TodayStr(1);
+              await ApiLoadSlots();
+            }
+          } else {
+            currentStep.value = 'provider';
+          }
+        } else if (needProv) {
+          currentStep.value = 'provider';
+        } else {
+          currentStep.value = needRes ? 'resource' : 'datetime';
+          if (!needRes) {
+            form.date = TodayStr(1);
+            await ApiLoadSlots();
+          }
         }
       }
     }
@@ -131,6 +195,7 @@ const ApiLoadSlots = async () => {
       slug: slug.value,
       serviceId: form.serviceId,
       resourceId: apiResourceId.value,
+      providerId: apiProviderId.value,
       date: form.date
     });
     if (res.status.code === $enum.apiStatus.success) {
@@ -147,8 +212,29 @@ const ApiLoadSlots = async () => {
 const ClickPickService = (id: string) => {
   form.serviceId = id;
   form.resourceId = '';
+  form.providerId = '';
   form.startAt = '';
   slots.value = [];
+  const needRes = isResourceMode(selectedService.value?.bookingMode);
+  const needProv = needsProviderStep.value;
+  if (needProv) {
+    currentStep.value = 'provider';
+    return;
+  }
+  currentStep.value = needRes ? 'resource' : 'datetime';
+  if (!needRes && !form.date) form.date = TodayStr(1);
+  if (!needRes) ApiLoadSlots();
+};
+
+const ClickPickProvider = (id: string) => {
+  form.providerId = id;
+};
+
+const ClickNextFromProvider = () => {
+  if (!form.providerId) {
+    ElMessage.warning(t('booking.messages.providerRequired', { label: providerLabel.value }));
+    return;
+  }
   const needRes = isResourceMode(selectedService.value?.bookingMode);
   currentStep.value = needRes ? 'resource' : 'datetime';
   if (!needRes && !form.date) form.date = TodayStr(1);
@@ -211,6 +297,8 @@ const ConfirmFlow = async () => {
     serviceName: selectedService.value!.name,
     resourceId: apiResourceId.value,
     resourceName: selectedResource.value?.name,
+    providerId: apiProviderId.value,
+    providerName: selectedProvider.value?.name,
     startAt: form.startAt,
     endAt: form.endAt,
     timezone: timezone.value,
@@ -292,6 +380,34 @@ onMounted(ApiLoad);
             @click-book="ClickPickService"
             @click-queue="ClickQueueFromBook"
           )
+
+      //- Step: provider
+      template(v-else-if="currentStep === 'provider'")
+        h3.PageBook__panelTitle {{ $t('booking.panel.pickProvider', { label: providerLabel }) }}
+        p.PageBook__panelHint {{ $t('booking.provider.pickHint', { label: providerLabel }) }}
+        .PageBook__providerGrid
+          .PageBook__providerCard(
+            v-for="p in availableProviders"
+            :key="p.id"
+            :class="{ 'PageBook__providerCard--active': form.providerId === p.id }"
+            @click="ClickPickProvider(p.id)"
+          )
+            .PageBook__providerAvatar
+              img(v-if="p.avatarUrl" :src="p.avatarUrl" :alt="p.name")
+              span.PageBook__providerAvatarFallback(v-else) {{ p.name?.slice(0, 1) || '?' }}
+            .PageBook__providerInfo
+              .PageBook__providerName {{ p.name }}
+              .PageBook__providerTitle(v-if="p.title") {{ p.title }}
+              .PageBook__providerBio(v-if="p.bio") {{ p.bio }}
+              .PageBook__providerBio(v-else) {{ $t('booking.provider.bioEmpty') }}
+        .PageBook__nav
+          ElButton(size="large" @click="ClickBack") {{ $t('common.previous') }}
+          ElButton(
+            type="primary"
+            size="large"
+            :disabled="!form.providerId"
+            @click="ClickNextFromProvider"
+          ) {{ $t('common.next') }}
 
       //- Step: resource
       template(v-else-if="currentStep === 'resource'")
@@ -451,6 +567,90 @@ onMounted(ApiLoad);
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
   gap: 12px;
+}
+
+.PageBook__panelHint {
+  margin: 0 0 8px;
+  font-size: 13px;
+  color: rgba(69, 69, 69, 0.6);
+}
+
+.PageBook__providerGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 12px;
+}
+
+.PageBook__providerCard {
+  display: flex;
+  gap: 12px;
+  padding: 14px;
+  background-color: $white;
+  border: 2px solid rgba(53, 77, 123, 0.1);
+  border-radius: 12px;
+  cursor: pointer;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.PageBook__providerCard:hover {
+  border-color: rgba(53, 77, 123, 0.3);
+}
+
+.PageBook__providerCard--active {
+  border-color: $primary;
+  box-shadow: 0 4px 14px -6px rgba(53, 77, 123, 0.3);
+}
+
+.PageBook__providerAvatar {
+  flex-shrink: 0;
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  overflow: hidden;
+  background-color: #e6f0fa;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.PageBook__providerAvatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.PageBook__providerAvatarFallback {
+  font-weight: 600;
+  color: #2a6dd0;
+  font-size: 22px;
+  text-transform: uppercase;
+}
+
+.PageBook__providerInfo {
+  flex: 1;
+  min-width: 0;
+}
+
+.PageBook__providerName {
+  font-size: 15px;
+  font-weight: 600;
+  color: $primary;
+}
+
+.PageBook__providerTitle {
+  margin-top: 2px;
+  font-size: 12px;
+  color: rgba(69, 69, 69, 0.6);
+}
+
+.PageBook__providerBio {
+  margin-top: 6px;
+  font-size: 13px;
+  color: rgba(69, 69, 69, 0.7);
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
 }
 
 .PageBook__datetime {

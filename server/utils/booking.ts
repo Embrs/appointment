@@ -86,6 +86,30 @@ export const MSG_APPOINTMENT_NOT_YET_STARTED: I18nMessage = {
   ja: '予約時間が開始されていないため、完了または不在を記録できません'
 };
 
+export const MSG_PROVIDER_REQUIRED: I18nMessage = {
+  zh_tw: '請先選擇服務人員',
+  en: 'Please select a provider',
+  ja: 'スタッフを選択してください'
+};
+
+export const MSG_PROVIDER_NOT_FOR_SERVICE: I18nMessage = {
+  zh_tw: '該服務人員不提供此服務',
+  en: 'This provider does not offer this service',
+  ja: 'このスタッフはこのサービスを提供していません'
+};
+
+export const MSG_PROVIDER_INACTIVE: I18nMessage = {
+  zh_tw: '該服務人員已停用',
+  en: 'This provider is inactive',
+  ja: 'このスタッフは停止中です'
+};
+
+export const MSG_PROVIDER_TAKEN: I18nMessage = {
+  zh_tw: '該服務人員此時段已被預約',
+  en: 'This provider is already booked at this time',
+  ja: 'このスタッフはこの時間帯すでに予約済みです'
+};
+
 export const MSG_BOOKING_LIMIT_EXCEEDED: I18nMessage = {
   zh_tw: '您在本商家的預約已達上限，請取消舊預約後再試',
   en: 'You have reached the booking limit at this merchant, please cancel an existing booking and try again',
@@ -385,6 +409,8 @@ export interface CreateAppointmentInput {
   merchantId: string;
   serviceId: string;
   resourceId?: string;
+  /** 啟用 Provider 制商家：可指定服務人員；商家未啟用時忽略 */
+  providerId?: string;
   /** ISO UTC */
   startAtIso: string;
   customer: {
@@ -414,7 +440,7 @@ export interface CreateAppointmentFailure {
 export const createAppointment = async (
   input: CreateAppointmentInput
 ): Promise<CreateAppointmentSuccess | CreateAppointmentFailure> => {
-  const { event, merchantId, serviceId, resourceId, startAtIso, customer, note, byMerchant } = input;
+  const { event, merchantId, serviceId, resourceId, providerId, startAtIso, customer, note, byMerchant } = input;
 
   // 1. 驗 startAt 是否未過期
   const startAt = new Date(startAtIso);
@@ -433,13 +459,15 @@ export const createAppointment = async (
       bookingMode: true,
       durationMinutes: true,
       capacityPerSlot: true,
+      requiresProvider: true,
       resources: {
         select: {
           resourceId: true,
           resource: { select: { isActive: true, deletedAt: true } }
         }
       },
-      merchant: { select: { timezone: true } }
+      providers: { select: { providerId: true } },
+      merchant: { select: { timezone: true, providerModeEnabled: true } }
     }
   });
   if (!service) return { ok: false, response: notFoundError(event) };
@@ -466,6 +494,29 @@ export const createAppointment = async (
       }
     }
   }
+
+  // 2.5 Provider 驗證：商家未啟用 Provider 制時忽略 providerId（不寫入）；啟用時依 requiresProvider 與 providerId 驗證
+  const providerModeActive = service.merchant.providerModeEnabled;
+  let effectiveProviderId: string | null = null;
+  if (providerModeActive) {
+    if (service.requiresProvider && !providerId) {
+      return { ok: false, response: badRequestError(event, MSG_PROVIDER_REQUIRED) };
+    }
+    if (providerId) {
+      const provider = await prisma.provider.findFirst({
+        where: { id: providerId, merchantId, deletedAt: null },
+        select: { id: true, isActive: true }
+      });
+      if (!provider) return { ok: false, response: badRequestError(event, MSG_PROVIDER_NOT_FOR_SERVICE) };
+      if (!provider.isActive) return { ok: false, response: badRequestError(event, MSG_PROVIDER_INACTIVE) };
+      const linkedToService = service.providers.some((p) => p.providerId === providerId);
+      if (!linkedToService) {
+        return { ok: false, response: badRequestError(event, MSG_PROVIDER_NOT_FOR_SERVICE) };
+      }
+      effectiveProviderId = providerId;
+    }
+  }
+  // 若商家未啟用 Provider 制，effectiveProviderId 保持 null（顧客即使誤帶也忽略）
 
   const endAt = new Date(startAt.getTime() + service.durationMinutes * 60 * 1000);
   const capacity = service.bookingMode === 'TIME_CAPACITY' ? service.capacityPerSlot : 1;
@@ -542,11 +593,27 @@ export const createAppointment = async (
         return { taken: true as const };
       }
 
+      // Provider 衝堂檢查：同 Provider 同 startAt 已有 CONFIRMED → 後者拒
+      if (effectiveProviderId) {
+        const providerOccupied = await tx.appointment.count({
+          where: {
+            merchantId,
+            providerId: effectiveProviderId,
+            startAt,
+            status: 'CONFIRMED'
+          }
+        });
+        if (providerOccupied > 0) {
+          return { providerTaken: true as const };
+        }
+      }
+
       const appt = await tx.appointment.create({
         data: {
           merchantId,
           serviceId,
           resourceId: assignedResourceId,
+          providerId: effectiveProviderId,
           mode: appointmentMode,
           status: 'CONFIRMED',
           startAt,
@@ -563,6 +630,9 @@ export const createAppointment = async (
 
     if ('limitExceeded' in created) {
       return { ok: false, response: conflictError(event, MSG_BOOKING_LIMIT_EXCEEDED) };
+    }
+    if ('providerTaken' in created) {
+      return { ok: false, response: conflictError(event, MSG_PROVIDER_TAKEN) };
     }
     if ('taken' in created) {
       return { ok: false, response: conflictError(event, MSG_SLOT_TAKEN) };

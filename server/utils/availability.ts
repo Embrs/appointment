@@ -50,6 +50,8 @@ export interface ComputeAvailabilityParams {
   slug: string;
   serviceId: string;
   resourceId?: string;
+  /** 啟用 Provider 制商家：指定服務人員時帶入，影響排班計算 */
+  providerId?: string;
   /** YYYY-MM-DD（商家時區下的當日） */
   date: string;
 }
@@ -276,6 +278,24 @@ const MSG_DATE_INVALID: I18nMessage = {
   ja: '日付形式が無効です（YYYY-MM-DD）'
 };
 
+const MSG_PROVIDER_REQUIRED: I18nMessage = {
+  zh_tw: '此服務需指定服務人員',
+  en: 'This service requires a provider',
+  ja: 'このサービスはスタッフ指定が必要です'
+};
+
+const MSG_PROVIDER_NOT_FOR_SERVICE: I18nMessage = {
+  zh_tw: '該服務人員不提供此服務',
+  en: 'This provider does not offer this service',
+  ja: 'このスタッフはこのサービスを提供していません'
+};
+
+const MSG_PROVIDER_INACTIVE: I18nMessage = {
+  zh_tw: '該服務人員已停用',
+  en: 'This provider is inactive',
+  ja: 'このスタッフは停止中です'
+};
+
 // ====== 外殼：computeAvailability ======
 
 export const computeAvailability = async (
@@ -293,7 +313,7 @@ export const computeAvailability = async (
   // 取商家
   const merchant = await prisma.merchant.findFirst({
     where: { slug: params.slug, status: 'ACTIVE', deletedAt: null },
-    select: { id: true, timezone: true }
+    select: { id: true, timezone: true, providerModeEnabled: true }
   });
   if (!merchant) return { ok: false, response: notFoundError(event) };
 
@@ -310,10 +330,20 @@ export const computeAvailability = async (
       bookingMode: true,
       durationMinutes: true,
       slotIntervalMinutes: true,
-      capacityPerSlot: true
+      capacityPerSlot: true,
+      requiresProvider: true
     }
   });
   if (!service) return { ok: false, response: notFoundError(event) };
+
+  // Provider 制：未啟用時 providerId 一律忽略；啟用時依 requiresProvider 與 providerId 配對驗證
+  const providerModeActive = merchant.providerModeEnabled;
+  const effectiveProviderId = providerModeActive ? params.providerId : undefined;
+
+  // requiresProvider=true 但未帶 providerId → 400
+  if (providerModeActive && service.requiresProvider && !effectiveProviderId) {
+    return { ok: false, response: badRequestError(event, MSG_PROVIDER_REQUIRED) };
+  }
 
   const isResourceMode =
     service.bookingMode === 'RESOURCE' || service.bookingMode === 'RESOURCE_OPTIONAL';
@@ -340,6 +370,62 @@ export const computeAvailability = async (
     where: { merchantId: merchant.id, date: overrideDate }
   });
   const isHoliday = holidayRow !== null;
+
+  // 內部 helper：對指定 Provider 算 slots（PROVIDER scope 排班 + Provider 衝堂）
+  const computeSlotsForProvider = async (providerId: string): Promise<Slot[]> => {
+    const [rules, overrideRow, appointments] = await Promise.all([
+      prisma.scheduleRule.findMany({
+        where: {
+          merchantId: merchant.id,
+          scope: 'PROVIDER',
+          providerId,
+          weekday,
+          isActive: true
+        },
+        select: { startTime: true, endTime: true, isActive: true }
+      }),
+      prisma.scheduleOverride.findFirst({
+        where: {
+          merchantId: merchant.id,
+          scope: 'PROVIDER',
+          providerId,
+          date: overrideDate
+        },
+        select: { isClosed: true, startTime: true, endTime: true }
+      }),
+      prisma.appointment.findMany({
+        where: {
+          merchantId: merchant.id,
+          providerId,
+          status: 'CONFIRMED',
+          startAt: { gte: dayStart, lt: dayEnd }
+        },
+        select: { startAt: true }
+      })
+    ]);
+    const occupiedMap = new Map<string, number>();
+    for (const a of appointments) {
+      const key = a.startAt.toISOString();
+      occupiedMap.set(key, (occupiedMap.get(key) ?? 0) + 1);
+    }
+    return buildSlots({
+      service: {
+        bookingMode: service.bookingMode,
+        durationMinutes: service.durationMinutes,
+        slotIntervalMinutes: service.slotIntervalMinutes,
+        capacityPerSlot: service.capacityPerSlot
+      },
+      rules: rules.map((r) => ({ startTime: r.startTime, endTime: r.endTime, isActive: r.isActive })),
+      override: overrideRow
+        ? { isClosed: overrideRow.isClosed, startTime: overrideRow.startTime, endTime: overrideRow.endTime }
+        : null,
+      isHoliday,
+      occupiedMap,
+      timezone: tz,
+      date: params.date,
+      now
+    });
+  };
 
   // 內部 helper：對單一資源（或非 RESOURCE 模式以 null）算 slots
   const computeSlotsForResource = async (resourceId: string | null): Promise<Slot[]> => {
@@ -396,6 +482,28 @@ export const computeAvailability = async (
       now
     });
   };
+
+  // 路徑 D（Provider）：商家啟用 Provider 制 + 帶 providerId → 以 Provider 排班為基準
+  // 條件：服務需 requiresProvider=true（已在前段驗證 providerId 必填）才走這條
+  // 服務 requiresProvider=false 但顧客帶了 providerId 仍走原邏輯（向後相容）
+  if (providerModeActive && service.requiresProvider && effectiveProviderId) {
+    // 驗 Provider 屬該商家且啟用
+    const provider = await prisma.provider.findFirst({
+      where: { id: effectiveProviderId, merchantId: merchant.id, deletedAt: null },
+      select: { id: true, isActive: true }
+    });
+    if (!provider) return { ok: false, response: badRequestError(event, MSG_PROVIDER_NOT_FOR_SERVICE) };
+    if (!provider.isActive) return { ok: false, response: badRequestError(event, MSG_PROVIDER_INACTIVE) };
+
+    // 驗 ProviderService 綁定（該 Provider 是否提供此服務）
+    const link = await prisma.providerService.findUnique({
+      where: { providerId_serviceId: { providerId: effectiveProviderId, serviceId: service.id } }
+    });
+    if (!link) return { ok: false, response: badRequestError(event, MSG_PROVIDER_NOT_FOR_SERVICE) };
+
+    const slots = await computeSlotsForProvider(effectiveProviderId);
+    return { ok: true, timezone: tz, date: params.date, slots };
+  }
 
   // 路徑 A：RESOURCE_OPTIONAL 且未帶 resourceId → 對所有綁定 active 資源做 union 聚合
   if (service.bookingMode === 'RESOURCE_OPTIONAL' && !params.resourceId) {

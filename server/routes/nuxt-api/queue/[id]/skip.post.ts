@@ -7,7 +7,9 @@ import {
   MSG_QUEUE_INVALID_TRANSITION,
   MSG_QUEUE_TICKET_NOT_FOUND,
   broadcastQueue,
-  buildBroadcastEtaFields
+  buildBroadcastEtaFields,
+  resolveProviderByResourceMap,
+  getResourceProviderEntry
 } from '@@/utils/queue';
 
 export default defineEventHandler(async (event) => {
@@ -24,8 +26,10 @@ export default defineEventHandler(async (event) => {
       id: true,
       status: true,
       serviceId: true,
+      resourceId: true,
       ticketDate: true,
-      service: { select: { avgServiceMinutes: true, durationMinutes: true } }
+      service: { select: { avgServiceMinutes: true, durationMinutes: true } },
+      resource: { select: { name: true } }
     }
   });
   if (!ticket) return notFoundError(event, MSG_QUEUE_TICKET_NOT_FOUND);
@@ -39,9 +43,10 @@ export default defineEventHandler(async (event) => {
 
   const counter = await prisma.queueCounter.findUnique({
     where: {
-      merchantId_serviceId_counterDate: {
+      merchantId_serviceId_resourceId_counterDate: {
         merchantId,
         serviceId: ticket.serviceId,
+        resourceId: ticket.resourceId,
         counterDate: ticket.ticketDate
       }
     },
@@ -55,11 +60,17 @@ export default defineEventHandler(async (event) => {
       durationMinutes: ticket.service.durationMinutes
     }
   );
+  const providerMap = await resolveProviderByResourceMap(merchantId);
+  const providerEntry = getResourceProviderEntry(providerMap, ticket.resourceId);
   broadcastQueue(merchantId, {
     type: 'TICKET_SKIPPED',
     serviceId: ticket.serviceId,
+    resourceId: ticket.resourceId,
+    resourceName: ticket.resource?.name,
     servingTicketId: ticket.id,
     ...etaFields,
+    providerId: providerEntry?.providerId ?? null,
+    providerName: providerEntry?.providerName ?? null,
     timestamp: Date.now()
   });
 

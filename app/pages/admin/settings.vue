@@ -1,13 +1,15 @@
 <script setup lang="ts">
-// PageAdminSettings — 商家資訊、外觀（logo / cover）、取消政策
+// PageAdminSettings — 商家資訊、外觀（logo / cover）、取消政策、Provider 制
 // OWNER-only：STAFF 訪問時顯示無權限
 import type { FormInstance, FormRules } from 'element-plus';
+import { resolveProviderLabel } from '~shared/i18n/provider-label';
 
 definePageMeta({
   layout: 'back-desk',
   middleware: ['merchant']
 });
 
+const { t, locale } = useI18n();
 const storeSelf = StoreSelf();
 const isOwner = computed(() => storeSelf.role === 'OWNER');
 
@@ -28,7 +30,22 @@ const form = reactive({
   address: '',
   cancelMode: 'free' as 'free' | 'cutoff',
   cutoffHours: 2,
-  maxActiveAppointmentsPerCustomer: 5
+  maxActiveAppointmentsPerCustomer: 5,
+  providerModeEnabled: false,
+  providerLabelZh: '',
+  providerLabelEn: '',
+  providerLabelJa: ''
+});
+
+const resolveLocale = (): 'zh' | 'en' | 'ja' => {
+  const l = locale.value;
+  if (l.startsWith('en')) return 'en';
+  if (l.startsWith('ja')) return 'ja';
+  return 'zh';
+};
+const providerLabelPreview = computed(() => {
+  const sample = { providerLabel: { zh: form.providerLabelZh, en: form.providerLabelEn, ja: form.providerLabelJa }, timezone: form.timezone };
+  return resolveProviderLabel(sample, resolveLocale());
 });
 
 const SLUG_PATTERN = /^[a-z0-9-]{3,50}$/;
@@ -67,6 +84,11 @@ const ApiLoad = async () => {
     form.cancelMode = (policy.mode as 'free' | 'cutoff') ?? 'free';
     form.cutoffHours = (policy.hoursBeforeCannotCancel as number) ?? 2;
     form.maxActiveAppointmentsPerCustomer = m.maxActiveAppointmentsPerCustomer ?? 5;
+    form.providerModeEnabled = m.providerModeEnabled ?? false;
+    const lbl = m.providerLabel || {};
+    form.providerLabelZh = lbl.zh || '';
+    form.providerLabelEn = lbl.en || '';
+    form.providerLabelJa = lbl.ja || '';
   } finally {
     loading.value = false;
   }
@@ -74,11 +96,18 @@ const ApiLoad = async () => {
 
 const SaveFlow = async () => {
   if (!merchant.value) return;
+  const wasProviderModeEnabled = merchant.value.providerModeEnabled;
+  const willEnableProviderMode = form.providerModeEnabled && !wasProviderModeEnabled;
+
   saving.value = true;
   try {
     const cancelPolicy: CancelPolicy = form.cancelMode === 'free'
       ? { mode: 'free' }
       : { mode: 'cutoff', hoursBeforeCannotCancel: Number(form.cutoffHours) || 1 };
+    const providerLabel: ProviderLabel = {};
+    if (form.providerLabelZh.trim()) providerLabel.zh = form.providerLabelZh.trim();
+    if (form.providerLabelEn.trim()) providerLabel.en = form.providerLabelEn.trim();
+    if (form.providerLabelJa.trim()) providerLabel.ja = form.providerLabelJa.trim();
     const res = await $api.UpdateSelfMerchant({
       id: merchant.value.id,
       name: form.name.trim(),
@@ -91,7 +120,9 @@ const SaveFlow = async () => {
       timezone: form.timezone,
       address: form.address.trim(),
       cancelPolicy,
-      maxActiveAppointmentsPerCustomer: Number(form.maxActiveAppointmentsPerCustomer) || 5
+      maxActiveAppointmentsPerCustomer: Number(form.maxActiveAppointmentsPerCustomer) || 5,
+      providerModeEnabled: form.providerModeEnabled,
+      providerLabel
     });
     if (res.status.code !== $enum.apiStatus.success) {
       ElMessage.error(res.status.message?.zh_tw || '儲存失敗');
@@ -99,6 +130,26 @@ const SaveFlow = async () => {
     }
     ElMessage.success('已儲存');
     merchant.value = res.data.merchant;
+
+    // 啟用精靈：剛把 providerModeEnabled 從 false 切到 true 時跳引導
+    if (willEnableProviderMode) {
+      try {
+        await ElMessageBox.confirm(
+          t('admin.dialog.providerModeWizardBody', { label: providerLabelPreview.value }),
+          t('admin.dialog.providerModeWizardTitle', { label: providerLabelPreview.value }),
+          {
+            confirmButtonText: t('admin.dialog.providerModeWizardCreate', { label: providerLabelPreview.value }),
+            cancelButtonText: t('common.cancel'),
+            type: 'info'
+          }
+        );
+        // 跳到 providers 頁並開新增 dialog（with goto-schedule on done）
+        await navigateTo('/admin/providers');
+        await $open.DialogProviderEdit({ mode: 'create', onCreatedGotoSchedule: true });
+      } catch {
+        // 使用者取消 → 不跳轉
+      }
+    }
   } finally {
     saving.value = false;
   }
@@ -200,6 +251,37 @@ onMounted(() => {
             controls-position="right"
           )
           .PageAdminSettings__slug-hint 1–99，預設 5；商家代客預約不受此上限限制
+      .PageAdminSettings__section
+        h2.PageAdminSettings__section-title {{ $t('admin.settings.providerMode.title') }}
+        ElFormItem(:label="$t('admin.settings.providerMode.enabledLabel')")
+          ElSwitch(v-model="form.providerModeEnabled")
+          .PageAdminSettings__slug-hint {{ $t('admin.settings.providerMode.enabledHint') }}
+        ElFormItem(:label="$t('admin.settings.providerMode.labelTitle')")
+          .PageAdminSettings__slug-hint {{ $t('admin.settings.providerMode.labelHint') }}
+          .PageAdminSettings__labelRow
+            ElInput(
+              v-model="form.providerLabelZh"
+              maxlength="20"
+              :placeholder="$t('admin.settings.providerMode.labelPlaceholderZh')"
+              :disabled="!form.providerModeEnabled"
+            )
+              template(#prepend) {{ $t('admin.settings.providerMode.labelZh') }}
+          .PageAdminSettings__labelRow
+            ElInput(
+              v-model="form.providerLabelEn"
+              maxlength="40"
+              :placeholder="$t('admin.settings.providerMode.labelPlaceholderEn')"
+              :disabled="!form.providerModeEnabled"
+            )
+              template(#prepend) {{ $t('admin.settings.providerMode.labelEn') }}
+          .PageAdminSettings__labelRow
+            ElInput(
+              v-model="form.providerLabelJa"
+              maxlength="20"
+              :placeholder="$t('admin.settings.providerMode.labelPlaceholderJa')"
+              :disabled="!form.providerModeEnabled"
+            )
+              template(#prepend) {{ $t('admin.settings.providerMode.labelJa') }}
       .PageAdminSettings__actions
         ElButton(
           type="primary"
@@ -265,5 +347,13 @@ onMounted(() => {
   justify-content: flex-end;
   border-top: 1px solid rgba(53, 77, 123, 0.08);
   padding-top: 14px;
+}
+
+.PageAdminSettings__labelRow {
+  margin-top: 8px;
+}
+
+.PageAdminSettings__labelRow + .PageAdminSettings__labelRow {
+  margin-top: 4px;
 }
 </style>

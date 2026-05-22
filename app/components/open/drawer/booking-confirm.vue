@@ -52,6 +52,7 @@ const ClickConfirm = async () => {
       slug: props.params.slug,
       serviceId: props.params.serviceId,
       resourceId: props.params.resourceId,
+      providerId: props.params.providerId,
       startAt: props.params.startAt,
       customer: props.params.customer,
       note: props.params.note
@@ -87,6 +88,9 @@ const ClickConfirm = async () => {
       .OpenDrawerBookingConfirm__row(v-if="params.resourceName")
         span.OpenDrawerBookingConfirm__label {{ $t('booking.fields.resource') }}
         span.OpenDrawerBookingConfirm__value {{ params.resourceName }}
+      .OpenDrawerBookingConfirm__row(v-if="params.providerName")
+        span.OpenDrawerBookingConfirm__label {{ $t('appointment.fields.provider', { label: '' }).trim() || $t('booking.steps.provider', { label: '' }).trim() }}
+        span.OpenDrawerBookingConfirm__value {{ params.providerName }}
       .OpenDrawerBookingConfirm__row
         span.OpenDrawerBookingConfirm__label {{ $t('booking.fields.date') }}
         span.OpenDrawerBookingConfirm__value {{ dateLabel }}

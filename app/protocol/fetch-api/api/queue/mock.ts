@@ -104,3 +104,13 @@ export const MarkQueueTicketSkip = () =>
     ticketNumber: 1,
     status: 'SKIPPED'
   });
+
+export const AssignResourceQueue = () =>
+  SuccessRes<AssignResourceQueueRes>({
+    ok: true,
+    ticketId: 'mock-ticket-1',
+    ticketNumber: 5,
+    fromResourceId: 'mock-resource-A',
+    toResourceId: 'mock-resource-B',
+    toResourceName: 'B 診間'
+  });

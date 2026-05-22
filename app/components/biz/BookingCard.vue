@@ -50,6 +50,11 @@ const showCancelBtn = computed(() => {
   .BizBookingCard__row(v-if="appointment.resource")
     span.BizBookingCard__label {{ $t('booking.fields.resource') }}
     span.BizBookingCard__value {{ appointment.resource.name }}
+  .BizBookingCard__row(v-if="appointment.provider")
+    span.BizBookingCard__label {{ $t('booking.steps.provider', { label: '' }).trim() || '服務人員' }}
+    span.BizBookingCard__value
+      | {{ appointment.provider.name }}
+      span(v-if="!appointment.provider.isActive") {{ $t('appointment.fields.providerInactiveSuffix') }}
   .BizBookingCard__row(v-if="appointment.note")
     span.BizBookingCard__label {{ $t('booking.fields.note') }}
     span.BizBookingCard__value {{ appointment.note }}

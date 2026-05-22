@@ -24,6 +24,14 @@ const CancelPolicySchema = z
     { message: 'cutoff requires hoursBeforeCannotCancel >= 1' }
   );
 
+const ProviderLabelSchema = z
+  .object({
+    zh: z.string().trim().min(1).max(20).optional(),
+    en: z.string().trim().min(1).max(40).optional(),
+    ja: z.string().trim().min(1).max(20).optional()
+  })
+  .strict();
+
 const UpdateSchema = z
   .object({
     name: z.string().trim().min(1).max(60).optional(),
@@ -36,7 +44,9 @@ const UpdateSchema = z
     timezone: z.string().trim().min(1).max(60).optional(),
     address: z.string().trim().max(200).optional().nullable(),
     cancelPolicy: CancelPolicySchema.optional(),
-    maxActiveAppointmentsPerCustomer: z.number().int().min(1).max(99).optional()
+    maxActiveAppointmentsPerCustomer: z.number().int().min(1).max(99).optional(),
+    providerModeEnabled: z.boolean().optional(),
+    providerLabel: ProviderLabelSchema.optional()
   })
   .strict();
 
@@ -71,6 +81,11 @@ export default defineEventHandler(async (event) => {
     ? { ...(merchant.cancelPolicy as Record<string, unknown> ?? {}), ...data.cancelPolicy }
     : undefined;
 
+  // providerLabel 採 merge 合併（保留未提及的語言）
+  const mergedProviderLabel = data.providerLabel
+    ? { ...(merchant.providerLabel as Record<string, unknown> ?? {}), ...data.providerLabel }
+    : undefined;
+
   const updated = await prisma.merchant.update({
     where: { id },
     data: {
@@ -84,7 +99,9 @@ export default defineEventHandler(async (event) => {
       timezone: data.timezone,
       address: data.address ?? undefined,
       cancelPolicy: mergedCancelPolicy,
-      maxActiveAppointmentsPerCustomer: data.maxActiveAppointmentsPerCustomer
+      maxActiveAppointmentsPerCustomer: data.maxActiveAppointmentsPerCustomer,
+      providerModeEnabled: data.providerModeEnabled,
+      providerLabel: mergedProviderLabel
     }
   });
 
@@ -103,6 +120,8 @@ export default defineEventHandler(async (event) => {
       contactEmail: updated.contactEmail,
       address: updated.address,
       maxActiveAppointmentsPerCustomer: updated.maxActiveAppointmentsPerCustomer,
+      providerModeEnabled: updated.providerModeEnabled,
+      providerLabel: updated.providerLabel,
       updatedAt: updated.updatedAt
     }
   });

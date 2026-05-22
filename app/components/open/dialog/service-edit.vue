@@ -1,7 +1,9 @@
 <script setup lang="ts">
 // OpenDialogServiceEdit — 服務新增 / 編輯
 // bookingMode 切換時，capacityPerSlot / resourceIds 等欄位動態顯示
+// 商家啟用 providerModeEnabled 時額外顯示「需指定服務人員」開關 + Provider 多選
 import type { FormInstance, FormRules } from 'element-plus';
+import { resolveProviderLabel } from '~shared/i18n/provider-label';
 
 type Props = {
   params: DialogServiceEditParams;
@@ -16,6 +18,8 @@ const title = computed(() => isCreate.value ? '新增服務' : '編輯服務');
 const formRef = ref<FormInstance | null>(null);
 const submitting = ref(false);
 const resourceOptions = ref<ResourceItem[]>([]);
+const providerOptions = ref<ProviderItem[]>([]);
+const merchant = ref<SelfMerchantFull | null>(null);
 
 const initial = props.params.service;
 const form = reactive({
@@ -29,19 +33,44 @@ const form = reactive({
   isActive: initial?.isActive ?? true,
   displayOrder: initial?.displayOrder ?? 0,
   resourceIds: initial?.resourceIds ?? [],
+  providerIds: initial?.providerIds ?? [],
+  requiresProvider: initial?.requiresProvider ?? false,
   /** QUEUE 服務的平均服務時長（分鐘）；空字串表示留空 → 後端 null（fallback durationMinutes） */
   avgServiceMinutes: typeof initial?.avgServiceMinutes === 'number' ? String(initial.avgServiceMinutes) : ''
 });
+
+const { t, locale } = useI18n();
+
+const resolveLocale = (): 'zh' | 'en' | 'ja' => {
+  const l = locale.value;
+  if (l.startsWith('en')) return 'en';
+  if (l.startsWith('ja')) return 'ja';
+  return 'zh';
+};
+const providerLabel = computed(() => {
+  if (!merchant.value) return resolveLocale() === 'zh' ? '服務人員' : resolveLocale() === 'en' ? 'Provider' : 'スタッフ';
+  return resolveProviderLabel(merchant.value, resolveLocale());
+});
+const providerModeEnabled = computed(() => merchant.value?.providerModeEnabled === true);
+const showProviderFields = computed(() => providerModeEnabled.value && form.bookingMode !== 'QUEUE');
 
 const showDurationFields = computed(() => form.bookingMode !== 'QUEUE');
 const showAvgServiceMinutes = computed(() => form.bookingMode === 'QUEUE');
 const showCapacity = computed(() => form.bookingMode === 'TIME_CAPACITY');
 const showResource = computed(
-  () => form.bookingMode === 'RESOURCE' || form.bookingMode === 'RESOURCE_OPTIONAL'
+  () =>
+    form.bookingMode === 'RESOURCE' ||
+    form.bookingMode === 'RESOURCE_OPTIONAL' ||
+    form.bookingMode === 'QUEUE'
 );
+const resourceLabel = computed(() => {
+  if (form.bookingMode === 'QUEUE') return t('service.edit.queueResourcesLabel');
+  return '綁定資源';
+});
 const resourceHint = computed(() => {
   if (form.bookingMode === 'RESOURCE') return '顧客預約時必須指定一位資源';
   if (form.bookingMode === 'RESOURCE_OPTIONAL') return '顧客可選「不指定」由系統自動分配，或指定其中一位';
+  if (form.bookingMode === 'QUEUE') return t('service.edit.queueResourcesHint');
   return '';
 });
 
@@ -57,6 +86,17 @@ const ApiLoadResources = async () => {
   const res = await $api.GetResourceList();
   if (res.status.code !== $enum.apiStatus.success) return;
   resourceOptions.value = res.data.items.filter((r) => r.isActive);
+};
+
+const ApiLoadProviders = async () => {
+  const res = await $api.GetProviderList();
+  if (res.status.code !== $enum.apiStatus.success) return;
+  providerOptions.value = res.data.items.filter((p) => p.isActive);
+};
+
+const ApiLoadMerchant = async () => {
+  const res = await $api.GetSelfMerchant();
+  if (res.status.code === $enum.apiStatus.success) merchant.value = res.data.merchant;
 };
 
 type Emit = { 'on-close': [] };
@@ -75,11 +115,18 @@ const BuildPayload = () => {
     isActive: form.isActive,
     displayOrder: Number(form.displayOrder) || 0
   };
+  // Provider 欄位（非 QUEUE 且商家啟用 Provider 制時帶入）
+  const providerExtra: Record<string, unknown> = showProviderFields.value
+    ? {
+        requiresProvider: form.requiresProvider,
+        providerIds: [...form.providerIds]
+      }
+    : {};
   if (form.bookingMode === 'QUEUE') {
     // 空字串視為 null（沿用 durationMinutes）；數字字串轉為整數
     const trimmed = String(form.avgServiceMinutes).trim();
     const avgServiceMinutes = trimmed === '' ? null : Number(trimmed);
-    return { ...base, avgServiceMinutes };
+    return { ...base, avgServiceMinutes, resourceIds: [...form.resourceIds] };
   }
   const extra: Record<string, unknown> = {
     durationMinutes: Number(form.durationMinutes),
@@ -88,13 +135,16 @@ const BuildPayload = () => {
   if (form.bookingMode === 'TIME_CAPACITY') {
     extra.capacityPerSlot = Number(form.capacityPerSlot);
   }
-  if (form.bookingMode === 'RESOURCE' || form.bookingMode === 'RESOURCE_OPTIONAL') {
+  if (
+    form.bookingMode === 'RESOURCE' ||
+    form.bookingMode === 'RESOURCE_OPTIONAL'
+  ) {
     extra.resourceIds = [...form.resourceIds];
   }
   if (typeof form.priceCents === 'number' && form.priceCents > 0) {
     extra.priceCents = form.priceCents;
   }
-  return { ...base, ...extra };
+  return { ...base, ...extra, ...providerExtra };
 };
 
 const SaveFlow = async () => {
@@ -104,6 +154,30 @@ const SaveFlow = async () => {
     ElMessage.error('RESOURCE / RESOURCE_OPTIONAL 模式需綁定至少一個資源');
     return;
   }
+  if (showProviderFields.value && form.requiresProvider && form.providerIds.length === 0) {
+    ElMessage.error(t('service.edit.providersEmptyError', { label: providerLabel.value }));
+    return;
+  }
+
+  // 切換 requiresProvider 時提示既有預約不受影響
+  const requiresProviderChanged =
+    !isCreate.value && initial && initial.requiresProvider !== form.requiresProvider;
+  if (requiresProviderChanged) {
+    try {
+      await ElMessageBox.confirm(
+        t('admin.dialog.requiresProviderToggleBody', { label: providerLabel.value }),
+        t('admin.dialog.requiresProviderToggleTitle', { label: providerLabel.value }),
+        {
+          confirmButtonText: t('common.confirm'),
+          cancelButtonText: t('common.cancel'),
+          type: 'warning'
+        }
+      );
+    } catch {
+      return;
+    }
+  }
+
   const payload = BuildPayload();
   submitting.value = true;
   try {
@@ -129,6 +203,8 @@ const ClickSubmit = async () => {
 
 onMounted(() => {
   ApiLoadResources();
+  ApiLoadMerchant();
+  ApiLoadProviders();
 });
 </script>
 
@@ -210,7 +286,7 @@ onMounted(() => {
             min="1"
             max="999"
           )
-        ElFormItem(v-if="showResource" label="綁定資源")
+        ElFormItem(v-if="showResource" :label="resourceLabel")
           ElCheckboxGroup(v-model="form.resourceIds")
             ElCheckbox(
               v-for="r in resourceOptions"
@@ -221,6 +297,24 @@ onMounted(() => {
           p.OpenDialogServiceEdit__hint(v-if="resourceOptions.length === 0")
             | 請先到「資源」頁建立至少一個資源
           p.OpenDialogServiceEdit__hint--info(v-else) {{ resourceHint }}
+        template(v-if="showProviderFields")
+          ElFormItem(:label="$t('service.edit.requiresProviderLabel', { label: providerLabel })")
+            ElSwitch(v-model="form.requiresProvider")
+            p.OpenDialogServiceEdit__hint--info {{ $t('service.edit.requiresProviderHint', { label: providerLabel }) }}
+          ElFormItem(
+            v-if="form.requiresProvider || form.providerIds.length > 0"
+            :label="$t('service.edit.providersLabel', { label: providerLabel })"
+          )
+            ElCheckboxGroup(v-model="form.providerIds")
+              ElCheckbox(
+                v-for="p in providerOptions"
+                :key="p.id"
+                :value="p.id"
+                :label="p.id"
+              ) {{ p.name }}{{ p.title ? `（${p.title}）` : '' }}
+            p.OpenDialogServiceEdit__hint(v-if="providerOptions.length === 0")
+              | 請先到「服務人員」頁建立至少一位
+            p.OpenDialogServiceEdit__hint--info(v-else) {{ $t('service.edit.providersHint', { label: providerLabel }) }}
         ElFormItem(label="價格（分；0 表示不顯示）")
           ElInput(
             v-model="form.priceCents"

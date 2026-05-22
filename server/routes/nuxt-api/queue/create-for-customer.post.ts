@@ -15,16 +15,22 @@ import {
   MSG_NOT_QUEUE_SERVICE,
   MSG_QUEUE_ALREADY_TAKEN,
   MSG_QUEUE_FULL,
+  MSG_QUEUE_RESOURCE_INVALID,
+  MSG_QUEUE_RESOURCE_REQUIRED,
   MSG_QUEUE_WINDOW_CLOSED,
   broadcastQueue,
   buildBroadcastEtaFields,
   getTicketDate,
   getTicketWeekday,
-  internalCreateTicket
+  internalCreateTicket,
+  validateResourceIdForQueueService,
+  resolveProviderByResourceMap,
+  getResourceProviderEntry
 } from '@@/utils/queue';
 
 export const BodySchema = z.object({
   serviceId: z.string().min(1),
+  resourceId: z.string().min(1).optional(),
   customer: z.object({
     lastName: z.string().min(1).max(20),
     title: z.enum(['MR', 'MRS', 'MISS', 'MX']),
@@ -60,6 +66,16 @@ export default defineEventHandler(async (event) => {
   if (!service) return notFoundError(event);
   if (service.bookingMode !== 'QUEUE') return badRequestError(event, MSG_NOT_QUEUE_SERVICE);
 
+  // 1.5 驗 resourceId（service 已綁 resources 時必填）
+  const rv = await validateResourceIdForQueueService(service.id, parsed.data.resourceId);
+  if (!rv.ok) {
+    return badRequestError(
+      event,
+      rv.code === 'REQUIRED' ? MSG_QUEUE_RESOURCE_REQUIRED : MSG_QUEUE_RESOURCE_INVALID
+    );
+  }
+  const resource = rv.resource;
+
   // 2. 取商家 timezone
   const merchant = await prisma.merchant.findUnique({
     where: { id: merchantId },
@@ -89,6 +105,7 @@ export default defineEventHandler(async (event) => {
     const result = await internalCreateTicket({
       merchantId,
       serviceId: service.id,
+      resourceId: resource?.id ?? null,
       ticketDate,
       customer: {
         lastName: parsed.data.customer.lastName,
@@ -104,18 +121,24 @@ export default defineEventHandler(async (event) => {
       return conflictError(event, MSG_QUEUE_FULL);
     }
 
-    // 廣播 TICKET_TAKEN（讓 admin/queue.vue、display 頁、其他商家 tab 即時更新）
+    // 廣播 TICKET_TAKEN（讓 admin/queue.vue、display 頁、其他商家 tab 即時更新，按 resource 分群）
     const etaFields = buildBroadcastEtaFields(
       { lastCalledNumber: result.currentServing },
       result.ticket.ticketNumber,
       { avgServiceMinutes: service.avgServiceMinutes, durationMinutes: service.durationMinutes }
     );
+    const providerMap = await resolveProviderByResourceMap(merchantId);
+    const providerEntry = getResourceProviderEntry(providerMap, result.ticket.resourceId);
     broadcastQueue(merchantId, {
       type: 'TICKET_TAKEN',
       serviceId: service.id,
+      resourceId: result.ticket.resourceId,
+      resourceName: resource?.name,
       ticketNumber: result.ticket.ticketNumber,
       servingTicketId: result.ticket.id,
       ...etaFields,
+      providerId: providerEntry?.providerId ?? null,
+      providerName: providerEntry?.providerName ?? null,
       timestamp: Date.now()
     });
 
@@ -127,7 +150,9 @@ export default defineEventHandler(async (event) => {
       currentServing: result.currentServing,
       serviceName: service.name,
       timezone: tz,
-      claimToken: result.ticket.claimToken
+      claimToken: result.ticket.claimToken,
+      resourceId: result.ticket.resourceId,
+      resourceName: resource?.name ?? null
     });
   } catch {
     return badRequestError(event);

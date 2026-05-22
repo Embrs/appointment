@@ -5,6 +5,7 @@ import * as admin from './api/admin';
 import * as merchant from './api/merchant';
 import * as service from './api/service';
 import * as resource from './api/resource';
+import * as provider from './api/provider';
 import * as schedule from './api/schedule';
 import * as holiday from './api/holiday';
 import * as upload from './api/upload';
@@ -21,6 +22,7 @@ export default {
   ...merchant,
   ...service,
   ...resource,
+  ...provider,
   ...schedule,
   ...holiday,
   ...upload,

@@ -8,6 +8,7 @@ type OpenComponent =
   | 'OpenDialogAdminEdit' // 平台管理員新增 / 編輯
   | 'OpenDialogServiceEdit' // 商家服務新增 / 編輯
   | 'OpenDialogResourceEdit' // 商家資源新增 / 編輯
+  | 'OpenDialogProviderEdit' // 商家服務人員新增 / 編輯
   | 'OpenDialogScheduleRuleEdit' // 每週時段新增
   | 'OpenDialogScheduleOverrideEdit' // 特定日期覆寫
   | 'OpenDialogHolidayEdit' // 休假日新增
@@ -29,6 +30,7 @@ type OpenParams =
   | DialogAdminEditParams
   | DialogServiceEditParams
   | DialogResourceEditParams
+  | DialogProviderEditParams
   | DialogScheduleRuleEditParams
   | DialogScheduleOverrideEditParams
   | DialogHolidayEditParams
@@ -71,6 +73,13 @@ type DialogResourceEditParams = {
   resource?: ResourceItem
 }
 
+type DialogProviderEditParams = {
+  mode: 'create' | 'edit'
+  provider?: ProviderItem
+  /** 啟用精靈第一次建立後是否引導去排班頁 */
+  onCreatedGotoSchedule?: boolean
+}
+
 type DialogScheduleRuleEditParams = {
   mode: 'create'
   /** 預設 weekday */
@@ -106,6 +115,8 @@ type DrawerBookingConfirmParams = {
   serviceName: string
   resourceId?: string
   resourceName?: string
+  providerId?: string
+  providerName?: string
   startAt: string
   endAt: string
   timezone: string
@@ -153,6 +164,10 @@ type DialogQueueWalkInParams = {
   serviceId: string
   /** 服務名稱（顯示於彈窗與列印小單） */
   serviceName: string
+  /** 該票要落到的 resource id；單一號池 service 傳 null */
+  resourceId?: string | null
+  /** 該 resource 名稱（顯示於彈窗，可選） */
+  resourceName?: string | null
   /** merchant timezone（列印小單時間用） */
   timezone?: string
   /** 商家名稱（列印小單表頭，可選） */

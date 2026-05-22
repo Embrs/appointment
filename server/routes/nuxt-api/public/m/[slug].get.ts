@@ -8,7 +8,11 @@ import {
   getTicketDate,
   projectQueueServingPublic,
   computeNextWaitMinutes,
-  getEffectiveAvgServiceMinutes
+  getEffectiveAvgServiceMinutes,
+  getResourcesForQueueService,
+  resolveProviderByResourceMap,
+  getResourceProviderEntry,
+  type ResourceProviderMap
 } from '@@/utils/queue';
 
 const SlugSchema = z.string().min(1).max(64).regex(/^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$/i);
@@ -57,14 +61,19 @@ export default defineEventHandler(async (event) => {
       address: true,
       contactPhone: true,
       contactEmail: true,
-      cancelPolicy: true
+      cancelPolicy: true,
+      providerModeEnabled: true,
+      providerLabel: true
     }
   });
   if (!merchant) return notFoundError(event);
 
   const services = await prisma.service.findMany({
     where: { merchantId: merchant.id, isActive: true, deletedAt: null },
-    include: { resources: { select: { resourceId: true } } },
+    include: {
+      resources: { select: { resourceId: true } },
+      providers: { select: { providerId: true } }
+    },
     orderBy: [{ displayOrder: 'asc' }, { createdAt: 'asc' }]
   });
 
@@ -74,9 +83,14 @@ export default defineEventHandler(async (event) => {
     orderBy: [{ displayOrder: 'asc' }, { createdAt: 'asc' }]
   });
 
-  // 取所有 QUEUE 服務的當日 counter，供領號頁顯示「目前叫到 N 號 / 等待 M 人」
+  // 取所有 QUEUE 服務的當日 counter（按 serviceId + resourceId 兩層）供領號頁／大螢幕顯示
   const queueServiceIds = services.filter((s) => s.bookingMode === 'QUEUE').map((s) => s.id);
-  const counterMap = new Map<string, { lastCalledNumber: number; lastTicketNumber: number }>();
+  type CounterSnapshot = { lastCalledNumber: number; lastTicketNumber: number };
+  const counterMap = new Map<string, CounterSnapshot>();
+  const counterKey = (serviceId: string, resourceId: string | null) =>
+    `${serviceId}::${resourceId ?? 'null'}`;
+  const queueResourcesByService = new Map<string, Awaited<ReturnType<typeof getResourcesForQueueService>>>();
+  let providerMap: ResourceProviderMap = new Map();
   if (queueServiceIds.length > 0) {
     const ticketDate = getTicketDate(merchant.timezone);
     const counters = await prisma.queueCounter.findMany({
@@ -85,14 +99,28 @@ export default defineEventHandler(async (event) => {
         counterDate: ticketDate,
         serviceId: { in: queueServiceIds }
       },
-      select: { serviceId: true, lastCalledNumber: true, lastTicketNumber: true }
+      select: {
+        serviceId: true,
+        resourceId: true,
+        lastCalledNumber: true,
+        lastTicketNumber: true
+      }
     });
     for (const c of counters) {
-      counterMap.set(c.serviceId, {
+      counterMap.set(counterKey(c.serviceId, c.resourceId), {
         lastCalledNumber: c.lastCalledNumber,
         lastTicketNumber: c.lastTicketNumber
       });
     }
+    // 載入每個 QUEUE service 綁定的 active resources + schedule → provider 反查
+    await Promise.all([
+      ...queueServiceIds.map(async (sid) => {
+        queueResourcesByService.set(sid, await getResourcesForQueueService(sid));
+      }),
+      resolveProviderByResourceMap(merchant.id).then((m) => {
+        providerMap = m;
+      })
+    ]);
   }
 
   return successResponse({
@@ -107,7 +135,9 @@ export default defineEventHandler(async (event) => {
       address: merchant.address,
       contactPhone: merchant.contactPhone,
       contactEmail: merchant.contactEmail,
-      cancelPolicy: sanitizeCancelPolicy(merchant.cancelPolicy)
+      cancelPolicy: sanitizeCancelPolicy(merchant.cancelPolicy),
+      providerModeEnabled: merchant.providerModeEnabled,
+      providerLabel: merchant.providerLabel
     },
     services: services.map((s) => {
       const base = {
@@ -119,24 +149,80 @@ export default defineEventHandler(async (event) => {
         slotIntervalMinutes: s.slotIntervalMinutes,
         capacityPerSlot: s.capacityPerSlot,
         priceCents: s.priceCents,
+        requiresProvider: s.requiresProvider,
+        providerIds: s.providers.map((p) => p.providerId),
         resourceIds:
           s.bookingMode === 'RESOURCE' || s.bookingMode === 'RESOURCE_OPTIONAL'
             ? s.resources.map((r) => r.resourceId)
             : []
       };
       if (s.bookingMode !== 'QUEUE') return base;
-      const counter = counterMap.get(s.id) ?? null;
-      const serving = projectQueueServingPublic(counter);
-      const estimatedNextCallMinutes = computeNextWaitMinutes(
-        counter,
-        serving.ticketsTaken,
-        { avgServiceMinutes: s.avgServiceMinutes, durationMinutes: s.durationMinutes }
-      );
-      const avgServiceMinutes = getEffectiveAvgServiceMinutes({
-        avgServiceMinutes: s.avgServiceMinutes,
-        durationMinutes: s.durationMinutes
+      const serviceForEta = { avgServiceMinutes: s.avgServiceMinutes, durationMinutes: s.durationMinutes };
+      const avgServiceMinutes = getEffectiveAvgServiceMinutes(serviceForEta);
+      const bound = queueResourcesByService.get(s.id) ?? [];
+
+      // resources 陣列：綁了 → 每個 resource 一項；未綁 → 單元素 null
+      type ResourceSlot = { id: string | null; name: string | null; displayOrder: number | null };
+      const slots: ResourceSlot[] =
+        bound.length > 0
+          ? bound.map((r) => ({ id: r.id, name: r.name, displayOrder: r.displayOrder }))
+          : [{ id: null, name: null, displayOrder: null }];
+
+      const resourceStats = slots.map((slot) => {
+        const counter = counterMap.get(counterKey(s.id, slot.id)) ?? null;
+        const serving = projectQueueServingPublic(counter);
+        const estimatedNextCallMinutes = computeNextWaitMinutes(
+          counter,
+          serving.ticketsTaken,
+          serviceForEta
+        );
+        const providerEntry = getResourceProviderEntry(providerMap, slot.id);
+        return {
+          id: slot.id,
+          name: slot.name,
+          displayOrder: slot.displayOrder,
+          ...serving,
+          avgServiceMinutes,
+          estimatedNextCallMinutes,
+          provider: providerEntry
+            ? { id: providerEntry.providerId, name: providerEntry.providerName }
+            : null,
+          hasCounter: counter !== null
+        };
       });
-      return { ...base, ...serving, estimatedNextCallMinutes, avgServiceMinutes };
+
+      // 頂層合計（向後相容；綁多 resource 時取合計／代表值）
+      let topServing;
+      let topEta: number | null;
+      if (resourceStats.length === 1) {
+        const only = resourceStats[0];
+        topServing = {
+          currentServing: only.currentServing,
+          ticketsTaken: only.ticketsTaken,
+          waitingCount: only.waitingCount
+        };
+        topEta = only.estimatedNextCallMinutes;
+      } else {
+        const ticketsTaken = resourceStats.reduce((acc, r) => acc + r.ticketsTaken, 0);
+        const waitingCount = resourceStats.reduce((acc, r) => acc + r.waitingCount, 0);
+        const activeCalled = resourceStats
+          .filter((r) => r.waitingCount > 0)
+          .map((r) => r.currentServing);
+        const currentServing = activeCalled.length > 0 ? Math.min(...activeCalled) : 0;
+        topServing = { currentServing, ticketsTaken, waitingCount };
+        const nonNullEta = resourceStats
+          .filter((r) => r.estimatedNextCallMinutes !== null)
+          .map((r) => r.estimatedNextCallMinutes as number);
+        topEta = nonNullEta.length > 0 ? Math.min(...nonNullEta) : null;
+      }
+
+      return {
+        ...base,
+        ...topServing,
+        estimatedNextCallMinutes: topEta,
+        avgServiceMinutes,
+        resources: resourceStats.map(({ hasCounter: _hasCounter, ...rest }) => rest)
+      };
     }),
     resources
   });

@@ -19,6 +19,7 @@ describe('InternalCreateTicketInput 型別契約', () => {
     const publicCase: InternalCreateTicketInput = {
       merchantId: 'm1',
       serviceId: 's1',
+      resourceId: null,
       ticketDate: new Date('2026-05-21'),
       customer: { lastName: '王', title: 'MR', phone: '0912345678' },
       createdByMerchant: false,
@@ -27,6 +28,7 @@ describe('InternalCreateTicketInput 型別契約', () => {
     const walkInNoPhone: InternalCreateTicketInput = {
       merchantId: 'm1',
       serviceId: 's1',
+      resourceId: null,
       ticketDate: new Date('2026-05-21'),
       customer: { lastName: '陳', title: 'MRS', phone: null },
       createdByMerchant: true
@@ -49,7 +51,9 @@ describe('InternalCreateTicketResult 型別契約', () => {
         id: 't1',
         ticketNumber: 6,
         ticketDate: new Date('2026-05-21'),
-        status: 'WAITING'
+        status: 'WAITING',
+        claimToken: 'ABCD2345',
+        resourceId: null
       },
       currentServing: 5
     };

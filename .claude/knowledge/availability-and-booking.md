@@ -143,3 +143,37 @@ await prisma.$transaction(async (tx) => {
 - auto-assign（無 resourceId）：`buildAutoAssignLockKey(merchantId, serviceId, startAt)` = `appt-auto:m:s:t`
 
 兩種鎖 key 前綴不同避免衝突；同 service 同時段 + 不同 auto-assign 請求會被序列化，避免分到同資源。「指定 vs auto」並發時鎖 key 不同，但 auto-assign 在 lock 內重檢 occupancy 會自然跳過已被搶走的資源。
+
+## Provider 制（introduce-provider-model）
+
+商家層級開關 `Merchant.providerModeEnabled` + 服務層級 `Service.requiresProvider` 雙層控制。兩者皆 `default false`，**既有商家行為 100% 不變**。
+
+### Availability 引擎 Provider 分支
+
+`computeAvailability` 在主分支之前加判定：
+
+```
+if (!merchant.providerModeEnabled) → 既有邏輯（providerId 一律忽略）
+else if (service.requiresProvider && providerId) →
+    新分支 computeSlotsForProvider(providerId)：
+    - rules: ScheduleRule.where({ scope: 'PROVIDER', providerId, weekday })
+    - override: ScheduleOverride.where({ scope: 'PROVIDER', providerId, date })
+    - holiday: MerchantHoliday（共用）
+    - occupied: Appointment.where({ providerId, status: 'CONFIRMED', startAt range })
+    - 驗證 Provider 屬商家、isActive、ProviderService 已綁該服務
+else if (service.requiresProvider && !providerId) → 400 MSG_PROVIDER_REQUIRED
+else → 退回既有 (TIME_SLOT / TIME_CAPACITY / RESOURCE / RESOURCE_OPTIONAL) 分支
+```
+
+### Booking 衝堂檢查
+
+`createAppointment` 在 advisory lock 內額外檢查：當 `effectiveProviderId` 非空，查 `Appointment.where({ providerId, startAt, status: 'CONFIRMED' })` count > 0 → 回 `MSG_PROVIDER_TAKEN`（409）。寫入時把 `providerId` 持久化至 `Appointment.providerId`（`onDelete: SetNull`）。商家 `providerModeEnabled=false` 時忽略傳入的 providerId（不寫）。
+
+### Provider 稱呼解析
+
+`shared/i18n/provider-label.ts/resolveProviderLabel(merchant, locale)` 純函式，三層 fallback：
+1. `merchant.providerLabel[locale]` 非空 → 直接回
+2. 否則用 `inferMerchantLocale(timezone)` 推斷商家偏好語，回該語自訂 label
+3. 否則回 i18n 預設（zh:「服務人員」/ en:「Provider」/ ja:「スタッフ」）
+
+前後端共用，13 個 vitest 覆蓋（`server/__tests__/provider-label.test.ts`）。

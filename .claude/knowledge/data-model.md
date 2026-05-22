@@ -15,23 +15,25 @@ type: reference
 | Model | 用途 | 關鍵欄位 |
 |-------|------|---------|
 | `AdminUser` | 平台管理員 | `email` 唯一、`passwordHash`、`isActive`、`deletedAt` |
-| `Merchant` | 商家 | `slug` 唯一、`status: MerchantStatus`、`timezone`（預設 `Asia/Taipei`）、`cancelPolicy: Json`（含 `mode` / `hoursBeforeCannotCancel`）、`maxActiveAppointmentsPerCustomer Int @default(5)`（顧客同手機在本店未來 CONFIRMED 預約上限，1–99） |
+| `Merchant` | 商家 | `slug` 唯一、`status: MerchantStatus`、`timezone`（預設 `Asia/Taipei`）、`cancelPolicy: Json`（含 `mode` / `hoursBeforeCannotCancel`）、`maxActiveAppointmentsPerCustomer Int @default(5)`、`providerModeEnabled Boolean @default(false)`、`providerLabel Json @default("{}")`（三語自訂稱呼 `{ zh?, en?, ja? }`，fallback 解析見 `shared/i18n/provider-label.ts`） |
 | `MerchantUser` | 商家成員 | `(merchantId, email)` 唯一、`role: MerchantUserRole`、`passwordHash` |
 
 ### 服務與資源
 
 | Model | 用途 | 關鍵欄位 |
 |-------|------|---------|
-| `Service` | 服務 | `bookingMode: BookingMode`、`durationMinutes`、`slotIntervalMinutes`、`capacityPerSlot`、`avgServiceMinutes Int?`（QUEUE ETA 用；fallback 到 `durationMinutes`）、`displayOrder`、軟刪除 |
-| `Resource` | 資源（醫師/設備/包廂） | `displayOrder`、軟刪除 |
+| `Service` | 服務 | `bookingMode: BookingMode`、`durationMinutes`、`slotIntervalMinutes`、`capacityPerSlot`、`avgServiceMinutes Int?`（QUEUE ETA 用；fallback 到 `durationMinutes`）、`requiresProvider Boolean @default(false)`（啟用時必須綁 Provider 並指定預約者）、`displayOrder`、軟刪除 |
+| `Resource` | 資源（診間 / 設備 / 包廂） | `displayOrder`、軟刪除；啟用 Provider 制後語意聚焦「地點」 |
 | `ServiceResource` | 服務↔資源 多對多 | 複合主鍵 `(serviceId, resourceId)` |
+| `Provider` | 服務人員（醫師/技師/老師/教練/師傅…） | `name`、`title?`、`bio?`、`avatarUrl?`、`displayOrder`、軟刪除；商家 `providerModeEnabled=true` 時於後台 / 顧客流程暴露 |
+| `ProviderService` | 服務↔服務人員 多對多 | 複合主鍵 `(providerId, serviceId)`；`Service.requiresProvider=true` 時必須非空 |
 
 ### 排程
 
 | Model | 用途 | 關鍵欄位 |
 |-------|------|---------|
-| `ScheduleRule` | 每週時段規則 | `scope: ScheduleScope`、`resourceId?`、`weekday`（0=日..6=六）、`startTime/endTime`（`HH:mm`）、`isActive` |
-| `ScheduleOverride` | 特定日期覆寫 | `date: @db.Date`、`startTime?/endTime?`、`isClosed`、`note?` |
+| `ScheduleRule` | 每週時段規則 | `scope: ScheduleScope`（MERCHANT / RESOURCE / **PROVIDER**）、`resourceId?`、`providerId?`（PROVIDER scope 必填；其 `resourceId` 為該時段預綁診間）、`weekday`（0=日..6=六）、`startTime/endTime`（`HH:mm`）、`isActive` |
+| `ScheduleOverride` | 特定日期覆寫 | `scope` 同上、`resourceId?`、`providerId?`、`date: @db.Date`、`startTime?/endTime?`、`isClosed`、`note?` |
 | `MerchantHoliday` | 整店休假日 | `(merchantId, date)` 唯一 |
 
 ### 號碼牌
@@ -48,7 +50,7 @@ type: reference
 
 | Model | 用途 | 關鍵欄位 |
 |-------|------|---------|
-| `Appointment` | 預約紀錄 | `mode: AppointmentMode`、`status: AppointmentStatus`、`startAt/endAt`、顧客三元組、`canceledAt/By` |
+| `Appointment` | 預約紀錄 | `mode: AppointmentMode`、`status: AppointmentStatus`、`startAt/endAt`、`providerId?`（啟用 Provider 制商家寫入；軟刪 Provider `onDelete: SetNull`）、顧客三元組、`canceledAt/By` |
 | `AppointmentArchive` | 預約歸檔（schema 同 Appointment） | `archivedAt`、無 FK 到 Resource（保留歷史） |
 
 > Appointment 完成 90 天後由 cron 搬到 Archive，詳見 [deploy-and-env.md](./deploy-and-env.md#cron-jobs)。
@@ -68,7 +70,7 @@ type: reference
 | `MerchantStatus` | `PENDING` / `ACTIVE` / `SUSPENDED` / `REJECTED` |
 | `MerchantUserRole` | `OWNER` / `STAFF` |
 | `BookingMode` | `TIME_SLOT` / `TIME_CAPACITY` / `RESOURCE` / `RESOURCE_OPTIONAL` / `QUEUE` |
-| `ScheduleScope` | `MERCHANT` / `RESOURCE` |
+| `ScheduleScope` | `MERCHANT` / `RESOURCE` / `PROVIDER` |
 | `AppointmentMode` | `TIME_SLOT` / `TIME_CAPACITY` / `RESOURCE` / `RESOURCE_OPTIONAL`（無 `QUEUE`，號碼牌不進 Appointment） |
 | `AppointmentStatus` | `CONFIRMED` / `CANCELED` / `NO_SHOW` / `COMPLETED` |
 | `CanceledBy` | `CUSTOMER` / `MERCHANT` / `SYSTEM` |
@@ -79,7 +81,7 @@ type: reference
 
 ### 軟刪除
 
-`Merchant` / `MerchantUser` / `Service` / `Resource` / `AdminUser` 都有 `deletedAt?`。**所有查詢都必須帶 `deletedAt: null`**，否則會撈到已刪除資料。
+`Merchant` / `MerchantUser` / `Service` / `Resource` / `Provider` / `AdminUser` 都有 `deletedAt?`。**所有查詢都必須帶 `deletedAt: null`**，否則會撈到已刪除資料。
 
 ### 顧客識別三元組
 

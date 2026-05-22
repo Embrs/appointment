@@ -1,13 +1,19 @@
 <script setup lang="ts">
 // PageAdminServices — 服務列表 + 新增 / 編輯彈窗 + 軟刪除
+// 啟用 Provider 制時表格顯示「需指定服務人員」與「可服務的服務人員」column
+import { resolveProviderLabel } from '~shared/i18n/provider-label';
+
 definePageMeta({
   layout: 'back-desk',
   middleware: ['merchant']
 });
 
+const { locale } = useI18n();
 const useAsk = UseAsk();
 const items = ref<ServiceItem[]>([]);
 const resources = ref<ResourceItem[]>([]);
+const providers = ref<ProviderItem[]>([]);
+const merchant = ref<SelfMerchantFull | null>(null);
 // 初值 false：避免 v-loading 在 page transition mount 階段就建立 mask，
 // 導致 transitionend 事件與頁面 enter transition 衝突而卡住載入動畫
 const loading = ref(false);
@@ -17,6 +23,24 @@ const resourceMap = computed(() => {
   for (const r of resources.value) m[r.id] = r.name;
   return m;
 });
+
+const providerMap = computed(() => {
+  const m: Record<string, string> = {};
+  for (const p of providers.value) m[p.id] = p.name;
+  return m;
+});
+
+const resolveLocale = (): 'zh' | 'en' | 'ja' => {
+  const l = locale.value;
+  if (l.startsWith('en')) return 'en';
+  if (l.startsWith('ja')) return 'ja';
+  return 'zh';
+};
+const providerLabel = computed(() => {
+  if (!merchant.value) return resolveLocale() === 'zh' ? '服務人員' : resolveLocale() === 'en' ? 'Provider' : 'スタッフ';
+  return resolveProviderLabel(merchant.value, resolveLocale());
+});
+const providerModeEnabled = computed(() => merchant.value?.providerModeEnabled === true);
 
 const BookingModeLabel = (mode: BookingModeType): string => {
   switch (mode) {
@@ -43,12 +67,16 @@ const BookingModeTagType = (mode: BookingModeType): 'primary' | 'success' | 'war
 const ApiLoad = async () => {
   loading.value = true;
   try {
-    const [s, r] = await Promise.all([
+    const [s, r, p, m] = await Promise.all([
       $api.GetServiceList(),
-      $api.GetResourceList()
+      $api.GetResourceList(),
+      $api.GetProviderList(),
+      $api.GetSelfMerchant()
     ]);
     if (s.status.code === $enum.apiStatus.success) items.value = s.data.items;
     if (r.status.code === $enum.apiStatus.success) resources.value = r.data.items;
+    if (p.status.code === $enum.apiStatus.success) providers.value = p.data.items;
+    if (m.status.code === $enum.apiStatus.success) merchant.value = m.data.merchant;
   } finally {
     loading.value = false;
   }
@@ -109,7 +137,7 @@ onMounted(() => {
         span(v-else) —
     ElTableColumn(label="資源" min-width="160")
       template(#default="{ row }")
-        template(v-if="(row.bookingMode === 'RESOURCE' || row.bookingMode === 'RESOURCE_OPTIONAL') && row.resourceIds.length")
+        template(v-if="row.resourceIds.length")
           ElTag(
             v-for="rid in row.resourceIds"
             :key="rid"
@@ -117,6 +145,29 @@ onMounted(() => {
             type="info"
             style="margin-right: 4px;"
           ) {{ resourceMap[rid] || rid }}
+        span(v-else) —
+    ElTableColumn(
+      v-if="providerModeEnabled"
+      :label="$t('service.edit.requiresProviderLabel', { label: providerLabel })"
+      width="120"
+    )
+      template(#default="{ row }")
+        span(v-if="row.requiresProvider") {{ $t('common.enabled') }}
+        span(v-else) —
+    ElTableColumn(
+      v-if="providerModeEnabled"
+      :label="$t('service.edit.providersLabel', { label: providerLabel })"
+      min-width="180"
+    )
+      template(#default="{ row }")
+        template(v-if="(row.providerIds || []).length")
+          ElTag(
+            v-for="pid in row.providerIds"
+            :key="pid"
+            size="small"
+            type="success"
+            style="margin-right: 4px;"
+          ) {{ providerMap[pid] || pid }}
         span(v-else) —
     ElTableColumn(label="操作" width="140" fixed="right")
       template(#default="{ row }")

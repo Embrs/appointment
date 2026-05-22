@@ -13,6 +13,13 @@ interface CancelPolicy {
   [key: string]: unknown;
 }
 
+/** 商家對「服務人員」一詞的三語自訂稱呼；空字串 / undefined 視為未填，UI 走 i18n 預設 fallback */
+interface ProviderLabel {
+  zh?: string;
+  en?: string;
+  ja?: string;
+}
+
 interface SelfMerchantFull {
   id: string;
   slug: string;
@@ -28,6 +35,10 @@ interface SelfMerchantFull {
   address: string;
   /** 同一手機在本商家未來 CONFIRMED 預約的最大筆數（1–99） */
   maxActiveAppointmentsPerCustomer: number;
+  /** 是否啟用服務人員（Provider）制 */
+  providerModeEnabled: boolean;
+  /** 三語自訂稱呼 */
+  providerLabel: ProviderLabel;
   createdAt: string;
   updatedAt: string;
 }
@@ -49,6 +60,8 @@ interface UpdateSelfMerchantParams {
   address?: string;
   cancelPolicy?: CancelPolicy;
   maxActiveAppointmentsPerCustomer?: number;
+  providerModeEnabled?: boolean;
+  providerLabel?: ProviderLabel;
 }
 
 interface UpdateSelfMerchantRes {

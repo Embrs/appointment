@@ -12,8 +12,9 @@ const QuerySchema = z
   .object({
     from: z.string().regex(DATE).optional(),
     to: z.string().regex(DATE).optional(),
-    scope: z.enum(['MERCHANT', 'RESOURCE']).optional(),
-    resourceId: z.string().min(1).optional()
+    scope: z.enum(['MERCHANT', 'RESOURCE', 'PROVIDER']).optional(),
+    resourceId: z.string().min(1).optional(),
+    providerId: z.string().min(1).optional()
   })
   .passthrough();
 
@@ -23,11 +24,12 @@ export default defineEventHandler(async (event) => {
 
   const parsed = QuerySchema.safeParse(getQuery(event));
   if (!parsed.success) return badRequestError(event);
-  const { from, to, scope, resourceId } = parsed.data;
+  const { from, to, scope, resourceId, providerId } = parsed.data;
 
   const where: Prisma.ScheduleOverrideWhereInput = { merchantId: auth.merchantId };
   if (scope) where.scope = scope;
   if (resourceId !== undefined) where.resourceId = resourceId;
+  if (providerId !== undefined) where.providerId = providerId;
   if (from || to) {
     where.date = {};
     if (from) (where.date as Record<string, Date>).gte = new Date(`${from}T00:00:00.000Z`);
@@ -44,6 +46,7 @@ export default defineEventHandler(async (event) => {
       id: o.id,
       scope: o.scope,
       resourceId: o.resourceId,
+      providerId: o.providerId,
       date: o.date.toISOString().slice(0, 10),
       startTime: o.startTime,
       endTime: o.endTime,

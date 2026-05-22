@@ -1,16 +1,20 @@
 <script setup lang="ts">
 // BizAppointmentTable — 商家後台預約表格
 // 操作欄收斂為單一「詳細」link button，所有狀態操作改由 DrawerAppointmentInfo 提供
+// 啟用 Provider 制商家額外顯示「服務人員」column（用商家自訂稱呼）
+import { resolveProviderLabel } from '~shared/i18n/provider-label';
 
 interface AppointmentTableProps {
   items: AppointmentItem[];
   timezone?: string;
   loading?: boolean;
+  merchant?: SelfMerchantFull | null;
 }
 
 const props = withDefaults(defineProps<AppointmentTableProps>(), {
   timezone: 'Asia/Taipei',
-  loading: false
+  loading: false,
+  merchant: null
 });
 
 type Emit = {
@@ -18,7 +22,19 @@ type Emit = {
 };
 const emit = defineEmits<Emit>();
 
-const { t } = useI18n();
+const { t, locale } = useI18n();
+
+const resolveLocale = (): 'zh' | 'en' | 'ja' => {
+  const l = locale.value;
+  if (l.startsWith('en')) return 'en';
+  if (l.startsWith('ja')) return 'ja';
+  return 'zh';
+};
+const providerLabel = computed(() => {
+  if (!props.merchant) return resolveLocale() === 'zh' ? '服務人員' : resolveLocale() === 'en' ? 'Provider' : 'スタッフ';
+  return resolveProviderLabel(props.merchant, resolveLocale());
+});
+const providerModeEnabled = computed(() => props.merchant?.providerModeEnabled === true);
 
 const fmtDateTime = (iso: string) => $dayjs(new Date(iso)).tz(props.timezone).format('MM-DD HH:mm');
 
@@ -52,6 +68,16 @@ const TitleLabel = (title: string) => (title ? t(`appointment.customerTitle.${ti
     ElTableColumn(label="資源" width="100")
       template(#default="{ row }")
         span {{ row.resource ? row.resource.name : '—' }}
+    ElTableColumn(
+      v-if="providerModeEnabled"
+      :label="providerLabel"
+      width="120"
+    )
+      template(#default="{ row }")
+        span(v-if="row.provider")
+          | {{ row.provider.name }}
+          span(v-if="!row.provider.isActive") {{ $t('appointment.fields.providerInactiveSuffix') }}
+        span(v-else) {{ $t('appointment.fields.providerUnspecified') }}
     ElTableColumn(label="顧客" min-width="140")
       template(#default="{ row }")
         span {{ row.customerLastName }}{{ TitleLabel(row.customerTitle) }} ｜ {{ row.customerPhone }}

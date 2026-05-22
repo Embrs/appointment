@@ -61,3 +61,12 @@ export const MarkQueueTicketSkip = ({ id }: QueueTicketActionParams) => {
   if (IsMock()) return mock.MarkQueueTicketSkip();
   return methods.post<QueueTicketActionRes>(`/nuxt-api/queue/${id}/skip`);
 };
+
+/** 商家：報到台改派診間（WAITING 票切換到另一 active resource，保留原 ticketNumber） */
+export const AssignResourceQueue = ({ id, resourceId }: AssignResourceQueueParams) => {
+  if (IsMock()) return mock.AssignResourceQueue();
+  return methods.post<AssignResourceQueueRes>(
+    `/nuxt-api/queue/${id}/assign-resource`,
+    { resourceId }
+  );
+};

@@ -11,6 +11,7 @@ const QuerySchema = z.object({
   status: z.enum(['CONFIRMED', 'CANCELED', 'NO_SHOW', 'COMPLETED']).optional(),
   serviceId: z.string().min(1).optional(),
   resourceId: z.string().min(1).optional(),
+  providerId: z.string().min(1).optional(),
   customerPhone: z.string().min(1).optional(),
   page: z.coerce.number().int().min(1).default(1),
   pageSize: z.coerce.number().int().min(1).max(200).default(50)
@@ -28,6 +29,7 @@ export default defineEventHandler(async (event) => {
   if (q.status) where.status = q.status;
   if (q.serviceId) where.serviceId = q.serviceId;
   if (q.resourceId) where.resourceId = q.resourceId;
+  if (q.providerId) where.providerId = q.providerId;
   if (q.customerPhone) where.customerPhone = q.customerPhone.replace(/[\s-]/g, '');
   if (q.dateFrom || q.dateTo) {
     const range: Record<string, Date> = {};
@@ -45,7 +47,8 @@ export default defineEventHandler(async (event) => {
       take: q.pageSize,
       include: {
         service: { select: { id: true, name: true, bookingMode: true, durationMinutes: true } },
-        resource: { select: { id: true, name: true } }
+        resource: { select: { id: true, name: true } },
+        provider: { select: { id: true, name: true, isActive: true, deletedAt: true } }
       }
     })
   ]);
@@ -67,6 +70,14 @@ export default defineEventHandler(async (event) => {
         durationMinutes: a.service.durationMinutes
       },
       resource: a.resource ? { id: a.resource.id, name: a.resource.name } : null,
+      provider: a.provider
+        ? {
+            id: a.provider.id,
+            name: a.provider.name,
+            isActive: a.provider.isActive && a.provider.deletedAt === null
+          }
+        : null,
+      providerId: a.providerId,
       customerLastName: a.customerLastName,
       customerTitle: a.customerTitle,
       customerPhone: a.customerPhone,

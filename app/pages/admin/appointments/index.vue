@@ -37,6 +37,7 @@ const total = ref(0);
 const services = ref<{ id: string; name: string }[]>([]);
 const resources = ref<{ id: string; name: string }[]>([]);
 const merchantSlug = ref('');
+const selfMerchant = ref<SelfMerchantFull | null>(null);
 
 // 行事曆用：商家整週主規則、整日 closed 日期、override map
 const merchantSchedule = ref<CalendarMerchantRule[]>([]);
@@ -270,6 +271,7 @@ const ApiLoadSelfMerchant = async () => {
   const res = await $api.GetSelfMerchant();
   if (res.status.code === $enum.apiStatus.success) {
     merchantSlug.value = res.data.merchant.slug;
+    selfMerchant.value = res.data.merchant;
   }
 };
 
@@ -439,6 +441,7 @@ onMounted(() => {
     BizAppointmentTable(
       :items="items"
       :loading="loading"
+      :merchant="selfMerchant"
       @click-info="ClickInfo"
     )
 

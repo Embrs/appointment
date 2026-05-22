@@ -138,6 +138,11 @@ const ClickReschedule = async () => {
       .OpenDrawerAppointmentInfo__row(v-if="appointment.resource")
         span.OpenDrawerAppointmentInfo__label 資源
         span.OpenDrawerAppointmentInfo__value {{ appointment.resource.name }}
+      .OpenDrawerAppointmentInfo__row(v-if="appointment.provider")
+        span.OpenDrawerAppointmentInfo__label 服務人員
+        span.OpenDrawerAppointmentInfo__value
+          | {{ appointment.provider.name }}
+          span(v-if="!appointment.provider.isActive") {{ $t('appointment.fields.providerInactiveSuffix') }}
       .OpenDrawerAppointmentInfo__row
         span.OpenDrawerAppointmentInfo__label 時間
         span.OpenDrawerAppointmentInfo__value {{ dateLabel }} ~ {{ endLabel }}

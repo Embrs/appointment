@@ -65,6 +65,8 @@ export const RescheduleAppointment = () =>
         durationMinutes: 30
       },
       resource: null,
+      provider: null,
+      providerId: null,
       customerLastName: '林',
       customerTitle: 'MR',
       customerPhone: '0987654321',

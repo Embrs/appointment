@@ -1,33 +1,59 @@
 <script setup lang="ts">
 // BizScheduleWeeklyPanel — 預約時段 panel:scope 切換 + SchedulerWeeklyEditor + 儲存
 // 含「影響服務」副標 + 未綁定資源警告
+// 啟用 Provider 制商家時 scope 切換器額外列出 PROVIDER 選項
+import { resolveProviderLabel } from '~shared/i18n/provider-label';
+
 type Props = {
   services?: ServiceItem[];
 };
 const props = defineProps<Props>();
 
-const { t } = useI18n();
+const { t, locale } = useI18n();
 
 const loading = ref(false);
 const saving = ref(false);
 const resources = ref<ResourceItem[]>([]);
+const providers = ref<ProviderItem[]>([]);
+const merchant = ref<SelfMerchantFull | null>(null);
 const allRules = ref<ScheduleRuleItem[]>([]);
 const ownServices = ref<ServiceItem[]>([]);
 
 // services 優先用 props(由容器頁傳入);無 prop 時自行 fetch
 const effectiveServices = computed(() => props.services ?? ownServices.value);
 
+// selectedScope 編碼：'MERCHANT' | 'r:<resourceId>' | 'p:<providerId>'
 const selectedScope = ref<string>('MERCHANT');
 const isMerchantScope = computed(() => selectedScope.value === 'MERCHANT');
-const currentResourceId = computed(() => isMerchantScope.value ? null : selectedScope.value);
+const isProviderScope = computed(() => selectedScope.value.startsWith('p:'));
+const isResourceScope = computed(() => selectedScope.value.startsWith('r:'));
+const currentResourceId = computed(() => isResourceScope.value ? selectedScope.value.slice(2) : null);
+const currentProviderId = computed(() => isProviderScope.value ? selectedScope.value.slice(2) : null);
+const currentScopeApi = computed<'MERCHANT' | 'RESOURCE' | 'PROVIDER'>(() => {
+  if (isMerchantScope.value) return 'MERCHANT';
+  if (isProviderScope.value) return 'PROVIDER';
+  return 'RESOURCE';
+});
+
+const resolveLocale = (): 'zh' | 'en' | 'ja' => {
+  const l = locale.value;
+  if (l.startsWith('en')) return 'en';
+  if (l.startsWith('ja')) return 'ja';
+  return 'zh';
+};
+const providerLabel = computed(() => {
+  if (!merchant.value) return resolveLocale() === 'zh' ? '服務人員' : resolveLocale() === 'en' ? 'Provider' : 'スタッフ';
+  return resolveProviderLabel(merchant.value, resolveLocale());
+});
+const providerModeEnabled = computed(() => merchant.value?.providerModeEnabled === true);
 
 const currentRules = computed<{ weekday: number; startTime: string; endTime: string }[]>(() =>
   allRules.value
-    .filter((r) =>
-      isMerchantScope.value
-        ? r.scope === 'MERCHANT'
-        : r.scope === 'RESOURCE' && r.resourceId === currentResourceId.value
-    )
+    .filter((r) => {
+      if (isMerchantScope.value) return r.scope === 'MERCHANT';
+      if (isResourceScope.value) return r.scope === 'RESOURCE' && r.resourceId === currentResourceId.value;
+      return r.scope === 'PROVIDER' && r.providerId === currentProviderId.value;
+    })
     .map((r) => ({ weekday: r.weekday, startTime: r.startTime, endTime: r.endTime }))
 );
 
@@ -59,6 +85,12 @@ const ApiLoad = async () => {
       }),
       $api.GetScheduleRules({}).then((r) => {
         if (r.status.code === $enum.apiStatus.success) allRules.value = r.data.rules;
+      }),
+      $api.GetSelfMerchant().then((r) => {
+        if (r.status.code === $enum.apiStatus.success) merchant.value = r.data.merchant;
+      }),
+      $api.GetProviderList().then((r) => {
+        if (r.status.code === $enum.apiStatus.success) providers.value = r.data.items.filter((p) => p.isActive);
       })
     ];
     if (!props.services) {
@@ -75,14 +107,15 @@ const ApiLoad = async () => {
 };
 
 const HandleRulesChange = (next: { weekday: number; startTime: string; endTime: string }[]) => {
-  const others = allRules.value.filter((r) =>
-    isMerchantScope.value
-      ? !(r.scope === 'MERCHANT')
-      : !(r.scope === 'RESOURCE' && r.resourceId === currentResourceId.value)
-  );
+  const others = allRules.value.filter((r) => {
+    if (isMerchantScope.value) return r.scope !== 'MERCHANT';
+    if (isResourceScope.value) return !(r.scope === 'RESOURCE' && r.resourceId === currentResourceId.value);
+    return !(r.scope === 'PROVIDER' && r.providerId === currentProviderId.value);
+  });
   const newScopeRules: ScheduleRuleItem[] = next.map((n) => ({
-    scope: isMerchantScope.value ? 'MERCHANT' : 'RESOURCE',
+    scope: currentScopeApi.value,
     resourceId: currentResourceId.value,
+    providerId: currentProviderId.value,
     weekday: n.weekday,
     startTime: n.startTime,
     endTime: n.endTime
@@ -94,8 +127,9 @@ const ClickSave = async () => {
   saving.value = true;
   try {
     const res = await $api.UpdateScheduleRules({
-      scope: isMerchantScope.value ? 'MERCHANT' : 'RESOURCE',
+      scope: currentScopeApi.value,
       resourceId: currentResourceId.value,
+      providerId: currentProviderId.value,
       rules: currentRules.value
     });
     if (res.status.code !== $enum.apiStatus.success) {
@@ -132,7 +166,13 @@ onMounted(() => {
         v-for="r in resources"
         :key="r.id"
         :label="`${t('admin.schedule.scopeResource')}:${r.name}`"
-        :value="r.id"
+        :value="`r:${r.id}`"
+      )
+      ElOption(
+        v-for="p in (providerModeEnabled ? providers : [])"
+        :key="p.id"
+        :label="`${providerLabel}:${p.name}`"
+        :value="`p:${p.id}`"
       )
 
   //- 未綁定資源警告
@@ -150,7 +190,7 @@ onMounted(() => {
   .BizScheduleWeeklyPanel__editor(v-loading="loading")
     BizSchedulerWeeklyEditor(
       :rules="currentRules"
-      :scope="isMerchantScope ? 'MERCHANT' : 'RESOURCE'"
+      :scope="currentScopeApi"
       :resource-id="currentResourceId"
       @update:rules="HandleRulesChange"
     )

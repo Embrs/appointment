@@ -23,6 +23,40 @@ const MyNumber = computed(() => MyTicket.value?.ticket.ticketNumber ?? 0);
 const CurrentServing = computed(() => MyTicket.value?.currentServing ?? 0);
 const TotalTaken = computed(() => MyTicket.value?.lastTicketNumber ?? 0);
 const ServiceName = computed(() => MyTicket.value?.ticket.serviceName ?? '');
+const ResourceName = computed(() => {
+  const r = (MyTicket.value?.ticket as { resourceName?: string | null } | undefined)?.resourceName;
+  return r ?? '';
+});
+const ProviderName = computed<string | null>(() => {
+  const t = MyTicket.value?.ticket as { providerName?: string | null } | undefined;
+  return t?.providerName ?? null;
+});
+/** 給 BizQueueCallOverlay 解析自訂稱呼用（providerLabel + timezone） */
+const MerchantForLabel = computed<{
+  providerLabel?: { zh?: string | null; en?: string | null; ja?: string | null } | null;
+  timezone?: string | null;
+} | null>(() => {
+  const m = MyTicket.value?.merchant as
+    | {
+        timezone?: string | null;
+        providerLabel?: { zh?: string | null; en?: string | null; ja?: string | null } | null;
+      }
+    | undefined;
+  if (!m) return null;
+  return { providerLabel: m.providerLabel ?? null, timezone: m.timezone ?? null };
+});
+/** 服務名稱列顯示文字：有 resource 時加上「· {resourceName}」 */
+const ServiceLineText = computed(() => {
+  if (ResourceName.value) return `${ServiceName.value} · ${ResourceName.value}`;
+  return ServiceName.value;
+});
+/** 主畫面 primaryLabel：有 resource 時顯示「{room} 您的號碼」否則沿用既有 */
+const PrimaryNumberLabel = computed(() => {
+  if (ResourceName.value && MyNumber.value > 0) {
+    return t('queue.page.ticketWithRoom', { room: ResourceName.value, number: MyNumber.value });
+  }
+  return t('queue.page.statusYourNumber');
+});
 const MyStatus = computed(() => MyTicket.value?.ticket.status ?? 'WAITING');
 const IsCalled = computed(() => MyStatus.value === 'CALLED');
 const IsDone = computed(() => MyStatus.value === 'DONE');
@@ -33,11 +67,14 @@ const WaitingAhead = computed(() => MyTicket.value?.waitingAhead ?? 0);
 const EtaMinutes = computed<number | null>(() => {
   const t = MyTicket.value;
   if (!t) return null;
-  const sid = (t.ticket as { serviceId?: string }).serviceId || '';
+  const ticketAny = t.ticket as { serviceId?: string; resourceId?: string | null };
+  const sid = ticketAny.serviceId || '';
+  const rid = ticketAny.resourceId ?? null;
   if (sid) {
     const live = queueStore.GetEtaForTicket(
       { ticketNumber: t.ticket.ticketNumber, status: t.ticket.status as 'WAITING' | 'CALLED' | 'DONE' | 'SKIPPED' },
-      sid
+      sid,
+      rid
     );
     if (live !== null) return live;
   }
@@ -54,7 +91,11 @@ const EtaText = computed(() => {
 });
 
 const StatusHint = computed(() => {
-  if (IsCalled.value) return t('queue.page.statusCalledHint');
+  if (IsCalled.value) {
+    return ResourceName.value
+      ? t('queue.page.statusCalledHintWithRoom', { room: ResourceName.value })
+      : t('queue.page.statusCalledHint');
+  }
   if (IsDone.value) return t('queue.page.statusDoneHint');
   if (IsSkipped.value) return t('queue.page.statusSkippedHint');
   if (WaitingAhead.value === 0) return t('queue.page.statusAheadHint', { n: 0 });
@@ -170,10 +211,10 @@ onBeforeUnmount(() => {
       @retry="ClickRetry"
     )
 
-    //- 服務名稱
+    //- 服務名稱（多 resource 時加上「· {resourceName}」前綴顯示）
     .PageQueueStatus__serviceBar
       .PageQueueStatus__serviceEyebrow {{ $t('admin.bookingMode.QUEUE') }}
-      .PageQueueStatus__serviceName {{ ServiceName }}
+      .PageQueueStatus__serviceName(data-testid="queue-status-service-name") {{ ServiceLineText }}
 
     //- DONE 收尾畫面
     .PageQueueStatus__close.PageQueueStatus__close--done(v-if="IsDone" data-testid="queue-status-done")
@@ -196,7 +237,7 @@ onBeforeUnmount(() => {
     //- 一般等待狀態：大號碼 + 進度條
     template(v-else)
       BizQueueDisplay.PageQueueStatus__display(
-        :primary-label="$t('queue.page.statusYourNumber')"
+        :primary-label="PrimaryNumberLabel"
         :primary-number="MyNumber"
         :secondary-label="$t('queue.page.statusServing')"
         :secondary-number="CurrentServing"
@@ -226,6 +267,9 @@ onBeforeUnmount(() => {
       v-if="ShowCallOverlay"
       :ticket-number="MyNumber"
       :service-name="ServiceName"
+      :resource-name="ResourceName"
+      :provider-name="ProviderName"
+      :merchant="MerchantForLabel"
       @dismiss="ClickDismissOverlay"
     )
 </template>

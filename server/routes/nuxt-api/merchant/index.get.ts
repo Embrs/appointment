@@ -28,6 +28,8 @@ export default defineEventHandler(async (event) => {
       contactEmail: merchant.contactEmail,
       address: merchant.address,
       maxActiveAppointmentsPerCustomer: merchant.maxActiveAppointmentsPerCustomer,
+      providerModeEnabled: merchant.providerModeEnabled,
+      providerLabel: merchant.providerLabel,
       createdAt: merchant.createdAt,
       updatedAt: merchant.updatedAt
     }

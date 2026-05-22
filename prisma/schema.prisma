@@ -39,6 +39,7 @@ enum BookingMode {
 enum ScheduleScope {
   MERCHANT
   RESOURCE
+  PROVIDER
 }
 
 /// 預約紀錄模式（同 BookingMode 但 QUEUE 不會進 Appointment）
@@ -112,6 +113,10 @@ model Merchant {
   address                          String?
   /// 同一手機在本商家未來 CONFIRMED 預約的最大筆數（1–99）
   maxActiveAppointmentsPerCustomer Int            @default(5)
+  /// 是否啟用「服務人員（Provider）」制；false 時所有 Provider 相關 UI / 流程不暴露
+  providerModeEnabled              Boolean        @default(false)
+  /// 商家對「服務人員」一詞的三語自訂稱呼 { zh?, en?, ja? }；空時 fallback 至 i18n 預設
+  providerLabel                    Json           @default("{}")
   createdAt                        DateTime       @default(now())
   updatedAt                        DateTime       @updatedAt
   deletedAt                        DateTime?
@@ -119,6 +124,7 @@ model Merchant {
   users               MerchantUser[]
   services            Service[]
   resources           Resource[]
+  providers           Provider[]
   scheduleRules       ScheduleRule[]
   scheduleOverrides   ScheduleOverride[]
   holidays            MerchantHoliday[]
@@ -162,15 +168,18 @@ model Service {
   /// 平均單人服務時長（分鐘），用於號碼牌等待時間預估；null 時 fallback 使用 durationMinutes
   avgServiceMinutes   Int?
 
-  priceCents          Int?
-  isActive            Boolean     @default(true)
-  displayOrder        Int         @default(0)
-  createdAt           DateTime    @default(now())
-  updatedAt           DateTime    @updatedAt
-  deletedAt           DateTime?
+  priceCents   Int?
+  isActive     Boolean   @default(true)
+  displayOrder Int       @default(0)
+  /// 是否強制指定服務人員；true 時建立預約必須帶 providerId
+  requiresProvider Boolean @default(false)
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  deletedAt    DateTime?
 
   merchant      Merchant          @relation(fields: [merchantId], references: [id], onDelete: Cascade)
   resources     ServiceResource[]
+  providers     ProviderService[]
   appointments  Appointment[]
   queueWindows  QueueWindow[]
   queueTickets  QueueTicket[]
@@ -196,6 +205,8 @@ model Resource {
   scheduleRules     ScheduleRule[]
   scheduleOverrides ScheduleOverride[]
   appointments      Appointment[]
+  queueTickets      QueueTicket[]
+  queueCounters     QueueCounter[]
 
   @@index([merchantId])
 }
@@ -212,12 +223,52 @@ model ServiceResource {
   @@index([resourceId])
 }
 
+/// 服務人員（醫師 / 技師 / 老師 / 教練 / 師傅…）；商家層級開關 Merchant.providerModeEnabled 控制是否啟用
+model Provider {
+  id           String    @id @default(cuid())
+  merchantId   String
+  name         String
+  /// 職稱（如「主治醫師」、「資深技師」）
+  title        String?
+  /// 簡介，多行純文字
+  bio          String?
+  /// 頭像 URL（R2）
+  avatarUrl    String?
+  isActive     Boolean   @default(true)
+  displayOrder Int       @default(0)
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  deletedAt    DateTime?
+
+  merchant          Merchant           @relation(fields: [merchantId], references: [id], onDelete: Cascade)
+  services          ProviderService[]
+  scheduleRules     ScheduleRule[]
+  scheduleOverrides ScheduleOverride[]
+  appointments      Appointment[]
+
+  @@index([merchantId])
+}
+
+/// 服務 ↔ 服務人員 多對多（Service.requiresProvider=true 時必須至少 1 筆）
+model ProviderService {
+  providerId String
+  serviceId  String
+
+  provider Provider @relation(fields: [providerId], references: [id], onDelete: Cascade)
+  service  Service  @relation(fields: [serviceId], references: [id], onDelete: Cascade)
+
+  @@id([providerId, serviceId])
+  @@index([serviceId])
+}
+
 /// 每週時段規則
 model ScheduleRule {
   id         String        @id @default(cuid())
   merchantId String
   scope      ScheduleScope
   resourceId String?
+  /// scope=PROVIDER 必填；scope=PROVIDER 時 resourceId 為「該時段預綁診間（選填）」
+  providerId String?
   /// 0=週日 .. 6=週六
   weekday    Int
   /// HH:mm 24h
@@ -229,9 +280,11 @@ model ScheduleRule {
 
   merchant Merchant  @relation(fields: [merchantId], references: [id], onDelete: Cascade)
   resource Resource? @relation(fields: [resourceId], references: [id], onDelete: Cascade)
+  provider Provider? @relation(fields: [providerId], references: [id], onDelete: Cascade)
 
   @@index([merchantId, weekday])
   @@index([resourceId])
+  @@index([providerId, weekday])
 }
 
 /// 特定日期時段覆寫
@@ -240,6 +293,8 @@ model ScheduleOverride {
   merchantId String
   scope      ScheduleScope
   resourceId String?
+  /// scope=PROVIDER 必填；scope=PROVIDER 時 resourceId 為「該日預綁診間（選填）」
+  providerId String?
   date       DateTime      @db.Date
   startTime  String?
   endTime    String?
@@ -250,9 +305,11 @@ model ScheduleOverride {
 
   merchant Merchant  @relation(fields: [merchantId], references: [id], onDelete: Cascade)
   resource Resource? @relation(fields: [resourceId], references: [id], onDelete: Cascade)
+  provider Provider? @relation(fields: [providerId], references: [id], onDelete: Cascade)
 
   @@index([merchantId, date])
   @@index([resourceId])
+  @@index([providerId, date])
 }
 
 /// 整店休假日
@@ -290,32 +347,36 @@ model QueueWindow {
 
 /// 當日號碼牌
 model QueueTicket {
-  id                 String            @id @default(cuid())
-  merchantId         String
-  serviceId          String
-  ticketDate         DateTime          @db.Date
-  ticketNumber       Int
-  status             QueueTicketStatus @default(WAITING)
-  customerLastName   String
-  customerTitle      CustomerTitle
+  id                String            @id @default(cuid())
+  merchantId        String
+  serviceId         String
+  /// 多診間/多櫃台分群；null = 該 service 未綁 resource（單號池）
+  resourceId        String?
+  ticketDate        DateTime          @db.Date
+  ticketNumber      Int
+  status            QueueTicketStatus @default(WAITING)
+  customerLastName  String
+  customerTitle     CustomerTitle
   /// 商家現場代建可為 null（顧客未留電話）；公開拿號一律非空
-  customerPhone      String?
+  customerPhone     String?
   /// 是否由商家於後台代客建立（true = 現場登記）
-  createdByMerchant  Boolean           @default(false)
+  createdByMerchant Boolean           @default(false)
   /// 顧客掃 QR 自助回查用 token（nanoid，8 碼）；歷史 row 為 null 不參與比對
-  claimToken         String?           @unique
-  takenAt            DateTime          @default(now())
-  calledAt           DateTime?
-  doneAt             DateTime?
-  createdAt          DateTime          @default(now())
-  updatedAt          DateTime          @updatedAt
+  claimToken        String?           @unique
+  takenAt           DateTime          @default(now())
+  calledAt          DateTime?
+  doneAt            DateTime?
+  createdAt         DateTime          @default(now())
+  updatedAt         DateTime          @updatedAt
 
-  merchant Merchant @relation(fields: [merchantId], references: [id], onDelete: Cascade)
-  service  Service  @relation(fields: [serviceId], references: [id], onDelete: Cascade)
+  merchant Merchant  @relation(fields: [merchantId], references: [id], onDelete: Cascade)
+  service  Service   @relation(fields: [serviceId], references: [id], onDelete: Cascade)
+  resource Resource? @relation(fields: [resourceId], references: [id], onDelete: Restrict)
 
-  @@unique([merchantId, serviceId, ticketDate, ticketNumber])
+  @@unique([merchantId, serviceId, resourceId, ticketDate, ticketNumber])
   @@index([merchantId, customerPhone])
   @@index([merchantId, ticketDate, status])
+  @@index([merchantId, resourceId, ticketDate, status])
 }
 
 /// 叫號游標（row lock 用）
@@ -323,16 +384,19 @@ model QueueCounter {
   id               String   @id @default(cuid())
   merchantId       String
   serviceId        String
+  /// 多診間/多櫃台分群；null = 該 service 未綁 resource（單號池）
+  resourceId       String?
   counterDate      DateTime @db.Date
   lastTicketNumber Int      @default(0)
   lastCalledNumber Int      @default(0)
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
 
-  merchant Merchant @relation(fields: [merchantId], references: [id], onDelete: Cascade)
-  service  Service  @relation(fields: [serviceId], references: [id], onDelete: Cascade)
+  merchant Merchant  @relation(fields: [merchantId], references: [id], onDelete: Cascade)
+  service  Service   @relation(fields: [serviceId], references: [id], onDelete: Cascade)
+  resource Resource? @relation(fields: [resourceId], references: [id], onDelete: Restrict)
 
-  @@unique([merchantId, serviceId, counterDate])
+  @@unique([merchantId, serviceId, resourceId, counterDate])
 }
 
 /// 預約紀錄
@@ -341,6 +405,8 @@ model Appointment {
   merchantId       String
   serviceId        String
   resourceId       String?
+  /// 服務人員（啟用 Provider 制時可填）；軟刪 Provider 不會 cascade
+  providerId       String?
   mode             AppointmentMode
   status           AppointmentStatus @default(CONFIRMED)
   startAt          DateTime
@@ -358,11 +424,13 @@ model Appointment {
   merchant Merchant  @relation(fields: [merchantId], references: [id], onDelete: Cascade)
   service  Service   @relation(fields: [serviceId], references: [id], onDelete: Cascade)
   resource Resource? @relation(fields: [resourceId], references: [id], onDelete: SetNull)
+  provider Provider? @relation(fields: [providerId], references: [id], onDelete: SetNull)
 
   @@index([merchantId, startAt])
   @@index([merchantId, customerPhone])
   @@index([merchantId, status])
   @@index([resourceId, startAt])
+  @@index([providerId, startAt])
 }
 
 /// 預約歸檔（schema 同 Appointment）

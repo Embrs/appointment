@@ -55,7 +55,8 @@ export default defineEventHandler(async (event) => {
     orderBy: { startAt: 'desc' },
     include: {
       service: { select: { id: true, name: true } },
-      resource: { select: { id: true, name: true } }
+      resource: { select: { id: true, name: true } },
+      provider: { select: { id: true, name: true, isActive: true, deletedAt: true } }
     }
   });
 
@@ -74,6 +75,13 @@ export default defineEventHandler(async (event) => {
       endAt: a.endAt.toISOString(),
       service: { id: a.service.id, name: a.service.name },
       resource: a.resource ? { id: a.resource.id, name: a.resource.name } : null,
+      provider: a.provider
+        ? {
+            id: a.provider.id,
+            name: a.provider.name,
+            isActive: a.provider.isActive && a.provider.deletedAt === null
+          }
+        : null,
       note: a.note,
       cancelReason: a.cancelReason,
       canceledBy: a.canceledBy,

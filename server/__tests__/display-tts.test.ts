@@ -1,7 +1,7 @@
 // queue-display-screen TTS 三語映射 + i18n callPhrase 模板測試
 // Dev server 在實機驗證階段不穩定，改以單元測試覆蓋 TTS 核心邏輯：
 //  - locale → BCP47 lang 映射（zh/en/ja → zh-TW/en-US/ja-JP）
-//  - display.tts.callPhrase 三語存在且含 {number}/{serviceName} 變數
+//  - display.tts.callPhraseSimple / callPhraseWithCustomer 三語存在且含必要 placeholder
 import { describe, it, expect } from 'vitest';
 
 // 直接從 i18n locale 檔載入，不依賴 nuxt i18n runtime
@@ -34,11 +34,16 @@ describe('TTS lang map', () => {
   });
 });
 
-describe('display.tts.callPhrase 三語模板', () => {
+describe('display.tts callPhrase 三語模板（隱私版：不含服務名稱）', () => {
   type LocaleShape = {
     display: {
-      tts: { callPhrase: string };
+      tts: {
+        callPhraseSimple: string;
+        callPhraseWithCustomer: string;
+        callPhraseWithRoom: string;
+      };
       calling: string;
+      gotoRoom: string;
       next: string;
       nextAfter: string;
       waiting: string;
@@ -58,11 +63,33 @@ describe('display.tts.callPhrase 三語模板', () => {
   ];
 
   for (const { name, mod } of locales) {
-    it(`${name}：display.tts.callPhrase 存在且含 {number} 與 {serviceName}`, () => {
-      const phrase = mod.display.tts.callPhrase;
+    it(`${name}：callPhraseSimple 存在且含 {number}、不含 {serviceName}`, () => {
+      const phrase = mod.display.tts.callPhraseSimple;
       expect(typeof phrase).toBe('string');
       expect(phrase).toContain('{number}');
-      expect(phrase).toContain('{serviceName}');
+      expect(phrase).not.toContain('{serviceName}');
+    });
+
+    it(`${name}：callPhraseWithCustomer 存在且含 {number} 與 {customerName}、不含 {serviceName}`, () => {
+      const phrase = mod.display.tts.callPhraseWithCustomer;
+      expect(typeof phrase).toBe('string');
+      expect(phrase).toContain('{number}');
+      expect(phrase).toContain('{customerName}');
+      expect(phrase).not.toContain('{serviceName}');
+    });
+
+    it(`${name}：callPhraseWithRoom 存在且含 {number} 與 {room}`, () => {
+      const phrase = mod.display.tts.callPhraseWithRoom;
+      expect(typeof phrase).toBe('string');
+      expect(phrase).toContain('{number}');
+      expect(phrase).toContain('{room}');
+      expect(phrase).not.toContain('{serviceName}');
+    });
+
+    it(`${name}：display.gotoRoom 存在且含 {room}`, () => {
+      const phrase = mod.display.gotoRoom;
+      expect(typeof phrase).toBe('string');
+      expect(phrase).toContain('{room}');
     });
 
     it(`${name}：display.* 必要鍵齊全`, () => {
@@ -77,8 +104,18 @@ describe('display.tts.callPhrase 三語模板', () => {
     });
   }
 
-  it('三語 callPhrase 內容彼此不同（避免漏譯）', () => {
-    const phrases = new Set(locales.map(({ mod }) => mod.display.tts.callPhrase));
+  it('三語 callPhraseSimple 內容彼此不同（避免漏譯）', () => {
+    const phrases = new Set(locales.map(({ mod }) => mod.display.tts.callPhraseSimple));
+    expect(phrases.size).toBe(3);
+  });
+
+  it('三語 callPhraseWithCustomer 內容彼此不同（避免漏譯）', () => {
+    const phrases = new Set(locales.map(({ mod }) => mod.display.tts.callPhraseWithCustomer));
+    expect(phrases.size).toBe(3);
+  });
+
+  it('三語 callPhraseWithRoom 內容彼此不同（避免漏譯）', () => {
+    const phrases = new Set(locales.map(({ mod }) => mod.display.tts.callPhraseWithRoom));
     expect(phrases.size).toBe(3);
   });
 });
@@ -88,21 +125,71 @@ describe('callPhrase 模板渲染（手動插值模擬 i18n）', () => {
   const render = (tpl: string, vars: Record<string, string | number>) =>
     tpl.replace(/\{(\w+)\}/g, (_, k) => String(vars[k] ?? ''));
 
-  it('zh 渲染：請 5 號到 補牙', () => {
-    const result = render((zh as { display: { tts: { callPhrase: string } } }).display.tts.callPhrase, { number: 5, serviceName: '補牙' });
-    expect(result).toBe('請 5 號到 補牙');
+  it('zh callPhraseSimple 渲染：請 5 號', () => {
+    const result = render(
+      (zh as { display: { tts: { callPhraseSimple: string } } }).display.tts.callPhraseSimple,
+      { number: 5 }
+    );
+    expect(result).toContain('5');
+    expect(result).not.toContain('{');
   });
 
-  it('en 渲染：Number 5, please proceed to ...', () => {
-    const result = render((en as { display: { tts: { callPhrase: string } } }).display.tts.callPhrase, { number: 5, serviceName: 'Filling' });
+  it('zh callPhraseWithCustomer 渲染：含 5 與 王先生', () => {
+    const result = render(
+      (zh as { display: { tts: { callPhraseWithCustomer: string } } }).display.tts.callPhraseWithCustomer,
+      { number: 5, customerName: '王先生' }
+    );
+    expect(result).toContain('5');
+    expect(result).toContain('王先生');
+    expect(result).not.toContain('{');
+  });
+
+  it('en callPhraseWithCustomer 渲染：含 5 與 customer name', () => {
+    const result = render(
+      (en as { display: { tts: { callPhraseWithCustomer: string } } }).display.tts.callPhraseWithCustomer,
+      { number: 5, customerName: 'Mr. Wang' }
+    );
     expect(result).toContain('Number 5');
-    expect(result).toContain('Filling');
+    expect(result).toContain('Mr. Wang');
   });
 
-  it('ja 渲染：5番のお客様、...へお越しください', () => {
-    const result = render((ja as { display: { tts: { callPhrase: string } } }).display.tts.callPhrase, { number: 5, serviceName: '虫歯治療' });
+  it('ja callPhraseWithCustomer 渲染：含 5番 與 customer name', () => {
+    const result = render(
+      (ja as { display: { tts: { callPhraseWithCustomer: string } } }).display.tts.callPhraseWithCustomer,
+      { number: 5, customerName: '王様' }
+    );
     expect(result).toContain('5番');
-    expect(result).toContain('虫歯治療');
+    expect(result).toContain('王様');
     expect(result).toContain('お越しください');
+  });
+
+  it('zh callPhraseWithRoom 渲染：含 5 與 A 診間（room 存在時用帶 room 變體）', () => {
+    const result = render(
+      (zh as { display: { tts: { callPhraseWithRoom: string } } }).display.tts.callPhraseWithRoom,
+      { number: 5, room: 'A 診間' }
+    );
+    expect(result).toContain('5');
+    expect(result).toContain('A 診間');
+    expect(result).not.toContain('{');
+  });
+
+  it('en callPhraseWithRoom 渲染：含 5 與 Room A', () => {
+    const result = render(
+      (en as { display: { tts: { callPhraseWithRoom: string } } }).display.tts.callPhraseWithRoom,
+      { number: 5, room: 'Room A' }
+    );
+    expect(result).toContain('Number 5');
+    expect(result).toContain('Room A');
+    expect(result).not.toContain('{');
+  });
+
+  it('ja callPhraseWithRoom 渲染：含 5番 與 A 診察室', () => {
+    const result = render(
+      (ja as { display: { tts: { callPhraseWithRoom: string } } }).display.tts.callPhraseWithRoom,
+      { number: 5, room: 'A 診察室' }
+    );
+    expect(result).toContain('5番');
+    expect(result).toContain('A 診察室');
+    expect(result).not.toContain('{');
   });
 });

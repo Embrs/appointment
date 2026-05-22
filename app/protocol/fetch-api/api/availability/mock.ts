@@ -18,7 +18,9 @@ export const GetPublicMerchant = () =>
       address: null,
       contactPhone: null,
       contactEmail: null,
-      cancelPolicy: { mode: 'free' }
+      cancelPolicy: { mode: 'free' },
+      providerModeEnabled: false,
+      providerLabel: {}
     },
     services: [],
     resources: []

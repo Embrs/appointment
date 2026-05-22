@@ -103,6 +103,7 @@ const ApiSubmit = async () => {
     const phone = form.phone.replace(/[\s-]/g, '');
     const res = await $api.CreateQueueTicketForCustomer({
       serviceId: props.params.serviceId,
+      ...(props.params.resourceId ? { resourceId: props.params.resourceId } : {}),
       customer: {
         lastName: form.lastName.trim(),
         title: form.title,
@@ -167,7 +168,10 @@ const ClickPrint = () => {
     .OpenDialogQueueWalkIn__body(v-if="!issued")
       .OpenDialogQueueWalkIn__service
         span.OpenDialogQueueWalkIn__serviceLabel {{ $t('queue.walkIn.printTicket.serviceLabel') }}
-        span.OpenDialogQueueWalkIn__serviceName {{ params.serviceName }}
+        span.OpenDialogQueueWalkIn__serviceName
+          | {{ params.serviceName }}
+          template(v-if="params.resourceName")
+            | &nbsp;・&nbsp;{{ params.resourceName }}
       p.OpenDialogQueueWalkIn__hint {{ $t('queue.walkIn.hint') }}
       ElForm(ref="formRef" :model="form" :rules="rules" label-position="top" @submit.prevent="ApiSubmit")
         ElFormItem(:label="$t('queue.walkIn.fields.lastName')" prop="lastName")

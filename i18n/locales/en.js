@@ -106,6 +106,17 @@ export default {
       serviceEditEdit: 'Edit Service',
       resourceEditCreate: 'Add Resource',
       resourceEditEdit: 'Edit Resource',
+      providerEditCreate: 'Add {label}',
+      providerEditEdit: 'Edit {label}',
+      providerDeleteConfirm: 'Deactivate this {label}? This action is recoverable (soft delete).',
+      providerModeWizardTitle: 'Enable {label} Mode',
+      providerModeWizardBody: 'Once enabled, customers will choose a {label} first when booking. We recommend creating at least one.',
+      providerModeWizardCreate: 'Create First {label}',
+      providerCreatedTitle: '{label} Created',
+      providerCreatedBody: 'Now go to the Schedule page and set up the {label}\'s working hours.',
+      providerCreatedGoSchedule: 'Go to Schedule',
+      requiresProviderToggleTitle: 'Change "Requires {label}" Setting',
+      requiresProviderToggleBody: 'This will only affect future bookings; existing bookings won\'t be backfilled. Confirm?',
       appointmentCreateTitle: 'Book on Behalf',
       holidayCreateTitle: 'Add Holiday',
       holidayEditTitle: 'Edit Holiday',
@@ -132,6 +143,7 @@ export default {
       shareLink: 'Share Link',
       services: 'Services',
       resources: 'Resources',
+      providers: '{label}',
       appointments: 'Appointments',
       queue: 'Queue Console',
       schedule: 'Scheduling',
@@ -166,7 +178,20 @@ export default {
       uploadCover: 'Upload cover image',
       policyFree: 'Customers can cancel anytime',
       policyCutoff: 'Cannot cancel within N hours of appointment',
-      cutoffHours: 'N hours'
+      cutoffHours: 'N hours',
+      providerMode: {
+        title: 'Provider Mode',
+        enabledLabel: 'Enable Provider Mode',
+        enabledHint: 'Once enabled, customers may pick a service provider (doctor / therapist / coach) when booking. Disabled by default for existing merchants — behavior unchanged.',
+        labelTitle: 'Custom Label',
+        labelHint: 'Label shown to customers. Leave blank to use the defaults ("服務人員 / Provider / スタッフ").',
+        labelZh: 'Chinese label',
+        labelEn: 'English label',
+        labelJa: 'Japanese label',
+        labelPlaceholderZh: 'e.g. 醫師, 技師, 老師',
+        labelPlaceholderEn: 'e.g. Doctor, Therapist, Coach',
+        labelPlaceholderJa: 'e.g. 医師, セラピスト, コーチ'
+      }
     },
     services: {
       listTitle: 'Services',
@@ -188,13 +213,16 @@ export default {
       nameLabel: 'Resource name',
       boundServices: 'Bound Services',
       boundServicesEmpty: '— Not bound',
-      boundServicesHint: 'Edit a RESOURCE-mode service and check this resource so customers can select it.'
+      boundServicesHint: 'Edit a service and check this resource so customers can select it.'
     },
     schedule: {
       title: 'Scheduling',
       subtitle: 'Manage weekly hours, single-day overrides, closed days and queue hours',
       scopeMerchant: 'Whole shop',
       scopeResource: 'Resource',
+      scopeProvider: '{label}',
+      providerScopeResourceLabel: 'Preferred room (optional)',
+      providerScopeResourceHint: 'Optionally pin which room/seat the {label} uses for this rule; leave blank to schedule the person only.',
       addSlot: '+ Add slot',
       // @deprecated renamed to "Single-day Override"
       overrides: 'Single-day Override',
@@ -271,6 +299,29 @@ export default {
       slugTaken: 'Slug already taken',
       uploadFailed: 'Image upload failed',
       saveFailed: 'Save failed'
+    },
+    queue: {
+      tabs: {
+        waiting: 'Waiting',
+        called: 'Serving',
+        history: 'History',
+        countSuffix: ' ({n})'
+      },
+      search: {
+        placeholder: 'Search by number or last 4 of phone',
+        empty: 'No matching tickets',
+        clear: 'Clear search'
+      },
+      serving: {
+        empty: 'No tickets are being served'
+      },
+      conn: {
+        live: 'Live',
+        off: 'Disconnected'
+      },
+      operatingRoom: {
+        label: 'Operating'
+      }
     }
   },
   sys: {
@@ -321,6 +372,7 @@ export default {
     },
     steps: {
       service: 'Service',
+      provider: '{label}',
       resource: 'Resource',
       datetime: 'Date & Time',
       // @deprecated superseded by datetime
@@ -345,12 +397,19 @@ export default {
     },
     panel: {
       pickService: 'Select a service',
+      pickProvider: 'Select a {label}',
       pickResource: 'Select a resource',
       pickDateTime: 'Select date & time'
     },
     resource: {
       anyLabel: 'Any available (auto-assign)',
       anyDescription: 'The system will pick an available resource for you'
+    },
+    provider: {
+      cardTitleFallback: 'This {label}',
+      bioEmpty: 'No introduction yet',
+      unavailable: 'This {label} has no bookable slots',
+      pickHint: 'Tap the {label} you\'d like to be served by'
     },
     fields: {
       date: 'Date',
@@ -416,7 +475,11 @@ export default {
       limitExceeded: 'You have reached the booking limit at this merchant, please cancel an existing booking and try again',
       limitExceededTitle: 'Booking limit reached',
       limitExceededHint: 'You may cancel unnecessary bookings in "My Bookings"',
-      goMyBookings: 'Go to My Bookings'
+      goMyBookings: 'Go to My Bookings',
+      providerRequired: 'Please select a {label}',
+      providerNotForService: 'This {label} does not offer this service',
+      providerInactive: 'This {label} is no longer active',
+      providerTaken: 'This {label} is already booked at this time'
     },
     queryTitle: 'Lookup Booking',
     querySubmit: 'Search',
@@ -460,12 +523,15 @@ export default {
     linkCopied: 'Display link copied',
     linkCopyFailed: 'Unable to copy automatically, please copy manually:',
     needQueueService: 'Create a QUEUE service first',
+    gotoRoom: 'Please proceed to {room}',
     tts: {
       toggle: 'Voice call-out',
       on: 'Voice call-out: ON',
       off: 'Voice call-out: OFF',
       unsupported: 'Voice call-out is not supported in this browser',
-      callPhrase: 'Number {number}, please proceed to {serviceName}.'
+      callPhraseSimple: 'Number {number}, please come up.',
+      callPhraseWithCustomer: 'Number {number}, {customerName}, please come up.',
+      callPhraseWithRoom: 'Number {number}, please proceed to {room}.'
     }
   },
   queue: {
@@ -530,7 +596,14 @@ export default {
       doneCtaRetake: 'Take new ticket',
       skippedTitle: 'Your number was skipped',
       skippedSubtitle: 'Please contact staff or take a new ticket if you still need service',
-      skippedCtaContact: 'Contact merchant'
+      skippedCtaContact: 'Contact merchant',
+      ticketWithRoom: '{room} #{number}',
+      statusCalledHintWithRoom: 'Please proceed to {room} — it is your turn!'
+    },
+    take: {
+      selectRoomLabel: 'Choose room / counter',
+      selectRoomHint: 'Current wait at each room helps you decide',
+      roomStat: 'Now serving #{current} · {waiting} waiting'
     },
     walkIn: {
       title: 'Walk-in registration',
@@ -597,6 +670,16 @@ export default {
       findAmbiguous: 'More than one match. Please visit the counter with your phone for verification.',
       findNotFound: 'No ticket found today',
       findInvalid: 'Please enter a 4-digit number'
+    },
+    checkIn: {
+      title: 'Check-in',
+      empty: 'No customers waiting for check-in',
+      assignedRoom: 'Assigned room',
+      confirm: 'Confirm check-in',
+      confirmed: 'Checked in',
+      reassigned: 'Reassigned {from} → {to}',
+      unassignedProvider: 'No provider assigned',
+      assignFailed: 'Reassignment failed, please retry'
     }
   },
   slot: {
@@ -625,6 +708,11 @@ export default {
       CANCELED: 'Canceled',
       COMPLETED: 'Completed',
       NO_SHOW: 'No-show'
+    },
+    fields: {
+      provider: '{label}',
+      providerUnspecified: 'Unspecified',
+      providerInactiveSuffix: ' (inactive)'
     },
     customerTitle: {
       MR: 'Mr.',
@@ -677,6 +765,41 @@ export default {
     }
   },
   service: {
-    durationLabel: '{n} min'
+    durationLabel: '{n} min',
+    edit: {
+      queueResourcesLabel: 'Callable rooms / counters / staff (optional)',
+      queueResourcesHint: 'Each bound resource keeps its own queue; leave empty to keep a single queue.',
+      requiresProviderLabel: 'Requires {label}',
+      requiresProviderHint: 'When enabled, customers must pick a {label} when booking; bind at least one first.',
+      providersLabel: 'Available {label}s',
+      providersHint: 'Pick which {label}s offer this service; customers will choose from this list.',
+      providersEmptyError: 'Pick at least one {label} when "Requires {label}" is enabled.'
+    }
+  },
+  provider: {
+    listTitle: '{label} Management',
+    addButton: '+ Add {label}',
+    fields: {
+      avatar: 'Avatar',
+      name: 'Name',
+      title: 'Title',
+      bio: 'Bio',
+      displayOrder: 'Order',
+      isActive: 'Active',
+      boundServices: 'Services Offered',
+      boundServicesEmpty: '— Not bound to any service'
+    },
+    placeholders: {
+      name: 'e.g. Dr. Smith, Lisa',
+      title: 'e.g. Attending physician, Senior therapist',
+      bio: 'Short bio (multi-line allowed)'
+    },
+    actions: {
+      edit: 'Edit',
+      delete: 'Deactivate'
+    },
+    bannerNotEnabled: 'Provider mode is not enabled. Enable it in Merchant Settings — this page only appears in the sidebar once enabled.',
+    bannerGoSettings: 'Go to Merchant Settings',
+    empty: 'No {label} yet'
   }
 };

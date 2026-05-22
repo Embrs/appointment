@@ -18,6 +18,8 @@ interface CreatePublicAppointmentParams {
   slug: string;
   serviceId: string;
   resourceId?: string;
+  /** 啟用 Provider 制商家：指定服務人員 */
+  providerId?: string;
   /** ISO UTC */
   startAt: string;
   customer: CustomerTriplet;
@@ -45,6 +47,7 @@ interface LookupAppointmentItem {
   endAt: string;
   service: { id: string; name: string };
   resource: { id: string; name: string } | null;
+  provider: { id: string; name: string; isActive: boolean } | null;
   note: string | null;
   cancelReason: string | null;
   canceledBy: CanceledByType | null;
@@ -79,6 +82,7 @@ interface GetAppointmentListParams {
   status?: AppointmentStatusType;
   serviceId?: string;
   resourceId?: string;
+  providerId?: string;
   customerPhone?: string;
   page?: number;
   pageSize?: number;
@@ -97,6 +101,10 @@ interface AppointmentItem {
     durationMinutes: number;
   };
   resource: { id: string; name: string } | null;
+  /** 服務人員（啟用 Provider 制商家才會非 null） */
+  provider: { id: string; name: string; isActive: boolean } | null;
+  /** Provider 的原始 id（便於 join）；provider 物件為已軟刪時可能為 null 但 providerId 仍有值 */
+  providerId?: string | null;
   customerLastName: string;
   customerTitle: CustomerTitleType;
   customerPhone: string;
@@ -119,6 +127,7 @@ interface GetAppointmentListRes {
 interface CreateAppointmentParams {
   serviceId: string;
   resourceId?: string;
+  providerId?: string;
   startAt: string;
   customer: CustomerTriplet;
   note?: string;

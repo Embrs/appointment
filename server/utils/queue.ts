@@ -77,6 +77,30 @@ export const MSG_QUEUE_FIND_INVALID: I18nMessage = {
   ja: '4 桁の数字を入力してください'
 };
 
+export const MSG_QUEUE_RESOURCE_REQUIRED: I18nMessage = {
+  zh_tw: '請先選擇診間／櫃台／資源',
+  en: 'Please select a room/counter/resource',
+  ja: '部屋／カウンター／リソースを選択してください'
+};
+
+export const MSG_QUEUE_RESOURCE_INVALID: I18nMessage = {
+  zh_tw: '所選的診間／櫃台／資源不可用',
+  en: 'Selected room/counter/resource is not available',
+  ja: '選択した部屋／カウンター／リソースは利用できません'
+};
+
+export const MSG_QUEUE_INVALID_STATE: I18nMessage = {
+  zh_tw: '此號碼牌目前狀態無法改派診間',
+  en: 'Cannot reassign room for this ticket in its current state',
+  ja: 'この整理券は現在の状態では部屋を変更できません'
+};
+
+export const MSG_QUEUE_NUMBER_TAKEN: I18nMessage = {
+  zh_tw: '目標診間已有相同號碼，請選擇其他診間',
+  en: 'Target room already has a ticket with this number',
+  ja: '対象の部屋に同じ番号の整理券が既にあります'
+};
+
 // ====== WebSocket peer 管理 ======
 
 /** peerMap：merchantId → Set<Peer> */
@@ -106,16 +130,28 @@ export const getPeerCount = (merchantId: string): number => {
 export interface QueueBroadcastPayload {
   type: 'CALL_NEXT' | 'TICKET_DONE' | 'TICKET_SKIPPED' | 'TICKET_TAKEN';
   serviceId: string;
+  /** 多診間分群識別；null 表 service 未綁 resource（單號池） */
+  resourceId?: string | null;
+  /** 對應 resource 的顯示名稱；resourceId 為 null 時可省略 */
+  resourceName?: string;
   /** CALL_NEXT 時的服務中號碼 */
   current?: number;
   /** 對應 ticket id */
   servingTicketId?: string;
+  /** CALL_NEXT 時叫到的顧客姓氏（大螢幕僅顯示姓+稱謂，不顯示服務名稱） */
+  servingCustomerLastName?: string;
+  /** CALL_NEXT 時叫到的顧客稱謂 enum（i18n key 對應 appointment.customerTitle.*） */
+  servingCustomerTitle?: 'MR' | 'MRS' | 'MISS' | 'MX';
   /** TICKET_TAKEN 時新發票號 */
   ticketNumber?: number;
   /** 該服務 effective 平均服務時長（avgServiceMinutes ?? durationMinutes），給訂閱端對任意票即時計算 ETA */
   avgServiceMinutes?: number;
   /** 該事件後「下一位 WAITING 票」的預估等待分鐘；null 表無法估算 */
   nextWaitMinutes?: number | null;
+  /** 啟用 Provider 制商家：該事件對應 resource 當下時段排定的 Provider id；未啟用 / 未命中 / 多匹配為 null */
+  providerId?: string | null;
+  /** 啟用 Provider 制商家：對應 Provider 顯示名稱；未啟用 / 未命中 / 多匹配為 null */
+  providerName?: string | null;
   timestamp: number;
 }
 
@@ -324,6 +360,8 @@ const isClaimTokenCollision = (err: unknown): boolean => {
 export interface InternalCreateTicketInput {
   merchantId: string;
   serviceId: string;
+  /** 多診間分群；null 表單號池（service 未綁 resource）；呼叫端必須顯式傳入避免誤入單號池 */
+  resourceId: string | null;
   /** merchant timezone 當日 Date（@db.Date 用） */
   ticketDate: Date;
   customer: {
@@ -334,7 +372,7 @@ export interface InternalCreateTicketInput {
   };
   /** 是否由商家後台代客建立（影響 createdByMerchant 欄位） */
   createdByMerchant: boolean;
-  /** 當日上限（0 = 不限制）；事務內會再次精檢避免並發超發 */
+  /** 當日上限（0 = 不限制）；事務內會再次精檢避免並發超發。語意為「service 總上限」不分 resource */
   maxTickets?: number;
 }
 
@@ -347,6 +385,7 @@ export type InternalCreateTicketResult =
         ticketDate: Date;
         status: 'WAITING';
         claimToken: string;
+        resourceId: string | null;
       };
       currentServing: number;
     }
@@ -362,14 +401,23 @@ export type InternalCreateTicketResult =
 export const internalCreateTicket = async (
   input: InternalCreateTicketInput
 ): Promise<InternalCreateTicketResult> => {
-  const { merchantId, serviceId, ticketDate, customer, createdByMerchant, maxTickets = 0 } = input;
+  const {
+    merchantId,
+    serviceId,
+    resourceId,
+    ticketDate,
+    customer,
+    createdByMerchant,
+    maxTickets = 0
+  } = input;
 
-  // 事務外粗檢：同人同日重複領號（僅 phone 非 null 才查）
+  // 事務外粗檢：同人同日重複領號（僅 phone 非 null 才查；按 resourceId 分群——不同 resource 視為新號池）
   if (customer.phone !== null) {
     const existing = await prisma.queueTicket.findFirst({
       where: {
         merchantId,
         serviceId,
+        resourceId,
         ticketDate,
         customerPhone: customer.phone,
         status: { in: ['WAITING', 'CALLED'] }
@@ -381,7 +429,7 @@ export const internalCreateTicket = async (
     }
   }
 
-  // 事務外粗檢：當日上限（0 視為不限）
+  // 事務外粗檢：當日上限（0 視為不限）——語意為「service 總上限」不分 resource
   if (maxTickets > 0) {
     const count = await prisma.queueTicket.count({
       where: { merchantId, serviceId, ticketDate }
@@ -393,38 +441,41 @@ export const internalCreateTicket = async (
 
   const runTransaction = (claimToken: string) =>
     prisma.$transaction(async (tx) => {
-      // 確保 counter 存在
-      await tx.queueCounter.upsert({
-        where: {
-          merchantId_serviceId_counterDate: {
+      // 確保 counter 存在（按 (merchantId, serviceId, resourceId, counterDate) 分群）
+      // 注意：PostgreSQL unique 對多個 NULL 不衝突 + Prisma compound unique 對 nullable 欄位拒絕 null，
+      // 所以 upsert 不適用 resourceId=null 路徑。改先鎖 service row 序列化建立、再 findFirst + create。
+      await tx.$executeRaw`SELECT 1 FROM "Service" WHERE id = ${serviceId} FOR UPDATE`;
+      const existing = await tx.queueCounter.findFirst({
+        where: { merchantId, serviceId, resourceId, counterDate: ticketDate },
+        select: { id: true }
+      });
+      if (!existing) {
+        await tx.queueCounter.create({
+          data: {
             merchantId,
             serviceId,
-            counterDate: ticketDate
+            resourceId,
+            counterDate: ticketDate,
+            lastTicketNumber: 0,
+            lastCalledNumber: 0
           }
-        },
-        update: {},
-        create: {
-          merchantId,
-          serviceId,
-          counterDate: ticketDate,
-          lastTicketNumber: 0,
-          lastCalledNumber: 0
-        }
-      });
+        });
+      }
 
-      // 鎖 counter 該列（advisory lock；序列化兩並發拿號）
+      // 鎖 counter row（FOR UPDATE 序列化兩並發拿號；不同 resource 鎖不同 row 自然不互鎖）
       const locked = await tx.$queryRaw<Array<{ id: string; lastTicketNumber: number; lastCalledNumber: number }>>`
         SELECT id, "lastTicketNumber", "lastCalledNumber"
         FROM "QueueCounter"
         WHERE "merchantId" = ${merchantId}
           AND "serviceId" = ${serviceId}
+          AND "resourceId" IS NOT DISTINCT FROM ${resourceId}
           AND "counterDate" = ${ticketDate}
         FOR UPDATE
       `;
       const counter = locked[0];
       if (!counter) throw new Error('counter not found after upsert');
 
-      // 事務內再次精檢上限
+      // 事務內再次精檢上限（service 總上限）
       if (maxTickets > 0) {
         const inTxCount = await tx.queueTicket.count({
           where: { merchantId, serviceId, ticketDate }
@@ -443,6 +494,7 @@ export const internalCreateTicket = async (
         data: {
           merchantId,
           serviceId,
+          resourceId,
           ticketDate,
           ticketNumber: nextNumber,
           status: 'WAITING',
@@ -452,7 +504,14 @@ export const internalCreateTicket = async (
           createdByMerchant,
           claimToken
         },
-        select: { id: true, ticketNumber: true, ticketDate: true, status: true, claimToken: true }
+        select: {
+          id: true,
+          ticketNumber: true,
+          ticketDate: true,
+          status: true,
+          claimToken: true,
+          resourceId: true
+        }
       });
       return {
         full: false as const,
@@ -480,8 +539,246 @@ export const internalCreateTicket = async (
       ticketNumber: ticket.ticketNumber,
       ticketDate: ticket.ticketDate,
       status: 'WAITING' as const,
-      claimToken: ticket.claimToken
+      claimToken: ticket.claimToken,
+      resourceId: ticket.resourceId
     },
     currentServing: result.currentServing
   };
+};
+
+// ====== Resource helper（QUEUE service 綁定的 Resource 列表 + 驗證） ======
+
+export interface QueueResource {
+  id: string;
+  name: string;
+  displayOrder: number;
+  isActive: boolean;
+}
+
+/**
+ * 取得該 service 已綁定且 active / 未軟刪的 Resource，按 displayOrder 升序。
+ * 給 take / call-next / create-for-customer / queue-today / public/m/[slug] 共用。
+ */
+export const getResourcesForQueueService = async (
+  serviceId: string
+): Promise<QueueResource[]> => {
+  const rows = await prisma.serviceResource.findMany({
+    where: {
+      serviceId,
+      resource: { deletedAt: null, isActive: true }
+    },
+    select: {
+      resource: {
+        select: { id: true, name: true, displayOrder: true, isActive: true }
+      }
+    }
+  });
+  return rows
+    .map((r) => r.resource)
+    .sort((a, b) => a.displayOrder - b.displayOrder);
+};
+
+export type ResourceValidationResult =
+  | { ok: true; resource: QueueResource | null }
+  | { ok: false; code: 'REQUIRED' | 'INVALID' };
+
+// ====== Provider 推導（QueueTicket / Resource 不存 providerId；以 Schedule 反查為唯一來源） ======
+
+/** resource → provider 對應；null 表「啟用 Provider 制但該 resource 該時段未命中（零匹配或多匹配）」 */
+export type ResourceProviderEntry = { providerId: string; providerName: string } | null;
+
+/** key 為 resourceId；服務未綁 resource 的單號池路徑用字面量 `'__null__'` */
+export type ResourceProviderMap = Map<string, ResourceProviderEntry>;
+
+const RESOURCE_NULL_KEY = '__null__';
+
+export interface ProviderScheduleEntry {
+  resourceId: string | null;
+  providerId: string;
+  startTime: string | null;
+  endTime: string | null;
+}
+
+export interface SelectProviderEntriesInput {
+  /** 當下時間（HH:mm 字串，已套商家時區） */
+  time: string;
+  /** ScheduleOverride 同日命中項（scope=PROVIDER、providerId 非 null、isClosed=false） */
+  overrides: ProviderScheduleEntry[];
+  /** ScheduleRule 同 weekday 命中項（scope=PROVIDER、providerId 非 null、isActive=true） */
+  rules: ProviderScheduleEntry[];
+}
+
+/**
+ * 從 schedule 命中資料推導 resource → provider 對應。純函式，便於單元測試。
+ * - Override 優先 Rule（同 resource 有任一 Override 命中時忽略 Rule）
+ * - 同 resource 命中多 Provider → 該 entry 為 null
+ * - 命中單一 Provider → 該 entry 為 providerId（呼叫端再 join 取 name）
+ */
+export const selectProviderEntriesFromSchedule = (
+  input: SelectProviderEntriesInput
+): Map<string, string | null> => {
+  const { time, overrides, rules } = input;
+  const keyOf = (rid: string | null): string => rid ?? RESOURCE_NULL_KEY;
+  const inWindow = (start: string | null, end: string | null): boolean => {
+    if (!start || !end) return false;
+    return time >= start && time < end;
+  };
+
+  type Acc = { providerIds: Set<string>; bestSource: 'override' | 'rule' };
+  const byResource = new Map<string, Acc>();
+
+  const ingest = (entry: ProviderScheduleEntry, source: 'override' | 'rule') => {
+    if (!inWindow(entry.startTime, entry.endTime)) return;
+    const k = keyOf(entry.resourceId);
+    const cur = byResource.get(k);
+    if (!cur) {
+      byResource.set(k, { providerIds: new Set([entry.providerId]), bestSource: source });
+      return;
+    }
+    if (cur.bestSource === 'rule' && source === 'override') {
+      byResource.set(k, { providerIds: new Set([entry.providerId]), bestSource: 'override' });
+      return;
+    }
+    if (cur.bestSource === 'override' && source === 'rule') {
+      return; // 已有 override 命中，rule 不參與
+    }
+    cur.providerIds.add(entry.providerId);
+  };
+
+  for (const o of overrides) ingest(o, 'override');
+  for (const r of rules) ingest(r, 'rule');
+
+  const out = new Map<string, string | null>();
+  for (const [k, { providerIds }] of byResource) {
+    if (providerIds.size === 1) {
+      const [only] = providerIds;
+      out.set(k, only ?? null);
+    } else {
+      out.set(k, null);
+    }
+  }
+  return out;
+};
+
+/**
+ * 依商家當下 timezone 的 weekday + HH:mm 反查「每個 resource 對應的 Provider」。
+ * - 商家 providerModeEnabled=false 一律回空 Map（短路，不查 schedule）
+ * - ScheduleOverride（特定日期）優先於 ScheduleRule（每週）
+ * - 同一 resource 在同一時段命中多個 Provider 視為排班錯誤，該 resource 的值為 null（畫面不渲染副標）
+ * - 同一 resource 在同一時段命中單一 Provider 時，該 resource 的值為 { providerId, providerName }
+ * - QueueTicket / Resource 不存 providerId；本 helper 為唯一推導入口
+ */
+export const resolveProviderByResourceMap = async (
+  merchantId: string,
+  now: Date = new Date()
+): Promise<ResourceProviderMap> => {
+  const merchant = await prisma.merchant.findUnique({
+    where: { id: merchantId },
+    select: { providerModeEnabled: true, timezone: true }
+  });
+  if (!merchant || !merchant.providerModeEnabled) return new Map();
+
+  const tz = merchant.timezone ?? 'Asia/Taipei';
+  const weekday = getTicketWeekday(tz, now);
+  const time = getTicketTimeString(tz, now);
+  const ticketDate = getTicketDate(tz, now);
+
+  const [overrideRows, ruleRows] = await Promise.all([
+    prisma.scheduleOverride.findMany({
+      where: {
+        merchantId,
+        date: ticketDate,
+        scope: 'PROVIDER',
+        providerId: { not: null },
+        isClosed: false
+      },
+      select: { resourceId: true, providerId: true, startTime: true, endTime: true }
+    }),
+    prisma.scheduleRule.findMany({
+      where: {
+        merchantId,
+        weekday,
+        scope: 'PROVIDER',
+        providerId: { not: null },
+        isActive: true
+      },
+      select: { resourceId: true, providerId: true, startTime: true, endTime: true }
+    })
+  ]);
+
+  const overrides: ProviderScheduleEntry[] = overrideRows
+    .filter((o): o is typeof o & { providerId: string } => o.providerId !== null)
+    .map((o) => ({
+      resourceId: o.resourceId,
+      providerId: o.providerId,
+      startTime: o.startTime,
+      endTime: o.endTime
+    }));
+  const rules: ProviderScheduleEntry[] = ruleRows
+    .filter((r): r is typeof r & { providerId: string } => r.providerId !== null)
+    .map((r) => ({
+      resourceId: r.resourceId,
+      providerId: r.providerId,
+      startTime: r.startTime,
+      endTime: r.endTime
+    }));
+
+  const resolved = selectProviderEntriesFromSchedule({ time, overrides, rules });
+
+  // 收集所有要查 name 的 providerId（單一命中者）
+  const singleHitProviderIds = new Set<string>();
+  for (const pid of resolved.values()) if (pid !== null) singleHitProviderIds.add(pid);
+
+  const providers = singleHitProviderIds.size
+    ? await prisma.provider.findMany({
+        where: { id: { in: [...singleHitProviderIds] }, deletedAt: null },
+        select: { id: true, name: true }
+      })
+    : [];
+  const providerNameById = new Map(providers.map((p) => [p.id, p.name]));
+
+  const out: ResourceProviderMap = new Map();
+  for (const [k, pid] of resolved) {
+    if (pid === null) {
+      out.set(k, null);
+      continue;
+    }
+    const name = providerNameById.get(pid);
+    if (!name) {
+      out.set(k, null); // Provider 已軟刪 → 視為未命中
+      continue;
+    }
+    out.set(k, { providerId: pid, providerName: name });
+  }
+  return out;
+};
+
+/** 從 ResourceProviderMap 安全取出 entry；包含 null / undefined（未啟用 Provider 制）皆回 null */
+export const getResourceProviderEntry = (
+  map: ResourceProviderMap,
+  resourceId: string | null
+): ResourceProviderEntry => {
+  const key = resourceId ?? RESOURCE_NULL_KEY;
+  return map.get(key) ?? null;
+};
+
+/**
+ * 驗證 body 帶來的 resourceId：
+ * - service 已綁 active resources：resourceId 必填、且必須在綁定列表中
+ * - service 未綁 active resources：resourceId 必須為 undefined（傳了視為錯誤）
+ * 回傳 ok=true 時 resource 為對應 active resource 或 null（單號池路徑）。
+ */
+export const validateResourceIdForQueueService = async (
+  serviceId: string,
+  resourceId: string | undefined
+): Promise<ResourceValidationResult> => {
+  const resources = await getResourcesForQueueService(serviceId);
+  if (resources.length === 0) {
+    if (resourceId !== undefined) return { ok: false, code: 'INVALID' };
+    return { ok: true, resource: null };
+  }
+  if (resourceId === undefined) return { ok: false, code: 'REQUIRED' };
+  const found = resources.find((r) => r.id === resourceId);
+  if (!found) return { ok: false, code: 'INVALID' };
+  return { ok: true, resource: found };
 };

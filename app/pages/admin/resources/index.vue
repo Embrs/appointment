@@ -1,6 +1,6 @@
 <script setup lang="ts">
 // PageAdminResources — 資源列表 + 新增 / 編輯 / 軟刪除
-// 含「已綁服務」column,顯示資源被哪些 RESOURCE / RESOURCE_OPTIONAL 服務綁定;未綁時提示
+// 含「已綁服務」column,顯示所有有資源綁定的啟用服務(不限 bookingMode,含 RESOURCE / RESOURCE_OPTIONAL / QUEUE);未綁時提示
 definePageMeta({
   layout: 'back-desk',
   middleware: ['merchant']
@@ -17,10 +17,7 @@ const boundServicesByResource = computed(() => {
   const map = new Map<string, ServiceItem[]>();
   for (const r of items.value) map.set(r.id, []);
   for (const s of services.value) {
-    if (
-      (s.bookingMode !== 'RESOURCE' && s.bookingMode !== 'RESOURCE_OPTIONAL') ||
-      !s.isActive
-    ) continue;
+    if (!s.isActive) continue;
     for (const rid of s.resourceIds ?? []) {
       const arr = map.get(rid);
       if (arr) arr.push(s);

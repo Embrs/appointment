@@ -83,6 +83,8 @@ const fakeSelf: SelfMerchantFull = {
   contactEmail: 'demo@mock.local',
   address: '',
   maxActiveAppointmentsPerCustomer: 5,
+  providerModeEnabled: false,
+  providerLabel: {},
   createdAt: '2026-05-10T00:00:00.000Z',
   updatedAt: '2026-05-15T00:00:00.000Z'
 };

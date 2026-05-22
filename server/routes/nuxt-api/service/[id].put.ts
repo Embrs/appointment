@@ -22,7 +22,9 @@ const ServiceUpdateSchema = z
     isActive: z.boolean().optional(),
     displayOrder: z.number().int().min(0).max(9999).optional(),
     resourceIds: z.array(z.string().min(1)).max(50).optional(),
-    avgServiceMinutes: z.number().int().min(0).max(720).nullable().optional()
+    avgServiceMinutes: z.number().int().min(0).max(720).nullable().optional(),
+    requiresProvider: z.boolean().optional(),
+    providerIds: z.array(z.string().min(1)).max(50).optional()
   })
   .strict();
 
@@ -35,6 +37,16 @@ const RESOURCE_BAD = {
   zh_tw: '資源不存在或不屬於此商家',
   en: 'Resource not found in this merchant',
   ja: 'リソースが見つかりません'
+};
+const PROVIDER_REQUIRED = {
+  zh_tw: '啟用「需指定服務人員」時必須選擇至少一位',
+  en: 'When "Requires provider" is enabled, pick at least one provider',
+  ja: '「スタッフ指定」を有効にする場合、少なくとも 1 名選択してください'
+};
+const PROVIDER_BAD = {
+  zh_tw: '服務人員不存在或不屬於此商家',
+  en: 'Provider not found in this merchant',
+  ja: 'スタッフが見つかりません'
 };
 
 export default defineEventHandler(async (event) => {
@@ -55,10 +67,11 @@ export default defineEventHandler(async (event) => {
   const body = parsed.data;
 
   const nextMode = body.bookingMode ?? existing.bookingMode;
-  const isResourceMode = nextMode === 'RESOURCE' || nextMode === 'RESOURCE_OPTIONAL';
+  // RESOURCE / RESOURCE_OPTIONAL：必須綁；QUEUE：可選綁（空陣列 = 單號池）；其他模式：本欄位被忽略
+  const isResourceRequiredMode = nextMode === 'RESOURCE' || nextMode === 'RESOURCE_OPTIONAL';
 
   if (body.resourceIds !== undefined) {
-    if (isResourceMode && body.resourceIds.length === 0) {
+    if (isResourceRequiredMode && body.resourceIds.length === 0) {
       return badRequestError(event, RESOURCE_REQUIRED);
     }
     if (body.resourceIds.length > 0) {
@@ -68,6 +81,31 @@ export default defineEventHandler(async (event) => {
       });
       if (owned.length !== body.resourceIds.length) return forbiddenError(event, RESOURCE_BAD);
     }
+  }
+
+  // Provider 驗證：判斷最終 requiresProvider 與 providerIds
+  const nextRequiresProvider = body.requiresProvider ?? existing.requiresProvider;
+  const providerIdsRaw = body.providerIds !== undefined ? Array.from(new Set(body.providerIds)) : undefined;
+  // 啟用 requiresProvider 時必須帶非空 providerIds（取本次帶入或現有皆可）
+  if (nextRequiresProvider) {
+    let finalProviderIds: string[];
+    if (providerIdsRaw !== undefined) {
+      finalProviderIds = providerIdsRaw;
+    } else {
+      const existingLinks = await prisma.providerService.findMany({
+        where: { serviceId: id },
+        select: { providerId: true }
+      });
+      finalProviderIds = existingLinks.map((r) => r.providerId);
+    }
+    if (finalProviderIds.length === 0) return badRequestError(event, PROVIDER_REQUIRED);
+  }
+  if (providerIdsRaw && providerIdsRaw.length > 0) {
+    const ownedProviders = await prisma.provider.findMany({
+      where: { id: { in: providerIdsRaw }, merchantId: auth.merchantId, deletedAt: null },
+      select: { id: true }
+    });
+    if (ownedProviders.length !== providerIdsRaw.length) return forbiddenError(event, PROVIDER_BAD);
   }
 
   const updated = await prisma.$transaction(async (tx) => {
@@ -83,6 +121,7 @@ export default defineEventHandler(async (event) => {
         priceCents: body.priceCents ?? undefined,
         isActive: body.isActive,
         displayOrder: body.displayOrder,
+        requiresProvider: body.requiresProvider,
         // QUEUE 才寫入 avgServiceMinutes；切換到非 QUEUE 一律清為 null
         avgServiceMinutes:
           body.avgServiceMinutes !== undefined
@@ -98,13 +137,27 @@ export default defineEventHandler(async (event) => {
         });
       }
     }
+    if (providerIdsRaw !== undefined) {
+      await tx.providerService.deleteMany({ where: { serviceId: id } });
+      if (providerIdsRaw.length > 0) {
+        await tx.providerService.createMany({
+          data: providerIdsRaw.map((pid) => ({ serviceId: id, providerId: pid }))
+        });
+      }
+    }
     return s;
   });
 
-  const resourceLinks = await prisma.serviceResource.findMany({
-    where: { serviceId: id },
-    select: { resourceId: true }
-  });
+  const [resourceLinks, providerLinks] = await Promise.all([
+    prisma.serviceResource.findMany({
+      where: { serviceId: id },
+      select: { resourceId: true }
+    }),
+    prisma.providerService.findMany({
+      where: { serviceId: id },
+      select: { providerId: true }
+    })
+  ]);
 
   return successResponse({
     service: {
@@ -119,7 +172,9 @@ export default defineEventHandler(async (event) => {
       isActive: updated.isActive,
       displayOrder: updated.displayOrder,
       avgServiceMinutes: updated.avgServiceMinutes,
+      requiresProvider: updated.requiresProvider,
       resourceIds: resourceLinks.map((r) => r.resourceId),
+      providerIds: providerLinks.map((p) => p.providerId),
       updatedAt: updated.updatedAt
     }
   });

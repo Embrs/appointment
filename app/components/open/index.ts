@@ -70,6 +70,9 @@ export default {
   /** 商家資源新增 / 編輯 */
   DialogResourceEdit: (params: DialogResourceEditParams) =>
     Open<{ done: boolean }>('OpenDialogResourceEdit', params),
+  /** 商家服務人員新增 / 編輯 */
+  DialogProviderEdit: (params: DialogProviderEditParams) =>
+    Open<{ done: boolean }>('OpenDialogProviderEdit', params),
   /** 每週時段段落新增 */
   DialogScheduleRuleEdit: (params: DialogScheduleRuleEditParams) =>
     Open<{ done: boolean; rule?: { weekday: number; startTime: string; endTime: string } }>(

@@ -12,6 +12,17 @@ const submitting = ref(false);
 const queueServices = ref<PublicServiceItem[]>([]);
 const formServiceId = ref('');
 const formPhoneLast4 = ref('');
+/** 多筆同手機末 4 碼結果（不同 resource 各一張） */
+type FindResultItem = {
+  ticketId: string;
+  ticketNumber: number;
+  status: string;
+  resourceId: string | null;
+  resourceName: string | null;
+  serviceName: string;
+  claimToken: string;
+};
+const multiResults = ref<FindResultItem[]>([]);
 
 const ApiLoad = async () => {
   loading.value = true;
@@ -43,15 +54,32 @@ const CanSubmit = computed(() =>
 const ClickSubmit = async () => {
   if (!CanSubmit.value) return;
   submitting.value = true;
+  multiResults.value = [];
   try {
     const res = await $api.FindQueueTicket({
       slug: slug.value,
       serviceId: formServiceId.value,
       phoneLast4: formPhoneLast4.value
     });
-    if (res.status.code === $enum.apiStatus.success && res.data.ticketId) {
-      navigateTo(localePath(`/m/${slug.value}/queue/status?id=${res.data.ticketId}`));
-      return;
+    if (res.status.code === $enum.apiStatus.success) {
+      // 多筆命中（不同 resource）：列出供顧客選
+      if (res.data.tickets && res.data.tickets.length > 0) {
+        multiResults.value = res.data.tickets.map((t) => ({
+          ticketId: t.ticketId,
+          ticketNumber: t.ticketNumber,
+          status: t.status,
+          resourceId: t.resourceId,
+          resourceName: t.resourceName,
+          serviceName: t.serviceName,
+          claimToken: t.claimToken
+        }));
+        return;
+      }
+      // 單筆命中（既有 contract）
+      if (res.data.ticketId) {
+        navigateTo(localePath(`/m/${slug.value}/queue/status?id=${res.data.ticketId}`));
+        return;
+      }
     }
     // 後端錯誤碼分流：badRequest=400 / notFound=404 / tooManyRequests=429
     const msg = res.status.message?.zh_tw || t('queue.messages.findNotFound');
@@ -65,6 +93,12 @@ const ClickSubmit = async () => {
   } finally {
     submitting.value = false;
   }
+};
+
+const ClickResultItem = (entry: FindResultItem) => {
+  navigateTo(localePath(
+    `/m/${slug.value}/queue/status?id=${entry.ticketId}&token=${encodeURIComponent(entry.claimToken)}`
+  ));
 };
 
 onMounted(ApiLoad);
@@ -117,6 +151,29 @@ onMounted(ApiLoad);
           data-testid="queue-find-submit"
           @click="ClickSubmit"
         ) {{ $t('queue.page.findSubmit') }}
+
+    //- 多筆同手機末 4 碼命中（不同診間／櫃台各一張）
+    .PageQueueFind__results(
+      v-if="multiResults.length > 0"
+      data-testid="queue-find-results"
+    )
+      .PageQueueFind__resultsTitle {{ $t('queue.page.findTitle') }}
+      ul.PageQueueFind__resultList
+        li.PageQueueFind__resultItem(
+          v-for="r in multiResults"
+          :key="r.ticketId"
+          :data-testid="`queue-find-result-${r.resourceId ?? 'null'}`"
+        )
+          .PageQueueFind__resultMain
+            .PageQueueFind__resultNumber
+              span(v-if="r.resourceName") {{ $t('queue.page.ticketWithRoom', { room: r.resourceName, number: r.ticketNumber }) }}
+              span(v-else) {{ r.ticketNumber }}
+            .PageQueueFind__resultService {{ r.serviceName }}
+          ElButton(
+            type="primary"
+            size="small"
+            @click="ClickResultItem(r)"
+          ) {{ $t('common.search') }}
 </template>
 
 <style lang="scss" scoped>
@@ -173,6 +230,63 @@ onMounted(ApiLoad);
 .PageQueueFind__actions > * {
   width: 100%;
   max-width: 240px;
+}
+
+// 多筆結果列表 ----
+.PageQueueFind__results {
+  background-color: $white;
+  padding: 18px 22px;
+  border-radius: 14px;
+  border: 1px solid rgba(53, 77, 123, 0.08);
+  box-shadow: 0 4px 12px -8px rgba(31, 42, 68, 0.08);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.PageQueueFind__resultsTitle {
+  font-size: 14px;
+  font-weight: 700;
+  color: $primary;
+}
+
+.PageQueueFind__resultList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.PageQueueFind__resultItem {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 14px;
+  background-color: rgba(0, 173, 169, 0.06);
+  border: 1px solid rgba(0, 173, 169, 0.18);
+  border-radius: 10px;
+}
+
+.PageQueueFind__resultMain {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.PageQueueFind__resultNumber {
+  font-size: 16px;
+  font-weight: 700;
+  color: $secondary;
+  font-variant-numeric: tabular-nums;
+}
+
+.PageQueueFind__resultService {
+  font-size: 12.5px;
+  color: rgba(69, 69, 69, 0.65);
 }
 
 @media (max-width: 360px) {

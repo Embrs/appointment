@@ -106,6 +106,17 @@ export default {
       serviceEditEdit: '編輯服務',
       resourceEditCreate: '新增資源',
       resourceEditEdit: '編輯資源',
+      providerEditCreate: '新增{label}',
+      providerEditEdit: '編輯{label}',
+      providerDeleteConfirm: '確定停用此{label}？此操作可復原（軟刪除）',
+      providerModeWizardTitle: '啟用{label}制',
+      providerModeWizardBody: '啟用後，顧客預約時將先選擇{label}。建議先建立至少一位。',
+      providerModeWizardCreate: '建立第一位{label}',
+      providerCreatedTitle: '已新增{label}',
+      providerCreatedBody: '請到排班頁，把{label}的可服務時段建立起來。',
+      providerCreatedGoSchedule: '前往排班',
+      requiresProviderToggleTitle: '變更「需指定{label}」設定',
+      requiresProviderToggleBody: '此設定將僅影響日後的新預約，既有預約不會回填。是否確認變更？',
       appointmentCreateTitle: '代客預約',
       holidayCreateTitle: '新增休假',
       holidayEditTitle: '編輯休假',
@@ -132,6 +143,7 @@ export default {
       shareLink: '對外連結',
       services: '服務',
       resources: '資源',
+      providers: '{label}',
       appointments: '預約管理',
       queue: '叫號',
       schedule: '排班',
@@ -166,7 +178,20 @@ export default {
       uploadCover: '上傳封面圖',
       policyFree: '顧客可隨時取消',
       policyCutoff: '預約前 N 小時起不可取消',
-      cutoffHours: 'N 小時'
+      cutoffHours: 'N 小時',
+      providerMode: {
+        title: '服務人員（Provider）制',
+        enabledLabel: '啟用服務人員制',
+        enabledHint: '啟用後，顧客預約時可先選擇服務人員（醫師／技師／老師…）；既有商家預設關閉，與現狀完全一致。',
+        labelTitle: '自訂稱呼',
+        labelHint: '對顧客顯示的稱呼；未填則使用預設「服務人員 / Provider / スタッフ」',
+        labelZh: '中文稱呼',
+        labelEn: '英文稱呼',
+        labelJa: '日文稱呼',
+        labelPlaceholderZh: '例：醫師、技師、老師',
+        labelPlaceholderEn: 'e.g. Doctor, Therapist, Coach',
+        labelPlaceholderJa: '例：医師、セラピスト、コーチ'
+      }
     },
     services: {
       listTitle: '服務管理',
@@ -188,13 +213,16 @@ export default {
       nameLabel: '資源名稱',
       boundServices: '已綁服務',
       boundServicesEmpty: '— 尚未綁定',
-      boundServicesHint: '請在「服務」頁編輯 RESOURCE 模式服務時勾選此資源,顧客才看得到他'
+      boundServicesHint: '請在「服務」頁編輯服務時勾選此資源,顧客才看得到他'
     },
     schedule: {
       title: '排班',
       subtitle: '管理每週時段、單日調整、公休日與領號時間',
       scopeMerchant: '整店',
       scopeResource: '資源',
+      scopeProvider: '{label}',
+      providerScopeResourceLabel: '預綁診間（選填）',
+      providerScopeResourceHint: '可指定該時段{label}所在的診間／工位；不指定則僅排人不排地',
       addSlot: '+ 新增時段',
       // @deprecated 由 singleDayOverrides 取代(顯示名稱改為「單日調整」)
       overrides: '單日調整',
@@ -271,6 +299,29 @@ export default {
       slugTaken: '網址已被使用',
       uploadFailed: '圖片上傳失敗',
       saveFailed: '儲存失敗'
+    },
+    queue: {
+      tabs: {
+        waiting: '等待中',
+        called: '服務中',
+        history: '歷史',
+        countSuffix: '（{n}）'
+      },
+      search: {
+        placeholder: '輸入號碼或手機末 4 碼',
+        empty: '找不到符合的號碼',
+        clear: '清除搜尋'
+      },
+      serving: {
+        empty: '目前無服務中號碼'
+      },
+      conn: {
+        live: '即時連線中',
+        off: '連線中斷'
+      },
+      operatingRoom: {
+        label: '目前操作'
+      }
     }
   },
   sys: {
@@ -321,6 +372,7 @@ export default {
     },
     steps: {
       service: '服務',
+      provider: '{label}',
       resource: '資源',
       datetime: '日期與時段',
       // @deprecated 由 datetime 取代
@@ -345,12 +397,19 @@ export default {
     },
     panel: {
       pickService: '選擇服務',
+      pickProvider: '選擇{label}',
       pickResource: '選擇資源',
       pickDateTime: '選擇日期與時段'
     },
     resource: {
       anyLabel: '不指定（由系統自動分配）',
       anyDescription: '由系統為您挑選一位可用的資源'
+    },
+    provider: {
+      cardTitleFallback: '此{label}',
+      bioEmpty: '尚無介紹',
+      unavailable: '此{label}目前沒有可預約時段',
+      pickHint: '請點選您希望為您服務的{label}'
     },
     fields: {
       date: '日期',
@@ -416,7 +475,11 @@ export default {
       limitExceeded: '您在本商家的預約已達上限，請取消舊預約後再試',
       limitExceededTitle: '已達預約上限',
       limitExceededHint: '您可至「我的預約」取消不需要的預約',
-      goMyBookings: '前往我的預約'
+      goMyBookings: '前往我的預約',
+      providerRequired: '請先選擇{label}',
+      providerNotForService: '該{label}不提供此服務',
+      providerInactive: '該{label}已停用',
+      providerTaken: '該{label}此時段已被預約'
     },
     queryTitle: '查詢預約',
     querySubmit: '查詢',
@@ -494,7 +557,14 @@ export default {
       doneCtaRetake: '重新領號',
       skippedTitle: '您的號碼已被跳過',
       skippedSubtitle: '如仍需服務，請洽櫃台或重新領號',
-      skippedCtaContact: '聯絡店家'
+      skippedCtaContact: '聯絡店家',
+      ticketWithRoom: '{room} {number} 號',
+      statusCalledHintWithRoom: '請至 {room}，輪到您了！'
+    },
+    take: {
+      selectRoomLabel: '選擇診間／櫃台',
+      selectRoomHint: '目前各間等待狀況可幫您決策',
+      roomStat: '現叫 {current} 號・等待 {waiting} 人'
     },
     walkIn: {
       title: '現場登記',
@@ -561,6 +631,16 @@ export default {
       findAmbiguous: '查詢結果不只一筆，請至櫃台出示手機號碼協助核對',
       findNotFound: '查無今日的號碼牌',
       findInvalid: '請輸入正確的 4 位數字'
+    },
+    checkIn: {
+      title: '待報到',
+      empty: '目前無待報到顧客',
+      assignedRoom: '指派診間',
+      confirm: '確認報到',
+      confirmed: '已報到',
+      reassigned: '已改派 {from} → {to}',
+      unassignedProvider: '未指派服務人員',
+      assignFailed: '改派失敗，請稍後再試'
     }
   },
   slot: {
@@ -589,6 +669,11 @@ export default {
       CANCELED: '已取消',
       COMPLETED: '已完成',
       NO_SHOW: '未到'
+    },
+    fields: {
+      provider: '{label}',
+      providerUnspecified: '未指定',
+      providerInactiveSuffix: '（已停用）'
     },
     customerTitle: {
       MR: '先生',
@@ -641,7 +726,42 @@ export default {
     }
   },
   service: {
-    durationLabel: '{n} 分鐘'
+    durationLabel: '{n} 分鐘',
+    edit: {
+      queueResourcesLabel: '可叫號的診間／櫃台／醫師（選填）',
+      queueResourcesHint: '綁定後每個資源獨立一條號碼牌隊列；不綁則維持單一號池',
+      requiresProviderLabel: '需指定{label}',
+      requiresProviderHint: '啟用後，顧客預約此服務時必須選擇一位{label}；需先綁定至少一位',
+      providersLabel: '可服務的{label}',
+      providersHint: '勾選此服務由哪些{label}提供；顧客預約時將從這份名單挑選',
+      providersEmptyError: '啟用「需指定{label}」時必須選擇至少一位'
+    }
+  },
+  provider: {
+    listTitle: '{label}管理',
+    addButton: '+ 新增{label}',
+    fields: {
+      avatar: '頭像',
+      name: '姓名',
+      title: '職稱',
+      bio: '介紹',
+      displayOrder: '排序',
+      isActive: '啟用',
+      boundServices: '可服務的服務',
+      boundServicesEmpty: '— 尚未綁定服務'
+    },
+    placeholders: {
+      name: '例：王醫師、Lisa 老師',
+      title: '例：主治醫師、資深技師',
+      bio: '簡短介紹（可多行）'
+    },
+    actions: {
+      edit: '編輯',
+      delete: '停用'
+    },
+    bannerNotEnabled: '尚未啟用「服務人員制」，到「商家設定」啟用後此頁才會在側邊欄出現。',
+    bannerGoSettings: '前往商家設定',
+    empty: '尚未建立任何{label}'
   },
   display: {
     calling: '現在叫號',
@@ -661,12 +781,15 @@ export default {
     linkCopied: '已複製顯示頁連結',
     linkCopyFailed: '無法自動複製，請手動複製：',
     needQueueService: '請先建立 QUEUE 服務',
+    gotoRoom: '請至 {room}',
     tts: {
       toggle: '語音廣播',
       on: '語音廣播：開',
       off: '語音廣播：關',
       unsupported: '此瀏覽器不支援語音廣播',
-      callPhrase: '請 {number} 號到 {serviceName}'
+      callPhraseSimple: '請 {number} 號',
+      callPhraseWithCustomer: '請 {number} 號 {customerName}',
+      callPhraseWithRoom: '{number} 號，請至 {room}'
     }
   },
   enum: {

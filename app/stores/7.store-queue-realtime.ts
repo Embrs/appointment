@@ -10,29 +10,75 @@ import {
 
 export type QueueConnectionState = 'live' | 'reconnecting' | 'fallback' | 'offline';
 
+/** 未綁 resource 的單號池在 resourceMap 內的 key */
+export const RESOURCE_NULL_KEY = '__null__';
+
+/** key=resourceId 或 RESOURCE_NULL_KEY */
+export interface ResourceServingState {
+  /** resource id；null 表 service 未綁 resource */
+  resourceId: string | null;
+  /** resource name；未綁時為 null */
+  resourceName: string | null;
+  currentServing: number;
+  servingTicketId: string;
+  servingCustomerLastName: string;
+  servingCustomerTitle: string;
+  avgServiceMinutes: number;
+  /** 該 resource 當日累計 waitingCount（snapshot 灌入時帶；WS 不主動推） */
+  waitingCount: number;
+  /** 該 resource 當日累計 ticketsTaken */
+  ticketsTaken: number;
+  lastEventAt: number;
+  /** 啟用 Provider 制商家：當下時段該 resource 排定的 Provider id；未啟用 / 未命中 / 多匹配為 null */
+  providerId: string | null;
+  /** 啟用 Provider 制商家：對應 Provider 顯示名稱；未啟用 / 未命中 / 多匹配為 null */
+  providerName: string | null;
+}
+
 interface ServiceServingState {
   /** 服務 ID */
   serviceId: string;
-  /** 服務中號碼 */
+  /** 服務中號碼（向後相容：最近事件 resource 的 currentServing 投影） */
   currentServing: number;
   /** 服務中票 id（CALL_NEXT 推播帶入；TICKET_DONE/SKIPPED 後清空） */
   servingTicketId: string;
+  /** 服務中顧客姓氏（CALL_NEXT 推播帶入；TICKET_DONE/SKIPPED 後清空） */
+  servingCustomerLastName: string;
+  /** 服務中顧客稱謂 enum（'MR' | 'MRS' | 'MISS' | 'MX'）；空字串表無資料 */
+  servingCustomerTitle: string;
   /** 該服務的 effective 平均服務時長（avgServiceMinutes ?? durationMinutes） */
   avgServiceMinutes: number;
   /** 最後一次推播時間 */
   lastEventAt: number;
+  /** 按 resourceId 分群（未綁 resource 用 RESOURCE_NULL_KEY 為 key） */
+  resourceMap: Record<string, ResourceServingState>;
+  /** 最近事件對應的 resourceId（用於頂層 projection 來源追蹤） */
+  lastEventResourceId: string | null;
+  /** 頂層 Provider 投影（最近事件 resource 的 providerId / providerName） */
+  providerId: string | null;
+  providerName: string | null;
 }
 
 interface QueueBroadcastMessage {
   type: 'HELLO' | 'CALL_NEXT' | 'TICKET_DONE' | 'TICKET_SKIPPED' | 'TICKET_TAKEN';
   serviceId?: string;
+  /** 多 resource 號池：本次事件對應的 resource；未綁時為 null */
+  resourceId?: string | null;
+  /** 對應 resource 名稱（供 store 灌入 resourceMap.resourceName） */
+  resourceName?: string | null;
   current?: number;
   servingTicketId?: string;
+  servingCustomerLastName?: string;
+  servingCustomerTitle?: 'MR' | 'MRS' | 'MISS' | 'MX';
   ticketNumber?: number;
   /** 廣播當下服務的 effective 平均服務時長（給訂閱端校準 ETA） */
   avgServiceMinutes?: number;
   /** 廣播當下下一位 WAITING 票的預估等待分鐘（領號頁卡片用） */
   nextWaitMinutes?: number | null;
+  /** 啟用 Provider 制商家：對應 resource 當下時段排定的 Provider id；未啟用 / 未命中 / 多匹配為 null */
+  providerId?: string | null;
+  /** 啟用 Provider 制商家：對應 Provider 顯示名稱；未啟用 / 未命中 / 多匹配為 null */
+  providerName?: string | null;
   timestamp: number;
 }
 
@@ -143,6 +189,141 @@ export const StoreQueueRealtime = defineStore('StoreQueueRealtime', () => {
     }, STATE_DEBOUNCE_MS);
   };
 
+  // ====== resourceMap 寫入 helper ======
+  /** 取／建 service slot；缺則建立空殼 */
+  const EnsureServiceSlot = (serviceId: string): ServiceServingState => {
+    let svc = serviceMap.value[serviceId];
+    if (!svc) {
+      svc = {
+        serviceId,
+        currentServing: 0,
+        servingTicketId: '',
+        servingCustomerLastName: '',
+        servingCustomerTitle: '',
+        avgServiceMinutes: 0,
+        lastEventAt: 0,
+        resourceMap: {},
+        lastEventResourceId: null,
+        providerId: null,
+        providerName: null
+      };
+      serviceMap.value[serviceId] = svc;
+    } else if (!svc.resourceMap) {
+      svc.resourceMap = {};
+    }
+    return svc;
+  };
+
+  /** 取／建 resource slot；缺則建立空殼 */
+  const EnsureResourceSlot = (
+    svc: ServiceServingState,
+    resourceId: string | null,
+    resourceName: string | null
+  ): ResourceServingState => {
+    const key = resourceId ?? RESOURCE_NULL_KEY;
+    let r = svc.resourceMap[key];
+    if (!r) {
+      r = {
+        resourceId,
+        resourceName,
+        currentServing: 0,
+        servingTicketId: '',
+        servingCustomerLastName: '',
+        servingCustomerTitle: '',
+        avgServiceMinutes: svc.avgServiceMinutes ?? 0,
+        waitingCount: 0,
+        ticketsTaken: 0,
+        lastEventAt: 0,
+        providerId: null,
+        providerName: null
+      };
+      svc.resourceMap[key] = r;
+    } else if (resourceName && !r.resourceName) {
+      r.resourceName = resourceName;
+    }
+    return r;
+  };
+
+  /** 寫入單一 resource 的 partial state，並 project 至頂層作為「最近事件」 */
+  const ApplyServiceResourceState = (input: {
+    serviceId: string;
+    resourceId: string | null;
+    resourceName?: string | null;
+    patch: Partial<ResourceServingState>;
+    timestamp?: number;
+  }) => {
+    const svc = EnsureServiceSlot(input.serviceId);
+    const r = EnsureResourceSlot(svc, input.resourceId, input.resourceName ?? null);
+    Object.assign(r, input.patch);
+    if (typeof input.timestamp === 'number') r.lastEventAt = input.timestamp;
+    // 頂層 projection：以「本次事件」為準
+    svc.currentServing = r.currentServing;
+    svc.servingTicketId = r.servingTicketId;
+    svc.servingCustomerLastName = r.servingCustomerLastName;
+    svc.servingCustomerTitle = r.servingCustomerTitle;
+    svc.avgServiceMinutes = r.avgServiceMinutes ?? svc.avgServiceMinutes;
+    svc.lastEventAt = r.lastEventAt;
+    svc.lastEventResourceId = input.resourceId;
+    svc.providerId = r.providerId;
+    svc.providerName = r.providerName;
+  };
+
+  /** 取 service 內某 resource 的 state；缺則 null */
+  const GetResourceState = (
+    serviceId: string,
+    resourceId: string | null
+  ): ResourceServingState | null => {
+    const svc = serviceMap.value[serviceId];
+    if (!svc) return null;
+    return svc.resourceMap[resourceId ?? RESOURCE_NULL_KEY] ?? null;
+  };
+
+  /** 上層批次灌入（拿號頁 / display 從 GetPublicMerchant snapshot 取資料時呼叫） */
+  const UpsertResourcesSnapshot = (input: {
+    serviceId: string;
+    avgServiceMinutes: number;
+    resources: Array<{
+      id: string | null;
+      name: string | null;
+      currentServing: number;
+      ticketsTaken: number;
+      waitingCount: number;
+      avgServiceMinutes: number;
+      provider?: { id: string; name: string } | null;
+    }>;
+  }) => {
+    const svc = EnsureServiceSlot(input.serviceId);
+    svc.avgServiceMinutes = input.avgServiceMinutes;
+    // 不直接覆寫頂層 currentServing / serving*；保留 WS 事件帶來的最新值
+    for (const r of input.resources) {
+      const slot = EnsureResourceSlot(svc, r.id, r.name);
+      // snapshot 只在「該 resource 尚無 currentServing」或當前推估值 <= snapshot 時補
+      if (slot.currentServing === 0 && r.currentServing > 0) {
+        slot.currentServing = r.currentServing;
+      }
+      slot.ticketsTaken = r.ticketsTaken;
+      slot.waitingCount = r.waitingCount;
+      slot.avgServiceMinutes = r.avgServiceMinutes || slot.avgServiceMinutes;
+      slot.providerId = r.provider?.id ?? null;
+      slot.providerName = r.provider?.name ?? null;
+    }
+    // 頂層 projection：若 lastEventResourceId 尚未設定，挑「有 waiting 且 currentServing 最小」者做初始 projection
+    if (svc.lastEventResourceId === null && svc.lastEventAt === 0) {
+      const all = Object.values(svc.resourceMap);
+      const withWait = all.filter((x) => x.waitingCount > 0);
+      const pool = withWait.length > 0 ? withWait : all;
+      const pick = pool.sort((a, b) => a.currentServing - b.currentServing)[0];
+      if (pick) {
+        svc.currentServing = pick.currentServing;
+        svc.servingTicketId = pick.servingTicketId;
+        svc.servingCustomerLastName = pick.servingCustomerLastName;
+        svc.servingCustomerTitle = pick.servingCustomerTitle;
+        svc.avgServiceMinutes = pick.avgServiceMinutes || svc.avgServiceMinutes;
+        svc.lastEventResourceId = pick.resourceId;
+      }
+    }
+  };
+
   // ====== WS 訊息處理 ======
   const HandleMessage = (_ev: MessageEvent, parsed: unknown | null) => {
     if (!parsed || typeof parsed !== 'object') return;
@@ -151,66 +332,116 @@ export const StoreQueueRealtime = defineStore('StoreQueueRealtime', () => {
 
     if (msg.type === 'HELLO') return;
 
-    // 統一更新 serviceMap 內該服務的 avgServiceMinutes（任何含此欄位的 payload）
-    if (msg.serviceId && typeof msg.avgServiceMinutes === 'number') {
-      const prev = serviceMap.value[msg.serviceId];
-      serviceMap.value[msg.serviceId] = {
+    if (!msg.serviceId) return;
+
+    const resourceId: string | null = msg.resourceId ?? null;
+    const resourceName: string | null = msg.resourceName ?? null;
+    const ts = msg.timestamp ?? Date.now();
+
+    // 統一更新該 (service, resource) 的 avgServiceMinutes 與 Provider 投影
+    const providerPatch: Pick<ResourceServingState, 'providerId' | 'providerName'> = {
+      providerId: msg.providerId ?? null,
+      providerName: msg.providerName ?? null
+    };
+    if (
+      typeof msg.avgServiceMinutes === 'number' ||
+      msg.providerId !== undefined ||
+      msg.providerName !== undefined
+    ) {
+      ApplyServiceResourceState({
         serviceId: msg.serviceId,
-        currentServing: prev?.currentServing ?? 0,
-        servingTicketId: prev?.servingTicketId ?? '',
-        avgServiceMinutes: msg.avgServiceMinutes,
-        lastEventAt: msg.timestamp
-      };
+        resourceId,
+        resourceName,
+        patch: {
+          ...(typeof msg.avgServiceMinutes === 'number'
+            ? { avgServiceMinutes: msg.avgServiceMinutes }
+            : {}),
+          ...providerPatch
+        },
+        timestamp: ts
+      });
     }
 
-    if (msg.type === 'CALL_NEXT' && msg.serviceId && typeof msg.current === 'number') {
-      const prev = serviceMap.value[msg.serviceId];
-      serviceMap.value[msg.serviceId] = {
+    if (msg.type === 'CALL_NEXT' && typeof msg.current === 'number') {
+      ApplyServiceResourceState({
         serviceId: msg.serviceId,
-        currentServing: msg.current,
-        servingTicketId: msg.servingTicketId ?? '',
-        avgServiceMinutes: msg.avgServiceMinutes ?? prev?.avgServiceMinutes ?? 0,
-        lastEventAt: msg.timestamp
-      };
-      // 同步 myTicket（如果是自己被叫）
+        resourceId,
+        resourceName,
+        patch: {
+          currentServing: msg.current,
+          servingTicketId: msg.servingTicketId ?? '',
+          servingCustomerLastName: msg.servingCustomerLastName ?? '',
+          servingCustomerTitle: msg.servingCustomerTitle ?? '',
+          avgServiceMinutes:
+            msg.avgServiceMinutes ?? GetResourceState(msg.serviceId, resourceId)?.avgServiceMinutes ?? 0
+        },
+        timestamp: ts
+      });
+      // 同步 myTicket（按 resource 隔離）：必須同 service 同 resource
+      if (myTicket.value) {
+        const myResourceId = (myTicket.value.ticket as { resourceId?: string | null }).resourceId ?? null;
+        const myServiceId = (myTicket.value.ticket as { serviceId?: string }).serviceId ?? '';
+        const sameRoute = myServiceId === msg.serviceId && myResourceId === resourceId;
+        if (sameRoute) {
+          if (msg.servingTicketId === myTicketId.value) {
+            myTicket.value = {
+              ...myTicket.value,
+              ticket: { ...myTicket.value.ticket, status: 'CALLED', calledAt: new Date(ts).toISOString() },
+              currentServing: msg.current,
+              waitingAhead: 0,
+              estimatedWaitMinutes: 0
+            };
+          } else {
+            const newAhead = Math.max(0, (myTicket.value.ticket.ticketNumber - msg.current - 1));
+            const avg = msg.avgServiceMinutes ?? myTicket.value.avgServiceMinutes ?? 0;
+            const newEta = avg > 0 ? estimateWaitMinutes(newAhead, avg) : null;
+            myTicket.value = {
+              ...myTicket.value,
+              currentServing: msg.current,
+              waitingAhead: newAhead,
+              estimatedWaitMinutes: newEta,
+              avgServiceMinutes: avg
+            };
+          }
+        }
+      }
+    }
+    if (msg.type === 'TICKET_DONE') {
+      const r = GetResourceState(msg.serviceId, resourceId);
+      if (r && r.servingTicketId === msg.servingTicketId) {
+        ApplyServiceResourceState({
+          serviceId: msg.serviceId,
+          resourceId,
+          resourceName,
+          patch: {
+            servingTicketId: '',
+            servingCustomerLastName: '',
+            servingCustomerTitle: ''
+          },
+          timestamp: ts
+        });
+      }
       if (myTicket.value && msg.servingTicketId === myTicketId.value) {
         myTicket.value = {
           ...myTicket.value,
-          ticket: { ...myTicket.value.ticket, status: 'CALLED', calledAt: new Date(msg.timestamp).toISOString() },
-          currentServing: msg.current,
-          waitingAhead: 0,
-          estimatedWaitMinutes: 0
-        };
-      } else if (myTicket.value) {
-        // 自己沒被叫到：currentServing 推進，重算 myTicket 的 ETA
-        const newAhead = Math.max(0, (myTicket.value.ticket.ticketNumber - msg.current - 1));
-        const avg = msg.avgServiceMinutes ?? myTicket.value.avgServiceMinutes ?? 0;
-        const newEta = avg > 0 ? estimateWaitMinutes(newAhead, avg) : null;
-        myTicket.value = {
-          ...myTicket.value,
-          currentServing: msg.current,
-          waitingAhead: newAhead,
-          estimatedWaitMinutes: newEta,
-          avgServiceMinutes: avg
+          ticket: { ...myTicket.value.ticket, status: 'DONE', doneAt: new Date(ts).toISOString() }
         };
       }
     }
-    if (msg.type === 'TICKET_DONE' && msg.serviceId) {
-      const prev = serviceMap.value[msg.serviceId];
-      if (prev && prev.servingTicketId === msg.servingTicketId) {
-        serviceMap.value[msg.serviceId] = { ...prev, servingTicketId: '', lastEventAt: msg.timestamp };
-      }
-      if (myTicket.value && msg.servingTicketId === myTicketId.value) {
-        myTicket.value = {
-          ...myTicket.value,
-          ticket: { ...myTicket.value.ticket, status: 'DONE', doneAt: new Date(msg.timestamp).toISOString() }
-        };
-      }
-    }
-    if (msg.type === 'TICKET_SKIPPED' && msg.serviceId) {
-      const prev = serviceMap.value[msg.serviceId];
-      if (prev && prev.servingTicketId === msg.servingTicketId) {
-        serviceMap.value[msg.serviceId] = { ...prev, servingTicketId: '', lastEventAt: msg.timestamp };
+    if (msg.type === 'TICKET_SKIPPED') {
+      const r = GetResourceState(msg.serviceId, resourceId);
+      if (r && r.servingTicketId === msg.servingTicketId) {
+        ApplyServiceResourceState({
+          serviceId: msg.serviceId,
+          resourceId,
+          resourceName,
+          patch: {
+            servingTicketId: '',
+            servingCustomerLastName: '',
+            servingCustomerTitle: ''
+          },
+          timestamp: ts
+        });
       }
       if (myTicket.value && msg.servingTicketId === myTicketId.value) {
         myTicket.value = {
@@ -219,19 +450,42 @@ export const StoreQueueRealtime = defineStore('StoreQueueRealtime', () => {
         };
       }
     }
-    // TICKET_TAKEN 不更新 currentServing（號碼還沒被叫），但商家控制台會自己重抓
+    if (msg.type === 'TICKET_TAKEN') {
+      // 不動 currentServing；只用來確保 resourceMap 內 slot 存在 + 更新 name（供 display 即時加 cell）
+      ApplyServiceResourceState({
+        serviceId: msg.serviceId,
+        resourceId,
+        resourceName,
+        patch: {},
+        timestamp: ts
+      });
+    }
   };
 
   // ====== ETA 計算 getter（供 status.vue / admin queue.vue 即時讀取） ======
-  /** 算指定票的當下預估等待分鐘；無法估算回 null */
+  /** 算指定票的當下預估等待分鐘；無法估算回 null
+   *  - 帶 resourceId 時優先讀 resourceMap[resourceId] 的 currentServing / avgServiceMinutes
+   *  - 未帶或讀不到時 fallback 至頂層 projection（向後相容既有 admin 呼叫端）
+   */
   const GetEtaForTicket = (
     ticket: { ticketNumber: number; status: QueueTicketStatusForEta },
-    serviceId: string
+    serviceId: string,
+    resourceId?: string | null
   ): number | null => {
     const svc = serviceMap.value[serviceId];
-    if (!svc || svc.avgServiceMinutes <= 0) return null;
-    const ahead = getTicketsAhead(ticket, { lastCalledNumber: svc.currentServing });
-    return estimateWaitMinutes(ahead, svc.avgServiceMinutes);
+    if (!svc) return null;
+    let avg = svc.avgServiceMinutes;
+    let serving = svc.currentServing;
+    if (resourceId !== undefined) {
+      const r = svc.resourceMap[resourceId ?? RESOURCE_NULL_KEY];
+      if (r) {
+        avg = r.avgServiceMinutes || avg;
+        serving = r.currentServing;
+      }
+    }
+    if (avg <= 0) return null;
+    const ahead = getTicketsAhead(ticket, { lastCalledNumber: serving });
+    return estimateWaitMinutes(ahead, avg);
   };
 
   // ====== 輪詢兜底 ======
@@ -245,17 +499,23 @@ export const StoreQueueRealtime = defineStore('StoreQueueRealtime', () => {
         const res = await $api.GetQueueTicket({ id: myTicketId.value });
         if (res.status.code === $enum.apiStatus.success) {
           myTicket.value = res.data;
-          const serviceId = (res.data.ticket as any).serviceId || '';
+          const serviceId = (res.data.ticket as { serviceId?: string }).serviceId || '';
           // currentServing 同步進 serviceMap（無 serviceId 時跳過，避免汙染）
           if (serviceId) {
-            const prev = serviceMap.value[serviceId];
-            serviceMap.value[serviceId] = {
+            const ticketAny = res.data.ticket as { resourceId?: string | null; resourceName?: string | null };
+            ApplyServiceResourceState({
               serviceId,
-              currentServing: res.data.currentServing,
-              servingTicketId: prev?.servingTicketId ?? '',
-              avgServiceMinutes: res.data.avgServiceMinutes ?? prev?.avgServiceMinutes ?? 0,
-              lastEventAt: Date.now()
-            };
+              resourceId: ticketAny.resourceId ?? null,
+              resourceName: ticketAny.resourceName ?? null,
+              patch: {
+                currentServing: res.data.currentServing,
+                avgServiceMinutes:
+                  res.data.avgServiceMinutes
+                  ?? GetResourceState(serviceId, ticketAny.resourceId ?? null)?.avgServiceMinutes
+                  ?? 0
+              },
+              timestamp: Date.now()
+            });
           }
         }
       } catch { /* ignore */ }
@@ -374,14 +634,19 @@ export const StoreQueueRealtime = defineStore('StoreQueueRealtime', () => {
     if (!ticket) return;
     const serviceId = (ticket.ticket as { serviceId?: string }).serviceId || '';
     if (!serviceId) return;
-    const prev = serviceMap.value[serviceId];
-    serviceMap.value[serviceId] = {
+    const ticketAny = ticket.ticket as { resourceId?: string | null; resourceName?: string | null };
+    const resourceId = ticketAny.resourceId ?? null;
+    ApplyServiceResourceState({
       serviceId,
-      currentServing: ticket.currentServing,
-      servingTicketId: prev?.servingTicketId ?? '',
-      avgServiceMinutes: ticket.avgServiceMinutes ?? prev?.avgServiceMinutes ?? 0,
-      lastEventAt: Date.now()
-    };
+      resourceId,
+      resourceName: ticketAny.resourceName ?? null,
+      patch: {
+        currentServing: ticket.currentServing,
+        avgServiceMinutes:
+          ticket.avgServiceMinutes ?? GetResourceState(serviceId, resourceId)?.avgServiceMinutes ?? 0
+      },
+      timestamp: Date.now()
+    });
   };
 
   const SetMyTicketWithSync = (ticketId: string, ticket: GetQueueTicketRes | null) => {
@@ -404,6 +669,12 @@ export const StoreQueueRealtime = defineStore('StoreQueueRealtime', () => {
     SetMyTicket: SetMyTicketWithSync,
     ClearMyTicket,
     RefreshMyTicket,
-    GetEtaForTicket
+    GetEtaForTicket,
+    /** 取單一 (service, resource) 即時 state；缺則 null */
+    GetResourceState,
+    /** 把 GetPublicMerchant 取回的多 resource snapshot 灌入 store */
+    UpsertResourcesSnapshot,
+    /** 寫入單一 resource partial state（外部少用，多數情境走 WS） */
+    ApplyServiceResourceState
   };
 });
