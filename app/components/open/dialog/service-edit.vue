@@ -65,11 +65,11 @@ const showResource = computed(
 );
 const resourceLabel = computed(() => {
   if (form.bookingMode === 'QUEUE') return t('service.edit.queueResourcesLabel');
-  return '綁定資源';
+  return t('admin.services.resourcesLabel');
 });
 const resourceHint = computed(() => {
-  if (form.bookingMode === 'RESOURCE') return '顧客預約時必須指定一位資源';
-  if (form.bookingMode === 'RESOURCE_OPTIONAL') return '顧客可選「不指定」由系統自動分配，或指定其中一位';
+  if (form.bookingMode === 'RESOURCE') return t('admin.bookingMode.helperResource');
+  if (form.bookingMode === 'RESOURCE_OPTIONAL') return t('admin.bookingMode.helperResourceOptional');
   if (form.bookingMode === 'QUEUE') return t('service.edit.queueResourcesHint');
   return '';
 });
@@ -243,11 +243,11 @@ onMounted(() => {
             value-on-clear=""
             placeholder="選擇預約模式"
           )
-            ElOption(label="固定時段" value="TIME_SLOT")
-            ElOption(label="時段+人數" value="TIME_CAPACITY")
-            ElOption(label="指定資源（顧客必選）" value="RESOURCE")
-            ElOption(label="可選資源（顧客可選不指定）" value="RESOURCE_OPTIONAL")
-            ElOption(label="號碼牌排隊" value="QUEUE")
+            ElOption(:label="t('admin.bookingMode.TIME_SLOT')" value="TIME_SLOT")
+            ElOption(:label="t('admin.bookingMode.TIME_CAPACITY')" value="TIME_CAPACITY")
+            ElOption(:label="t('admin.bookingMode.RESOURCE')" value="RESOURCE")
+            ElOption(:label="t('admin.bookingMode.RESOURCE_OPTIONAL')" value="RESOURCE_OPTIONAL")
+            ElOption(:label="t('admin.bookingMode.QUEUE')" value="QUEUE")
         template(v-if="showDurationFields")
           ElFormItem(label="服務時長（分鐘）")
             ElInput(

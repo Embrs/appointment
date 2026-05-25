@@ -172,7 +172,9 @@ export default {
       TIME_CAPACITY: '枠+定員',
       RESOURCE: '場所・設備の指定',
       RESOURCE_OPTIONAL: '場所・設備（任意）',
-      QUEUE: '整理券'
+      QUEUE: '整理券',
+      helperResource: 'お客様は予約時に必ず場所・設備を指定する必要があります',
+      helperResourceOptional: 'お客様は「指定しない」で自動割り当て、または特定の場所・設備を指定できます'
     },
     settings: {
       title: '店舗設定',

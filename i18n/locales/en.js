@@ -172,7 +172,9 @@ export default {
       TIME_CAPACITY: 'Slot + capacity',
       RESOURCE: 'Venue or Equipment Required',
       RESOURCE_OPTIONAL: 'Venue or Equipment Optional',
-      QUEUE: 'Queue ticket'
+      QUEUE: 'Queue ticket',
+      helperResource: 'Customers must pick a specific venue or equipment when booking',
+      helperResourceOptional: 'Customers may choose "Any" for auto-assignment, or pick a specific one'
     },
     settings: {
       title: 'Merchant Settings',

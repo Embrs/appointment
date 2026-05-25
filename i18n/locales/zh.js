@@ -172,7 +172,9 @@ export default {
       TIME_CAPACITY: '時段+人數',
       RESOURCE: '場所或設備指定',
       RESOURCE_OPTIONAL: '可選場所或設備',
-      QUEUE: '號碼牌'
+      QUEUE: '號碼牌',
+      helperResource: '顧客預約時必須指定一個場所或設備',
+      helperResourceOptional: '顧客可選「不指定」由系統自動分配，或指定其中一個'
     },
     settings: {
       title: '商家設定',

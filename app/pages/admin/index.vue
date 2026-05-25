@@ -6,6 +6,7 @@ definePageMeta({
   middleware: ['merchant']
 });
 
+const { t } = useI18n();
 const storeSelf = StoreSelf();
 const merchantInfo = ref<SelfMerchantFull | null>(null);
 const services = ref<ServiceItem[]>([]);
@@ -58,11 +59,11 @@ const ApiLoad = async () => {
 
 const BookingModeLabel = (mode: BookingModeType): string => {
   switch (mode) {
-    case 'TIME_SLOT': return '固定時段';
-    case 'TIME_CAPACITY': return '時段+人數';
-    case 'RESOURCE': return '指定資源';
-    case 'RESOURCE_OPTIONAL': return '可選資源';
-    case 'QUEUE': return '號碼牌';
+    case 'TIME_SLOT': return t('admin.bookingMode.TIME_SLOT');
+    case 'TIME_CAPACITY': return t('admin.bookingMode.TIME_CAPACITY');
+    case 'RESOURCE': return t('admin.bookingMode.RESOURCE');
+    case 'RESOURCE_OPTIONAL': return t('admin.bookingMode.RESOURCE_OPTIONAL');
+    case 'QUEUE': return t('admin.bookingMode.QUEUE');
     default: return mode;
   }
 };
