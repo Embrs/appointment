@@ -110,12 +110,12 @@ onMounted(() => {
               to="/admin/settings"
             ) {{ t('admin.nav.settings') }}
             NuxtLinkLocale.LayoutBackDesk__navLink(to="/admin/share-link") {{ t('admin.nav.shareLink') }}
+            NuxtLinkLocale.LayoutBackDesk__navLink(to="/admin/services") {{ t('admin.nav.services') }}
+            NuxtLinkLocale.LayoutBackDesk__navLink(to="/admin/resources") {{ t('admin.nav.resources') }}
             NuxtLinkLocale.LayoutBackDesk__navLink(
               v-if="providerModeEnabled"
               to="/admin/providers"
             ) {{ t('admin.nav.providers', { label: providerLabel }) }}
-            NuxtLinkLocale.LayoutBackDesk__navLink(to="/admin/services") {{ t('admin.nav.services') }}
-            NuxtLinkLocale.LayoutBackDesk__navLink(to="/admin/resources") {{ t('admin.nav.resources') }}
             NuxtLinkLocale.LayoutBackDesk__navLink(
               v-if="storeSelf.HasRule('merchant.staff.manage')"
               to="/admin/staff"

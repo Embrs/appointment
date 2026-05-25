@@ -350,7 +350,7 @@ TBD - created by archiving change merchant-config. Update Purpose after archive.
 
 ### Requirement: 商家後台配置頁面
 
-系統 SHALL 提供 `back-desk` layout + `merchant` middleware 保護的商家後台頁面;sidebar 導覽 SHALL 以三個語意分群呈現:「營運」、「排班」、「設定」。「排班」分群下的 `/admin/schedule` SHALL 為四 tab 容器頁,內含「📅 預約時段」、「🔧 單日調整」、「🚫 公休日」、「🎟 現場領號時段」四個 tab,tab 顯示性依商家服務的 bookingMode 構成動態決定。原 `/admin/holidays` 與 `/admin/queue-window` SHALL 保留為 redirect 路由。當商家 `providerModeEnabled=true` 時，「**設定**」分群 SHALL 額外顯示「服務人員」項目連到 `/admin/providers`（顯示文字採用 `providerLabel` fallback 鏈解析），「排班」分群下的「📅 預約時段」與「🔧 單日調整」tab SHALL 額外提供 PROVIDER scope 切換器。Sidebar 中「服務」「資源」「成員」三個導覽項目的顯示文字 SHALL 為「服務項目」/「場所或設備」/「成員帳號」（三語同步），URL 路徑仍維持 `/admin/services` / `/admin/resources` / `/admin/staff` 不變。
+系統 SHALL 提供 `back-desk` layout + `merchant` middleware 保護的商家後台頁面;sidebar 導覽 SHALL 以三個語意分群呈現:「營運」、「排班」、「設定」。「排班」分群下的 `/admin/schedule` SHALL 為四 tab 容器頁,內含「📅 預約時段」、「🔧 單日調整」、「🚫 公休日」、「🎟 現場領號時段」四個 tab,tab 顯示性依商家服務的 bookingMode 構成動態決定。原 `/admin/holidays` 與 `/admin/queue-window` SHALL 保留為 redirect 路由。當商家 `providerModeEnabled=true` 時，「**設定**」分群 SHALL 額外顯示「服務人員」項目連到 `/admin/providers`（顯示文字採用 `providerLabel` fallback 鏈解析），「排班」分群下的「📅 預約時段」與「🔧 單日調整」tab SHALL 額外提供 PROVIDER scope 切換器。Sidebar 中「服務」「資源」「服務人員」「成員」四個導覽項目的顯示文字 SHALL 為「服務項目管理」/「場所或設備管理」/「{providerLabel}管理」/「成員帳號管理」（三語同步，英文對應 Service Item Management / Venue & Equipment Management / {providerLabel} Management / Member Account Management；日文對應サービス項目管理 / 場所・設備管理 / {providerLabel}管理 / メンバーアカウント管理），URL 路徑仍維持 `/admin/services` / `/admin/resources` / `/admin/providers` / `/admin/staff` 不變。「設定」分群內排序固定為：商家設定 / 對外連結 / 服務項目管理 / 場所或設備管理 / 服務人員管理（條件顯示）/ 成員帳號管理（條件顯示）。
 
 #### Scenario: Dashboard /admin
 
@@ -475,7 +475,7 @@ TBD - created by archiving change merchant-config. Update Purpose after archive.
 - **THEN** 顯示 3 個分群區塊,每塊含小標題:
   - 「營運」:首頁 / 預約管理 / 叫號
   - 「排班」:排班(連到 `/admin/schedule`)
-  - 「設定」:商家設定 / 對外連結 / 服務人員（providerModeEnabled=true 時）/ 服務項目 / 場所或設備 / 成員帳號
+  - 「設定」:商家設定 / 對外連結 / 服務項目管理 / 場所或設備管理 / 服務人員管理（providerModeEnabled=true 時，顯示為「{providerLabel}管理」如「醫師管理」）/ 成員帳號管理
   順序固定如上;`商家設定` 依 `HasRule('merchant.settings.update')`、`服務人員` 依 `providerModeEnabled=true`、`成員帳號` 依 `HasRule('merchant.staff.manage')` 條件顯示
 
 #### Scenario: Sidebar 平台管理員視角
