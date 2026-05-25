@@ -257,31 +257,32 @@ onMounted(() => {
           ElSwitch(v-model="form.providerModeEnabled")
           .PageAdminSettings__slug-hint {{ $t('admin.settings.providerMode.enabledHint') }}
         ElFormItem(:label="$t('admin.settings.providerMode.labelTitle')")
-          .PageAdminSettings__slug-hint {{ $t('admin.settings.providerMode.labelHint') }}
-          .PageAdminSettings__labelRow
-            ElInput(
-              v-model="form.providerLabelZh"
-              maxlength="20"
-              :placeholder="$t('admin.settings.providerMode.labelPlaceholderZh')"
-              :disabled="!form.providerModeEnabled"
-            )
-              template(#prepend) {{ $t('admin.settings.providerMode.labelZh') }}
-          .PageAdminSettings__labelRow
-            ElInput(
-              v-model="form.providerLabelEn"
-              maxlength="40"
-              :placeholder="$t('admin.settings.providerMode.labelPlaceholderEn')"
-              :disabled="!form.providerModeEnabled"
-            )
-              template(#prepend) {{ $t('admin.settings.providerMode.labelEn') }}
-          .PageAdminSettings__labelRow
-            ElInput(
-              v-model="form.providerLabelJa"
-              maxlength="20"
-              :placeholder="$t('admin.settings.providerMode.labelPlaceholderJa')"
-              :disabled="!form.providerModeEnabled"
-            )
-              template(#prepend) {{ $t('admin.settings.providerMode.labelJa') }}
+          .PageAdminSettings__labelRows
+            .PageAdminSettings__slug-hint {{ $t('admin.settings.providerMode.labelHint') }}
+            .PageAdminSettings__labelRow
+              ElInput(
+                v-model="form.providerLabelZh"
+                maxlength="20"
+                :placeholder="$t('admin.settings.providerMode.labelPlaceholderZh')"
+                :disabled="!form.providerModeEnabled"
+              )
+                template(#prepend) {{ $t('admin.settings.providerMode.labelZh') }}
+            .PageAdminSettings__labelRow
+              ElInput(
+                v-model="form.providerLabelEn"
+                maxlength="40"
+                :placeholder="$t('admin.settings.providerMode.labelPlaceholderEn')"
+                :disabled="!form.providerModeEnabled"
+              )
+                template(#prepend) {{ $t('admin.settings.providerMode.labelEn') }}
+            .PageAdminSettings__labelRow
+              ElInput(
+                v-model="form.providerLabelJa"
+                maxlength="20"
+                :placeholder="$t('admin.settings.providerMode.labelPlaceholderJa')"
+                :disabled="!form.providerModeEnabled"
+              )
+                template(#prepend) {{ $t('admin.settings.providerMode.labelJa') }}
       .PageAdminSettings__actions
         ElButton(
           type="primary"
@@ -349,11 +350,16 @@ onMounted(() => {
   padding-top: 14px;
 }
 
-.PageAdminSettings__labelRow {
-  margin-top: 8px;
+.PageAdminSettings__labelRows {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 100%;
+  margin-top: 4px;
 }
 
-.PageAdminSettings__labelRow + .PageAdminSettings__labelRow {
-  margin-top: 4px;
+.PageAdminSettings__labelRow {
+  display: block;
+  width: 100%;
 }
 </style>
