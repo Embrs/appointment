@@ -32,17 +32,24 @@ const ProviderLabelSchema = z
   })
   .strict();
 
-const UpdateSchema = z
+// 空字串（含純空白）視為 null，避免前端送 "" 觸發 email/max 等驗證 fail
+export const nullableString = <T extends z.ZodTypeAny>(inner: T) =>
+  z.preprocess(
+    (v) => (typeof v === 'string' && v.trim() === '' ? null : v),
+    inner.nullable().optional()
+  );
+
+export const UpdateSchema = z
   .object({
     name: z.string().trim().min(1).max(60).optional(),
     slug: z.string().trim().regex(SLUG_PATTERN).optional(),
-    description: z.string().trim().max(1000).optional().nullable(),
-    logoUrl: z.string().trim().max(500).optional().nullable(),
-    coverUrl: z.string().trim().max(500).optional().nullable(),
-    contactPhone: z.string().trim().max(40).optional().nullable(),
-    contactEmail: z.string().trim().email().max(120).optional().nullable(),
+    description: nullableString(z.string().trim().max(1000)),
+    logoUrl: nullableString(z.string().trim().max(500)),
+    coverUrl: nullableString(z.string().trim().max(500)),
+    contactPhone: nullableString(z.string().trim().max(40)),
+    contactEmail: nullableString(z.string().trim().email().max(120)),
     timezone: z.string().trim().min(1).max(60).optional(),
-    address: z.string().trim().max(200).optional().nullable(),
+    address: nullableString(z.string().trim().max(200)),
     cancelPolicy: CancelPolicySchema.optional(),
     maxActiveAppointmentsPerCustomer: z.number().int().min(1).max(99).optional(),
     providerModeEnabled: z.boolean().optional(),
@@ -91,13 +98,13 @@ export default defineEventHandler(async (event) => {
     data: {
       name: data.name,
       slug: data.slug,
-      description: data.description ?? undefined,
-      logoUrl: data.logoUrl ?? undefined,
-      coverUrl: data.coverUrl ?? undefined,
-      contactPhone: data.contactPhone ?? undefined,
-      contactEmail: data.contactEmail ?? undefined,
+      description: data.description,
+      logoUrl: data.logoUrl,
+      coverUrl: data.coverUrl,
+      contactPhone: data.contactPhone,
+      contactEmail: data.contactEmail,
       timezone: data.timezone,
-      address: data.address ?? undefined,
+      address: data.address,
       cancelPolicy: mergedCancelPolicy,
       maxActiveAppointmentsPerCustomer: data.maxActiveAppointmentsPerCustomer,
       providerModeEnabled: data.providerModeEnabled,
