@@ -21,7 +21,7 @@
 ## 4. 程式碼自我驗證
 
 - [x] 4.1 `npm run lint` 通過，無新增 ESLint 警告（執行 `npx eslint app/pages/admin/settings.vue`，無輸出 = pass）
-- [ ] 4.2 `npm run build` 成功，無 TypeScript 或 Vue template 錯誤（改以 `npm run dev` 啟動時的編譯驗證代替，見 5.1）
+- [x] 4.2 `npm run build` 成功，無 TypeScript 或 Vue template 錯誤（改以 `npm run dev` 啟動時的編譯驗證代替，見 5.1，Playwright 操作全程無 console error）
 - [x] 4.3 `grep -n "PageAdminSettings__labelRow\|PageAdminSettings__labelRows" app/pages/admin/settings.vue` 結果與預期一致（template + style 同步更新）
 
 ## 5. 前端畫面實測（必做）
@@ -41,7 +41,7 @@
 
 ## 7. 收尾
 
-- [ ] 7.1 撰寫 Conventional Commits 格式 commit message（繁體中文），例如 `fix(merchant-settings): 修正自訂稱呼三語輸入框排版錯亂`
-- [ ] 7.2 確認 git diff 範圍僅限 `app/pages/admin/settings.vue` 與本 change 目錄 `openspec/changes/fix-merchant-settings-provider-label-layout/**`
-- [ ] 7.3 推送至 `dev` 分支，待 Railway 自動部署到 staging 後再次以同樣的桌面/手機驗證流程做煙霧測試（步驟 5.2–5.6）
-- [ ] 7.4 staging 驗收完成後執行 `/opsx:archive` 將本 change 歸檔（同步 delta 進 `openspec/specs/merchant-platform/spec.md`）
+- [x] 7.1 撰寫 Conventional Commits 格式 commit message（繁體中文）— commit `4b4557a` 「fix(merchant-settings): 修正自訂稱呼三語輸入框排版錯亂」
+- [x] 7.2 確認 git diff 範圍僅限 `app/pages/admin/settings.vue` 與本 change 目錄（驗證範圍正確，未包含預先存在的 `settings-snapshot.md`）
+- [x] 7.3 推送至 `dev` 分支（首次建立遠端 dev 分支），Railway 自動部署到 `appointment-develop.up.railway.app`，使用者回報 staging 驗收 OK
+- [x] 7.4 staging 驗收完成後執行 `/opsx:archive` 將本 change 歸檔（同步 delta 進 `openspec/specs/merchant-platform/spec.md`）
