@@ -5,6 +5,7 @@ definePageMeta({
   middleware: ['merchant']
 });
 
+const { t } = useI18n();
 const merchant = ref<SelfMerchantFull | null>(null);
 // 初值 false：避免 v-loading 在 page transition mount 階段就建立 mask 而卡住
 const loading = ref(false);
@@ -41,9 +42,9 @@ const ClickCopy = async () => {
   if (!shareUrl.value) return;
   try {
     await navigator.clipboard.writeText(shareUrl.value);
-    ElMessage.success('已複製連結');
+    ElMessage.success(t('admin.shareLink.copied'));
   } catch {
-    ElMessage.error('複製失敗，請手動選取');
+    ElMessage.error(t('admin.shareLink.copyFailed'));
   }
 };
 
@@ -54,13 +55,13 @@ onMounted(() => {
 
 <template lang="pug">
 .PageAdminShareLink
-  BizPageHeader(title="對外連結" subtitle="把連結傳給顧客，或印 QR code 張貼於店面")
+  BizPageHeader(:title="t('admin.shareLink.title')" :subtitle="t('admin.shareLink.subtitle')")
   .PageAdminShareLink__card(v-loading="loading")
     template(v-if="merchant && merchant.slug")
-      p.PageAdminShareLink__hint 把以下連結傳給顧客，或印 QR code 張貼於店面：
+      p.PageAdminShareLink__hint {{ t('admin.shareLink.hintWithColon') }}
       .PageAdminShareLink__url-row
         ElInput(:model-value="shareUrl" readonly)
-        ElButton(type="primary" @click="ClickCopy") 複製
+        ElButton(type="primary" @click="ClickCopy") {{ t('admin.shareLink.copy') }}
       .PageAdminShareLink__qr-wrap
         ElImage(
           v-if="qrUrl"
@@ -71,8 +72,8 @@ onMounted(() => {
         )
     template(v-else)
       p.PageAdminShareLink__empty
-        | 尚未設定 slug ·
-        NuxtLinkLocale(to="/admin/settings") 前往商家設定
+        | {{ t('admin.shareLink.empty') }} ·
+        NuxtLinkLocale(to="/admin/settings") {{ t('admin.shareLink.goSettings') }}
 </template>
 
 <style lang="scss" scoped>

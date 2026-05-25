@@ -31,6 +31,11 @@ export default {
     weekdayLong: ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'],
     yes: 'Yes',
     no: 'No',
+    tagInactive: ' (inactive)',
+    col: {
+      name: 'Name',
+      actions: 'Actions'
+    },
     enabled: 'Enable',
     disabled: 'Disable',
     isActive: 'Active',
@@ -51,10 +56,10 @@ export default {
     phone: 'Invalid phone format',
     timeFormat: 'Invalid time format',
     timeOrder: 'Start time must be before end time',
-    selectService: 'Please select a service',
+    selectService: 'Please select a service item',
     selectDate: 'Please select a date',
     selectSlot: 'Please select a time slot',
-    selectResource: 'Please select a resource',
+    selectResource: 'Please select a venue or equipment',
     completeFields: 'Please fill in all contact fields',
     completeTriplet: 'Please fill in all three fields',
     nameRequired: 'Please enter a name',
@@ -100,12 +105,12 @@ export default {
     dialog: {
       adminEditCreate: 'Add Administrator',
       adminEditEdit: 'Edit Administrator',
-      staffEditCreate: 'Add Staff Member',
-      staffEditEdit: 'Edit Staff Member',
-      serviceEditCreate: 'Add Service',
-      serviceEditEdit: 'Edit Service',
-      resourceEditCreate: 'Add Resource',
-      resourceEditEdit: 'Edit Resource',
+      staffEditCreate: 'Add Member Account',
+      staffEditEdit: 'Edit Member Account',
+      serviceEditCreate: 'Add Item',
+      serviceEditEdit: 'Edit Item',
+      resourceEditCreate: 'Add Venue/Equipment',
+      resourceEditEdit: 'Edit Venue/Equipment',
       providerEditCreate: 'Add {label}',
       providerEditEdit: 'Edit {label}',
       providerDeleteConfirm: 'Deactivate this {label}? This action is recoverable (soft delete).',
@@ -141,13 +146,13 @@ export default {
       home: 'Home',
       settings: 'Merchant Settings',
       shareLink: 'Share Link',
-      services: 'Services',
-      resources: 'Resources',
+      services: 'Service Items',
+      resources: 'Venues or Equipment',
       providers: '{label}',
       appointments: 'Appointments',
       queue: 'Queue Console',
       schedule: 'Scheduling',
-      staff: 'Staff',
+      staff: 'Member Accounts',
       sectionOperate: 'Operations',
       sectionSchedule: 'Scheduling',
       sectionSettings: 'Settings',
@@ -165,8 +170,8 @@ export default {
     bookingMode: {
       TIME_SLOT: 'Fixed slot',
       TIME_CAPACITY: 'Slot + capacity',
-      RESOURCE: 'Per resource',
-      RESOURCE_OPTIONAL: 'Optional resource',
+      RESOURCE: 'Venue or Equipment Required',
+      RESOURCE_OPTIONAL: 'Venue or Equipment Optional',
       QUEUE: 'Queue ticket'
     },
     settings: {
@@ -194,14 +199,22 @@ export default {
       }
     },
     services: {
-      listTitle: 'Services',
-      nameLabel: 'Service name',
+      listTitle: 'Service Items',
+      subtitle: 'Manage bookable service items, modes and durations',
+      newButton: '+ Add Item',
+      nameLabel: 'Item name',
       bookingModeLabel: 'Booking mode',
       durationLabel: 'Duration (minutes)',
       intervalLabel: 'Slot interval (minutes)',
       capacityLabel: 'Capacity per slot',
       priceLabel: 'Price (cents)',
-      resourcesLabel: 'Bound resources',
+      resourcesLabel: 'Bound venues/equipment',
+      columns: {
+        mode: 'Mode',
+        durationInterval: 'Duration / Interval',
+        capacity: 'Capacity',
+        resources: 'Venue/Equipment'
+      },
       avgServiceMinutes: {
         label: 'Average service time (minutes)',
         placeholder: 'Leave empty to use Duration',
@@ -209,17 +222,23 @@ export default {
       }
     },
     resources: {
-      listTitle: 'Resources',
-      nameLabel: 'Resource name',
-      boundServices: 'Bound Services',
+      listTitle: 'Venues or Equipment',
+      subtitle: 'Manage technicians, seats, equipment and other allocatable venues/equipment',
+      newButton: '+ Add Venue/Equipment',
+      nameLabel: 'Name',
+      boundServices: 'Bound Service Items',
       boundServicesEmpty: '— Not bound',
-      boundServicesHint: 'Edit a service and check this resource so customers can select it.'
+      boundServicesHint: 'Edit a service item and check this venue/equipment so customers can select it.',
+      columns: {
+        description: 'Description',
+        displayOrder: 'Display order'
+      }
     },
     schedule: {
       title: 'Scheduling',
       subtitle: 'Manage weekly hours, single-day overrides, closed days and queue hours',
       scopeMerchant: 'Whole shop',
-      scopeResource: 'Resource',
+      scopeResource: 'Venue/Equipment',
       scopeProvider: '{label}',
       providerScopeResourceLabel: 'Preferred room (optional)',
       providerScopeResourceHint: 'Optionally pin which room/seat the {label} uses for this rule; leave blank to schedule the person only.',
@@ -237,22 +256,22 @@ export default {
       },
       hint: {
         weekly: 'Set the fixed weekly business hours. For one-off changes on a specific date, switch to the "🔧 Single-day Override" tab.',
-        overrides: 'Configure a date whose hours differ from the weekly pattern (per shop or per resource). For a full shop-wide closure, use the "🚫 Closed Days" tab.',
-        holidays: 'Shop-wide closed days — the holiday name shows on the customer booking page. For partial-day changes or per-resource leave, use "🔧 Single-day Override".',
-        queueWindow: 'Per QUEUE service, configure weekly ticket-issuing hours and daily caps.'
+        overrides: 'Configure a date whose hours differ from the weekly pattern (per shop or per venue/equipment). For a full shop-wide closure, use the "🚫 Closed Days" tab.',
+        holidays: 'Shop-wide closed days — the holiday name shows on the customer booking page. For partial-day changes or per venue/equipment leave, use "🔧 Single-day Override".',
+        queueWindow: 'Per QUEUE service item, configure weekly ticket-issuing hours and daily caps.'
       },
       affects: 'Affects: {names}',
-      affectsAll: 'Affects: all services (shop-wide)',
-      affectsNone: 'No matching services yet',
+      affectsAll: 'Affects: all service items (shop-wide)',
+      affectsNone: 'No matching service items yet',
       affectsMore: '+{n} more',
-      affectsCount: 'Affects {n} services',
+      affectsCount: 'Affects {n} service items',
       affectsExpand: 'View',
       unboundResource: {
-        title: 'This resource is not bound to any service. Customers (and merchant-proxy bookings) cannot select it.',
-        action: 'Bind in Services →'
+        title: 'This venue/equipment is not bound to any service item. Customers (and merchant-proxy bookings) cannot select it.',
+        action: 'Bind in Service Items →'
       },
-      emptyNoService: 'No services yet. Create one in the Services page first.',
-      goCreateService: 'Go to Services →',
+      emptyNoService: 'No service items yet. Create one in the Service Items page first.',
+      goCreateService: 'Go to Service Items →',
       weeklyTitle: 'Booking Hours',
       overridesTitle: 'Single-day Override',
       holidaysTitle: 'Closed Days',
@@ -260,11 +279,11 @@ export default {
     },
     queueWindow: {
       title: 'Queue Hours',
-      subtitle: 'Set weekly ticket-issuing hours and daily caps for each QUEUE service',
+      subtitle: 'Set weekly ticket-issuing hours and daily caps for each QUEUE service item',
       loading: 'Loading…',
-      serviceLabel: 'Service',
-      noQueueService: 'No QUEUE-mode service yet. Create one first.',
-      goCreateService: 'Go to services →',
+      serviceLabel: 'Service Item',
+      noQueueService: 'No QUEUE-mode service item yet. Create one first.',
+      goCreateService: 'Go to Service Items →',
       saveSuccess: 'Queue window saved',
       maxTicketsHint: 'Cap 0 = unlimited',
       adminNoWindow: 'Queue window not configured — customers cannot take tickets',
@@ -281,18 +300,30 @@ export default {
       addHoliday: '+ Add Closed Day'
     },
     staff: {
-      listTitle: 'Staff',
+      listTitle: 'Member Accounts',
+      subtitle: 'Manage merchant staff and access',
+      newButton: '+ Add Member Account',
+      noPermission: 'This page is for OWNER only; current account is STAFF.',
       roleLabel: 'Role',
       roleOwner: 'Owner',
       roleStaff: 'Staff',
       toggleActive: 'Activate / Deactivate',
-      cantToggleSelf: 'You cannot deactivate yourself'
+      cantToggleSelf: 'You cannot deactivate yourself',
+      columns: {
+        email: 'Email',
+        status: 'Status'
+      }
     },
     shareLink: {
       title: 'Share Link',
+      subtitle: 'Share the link with customers or print the QR code for in-store display',
       hint: 'Share the link below with customers or print the QR code',
+      hintWithColon: 'Share the link below with customers or print the QR code:',
       copy: 'Copy',
       copied: 'Copied',
+      copyFailed: 'Failed to copy, please select manually',
+      empty: 'Slug not configured yet',
+      goSettings: 'Go to Merchant Settings',
       merchantNotConfigured: 'Slug not configured yet, please go to Merchant Settings'
     },
     errors: {
@@ -371,9 +402,9 @@ export default {
       bookNow: 'Book Now'
     },
     steps: {
-      service: 'Service',
+      service: 'Service Item',
       provider: '{label}',
-      resource: 'Resource',
+      resource: 'Venue/Equipment',
       datetime: 'Date & Time',
       // @deprecated superseded by datetime
       date: 'Date',
@@ -396,14 +427,14 @@ export default {
       noteOptional: 'Note (optional)'
     },
     panel: {
-      pickService: 'Select a service',
+      pickService: 'Select a service item',
       pickProvider: 'Select a {label}',
-      pickResource: 'Select a resource',
+      pickResource: 'Select a venue or equipment',
       pickDateTime: 'Select date & time'
     },
     resource: {
       anyLabel: 'Any available (auto-assign)',
-      anyDescription: 'The system will pick an available resource for you'
+      anyDescription: 'The system will pick an available venue/equipment for you'
     },
     provider: {
       cardTitleFallback: 'This {label}',
@@ -413,9 +444,9 @@ export default {
     },
     fields: {
       date: 'Date',
-      resource: 'Resource',
+      resource: 'Venue/Equipment',
       note: 'Note',
-      service: 'Service',
+      service: 'Service Item',
       time: 'Time',
       customer: 'Customer'
     },
@@ -477,7 +508,7 @@ export default {
       limitExceededHint: 'You may cancel unnecessary bookings in "My Bookings"',
       goMyBookings: 'Go to My Bookings',
       providerRequired: 'Please select a {label}',
-      providerNotForService: 'This {label} does not offer this service',
+      providerNotForService: 'This {label} does not offer this service item',
       providerInactive: 'This {label} is no longer active',
       providerTaken: 'This {label} is already booked at this time'
     },
@@ -515,14 +546,14 @@ export default {
     estimate: 'Estimated wait',
     minutes: '{n} min',
     minutesShort: '< 1 min',
-    noService: 'No queue service available',
+    noService: 'No queue service item available',
     allDone: 'All tickets served for today',
-    pickService: 'Select a service',
+    pickService: 'Select a service item',
     openDisplay: 'Open display screen',
     copyLink: 'Copy link',
     linkCopied: 'Display link copied',
     linkCopyFailed: 'Unable to copy automatically, please copy manually:',
-    needQueueService: 'Create a QUEUE service first',
+    needQueueService: 'Create a QUEUE service item first',
     gotoRoom: 'Please proceed to {room}',
     tts: {
       toggle: 'Voice call-out',
@@ -538,7 +569,7 @@ export default {
     page: {
       landingEyebrow: 'Queue ticket service',
       landingTitle: 'Take a ticket',
-      landingHint: 'Pick a service below and submit your contact details to receive today’s queue ticket.',
+      landingHint: 'Pick a service item below and submit your contact details to receive today’s queue ticket.',
       statusYourNumber: 'Your number',
       statusServing: 'Now serving',
       statusLastIssued: 'Last issued',
@@ -547,8 +578,8 @@ export default {
       statusSkippedHint: 'Marked as skipped. Please check with the counter.',
       statusAheadHint: '{n} people ahead of you',
       adminTitle: 'Queue dashboard',
-      adminEmpty: 'No queue service configured',
-      adminEmptyHint: 'Go to Services and add a service with bookingMode=QUEUE plus weekly queue windows.',
+      adminEmpty: 'No queue service item configured',
+      adminEmptyHint: 'Go to Service Items and add an item with bookingMode=QUEUE plus weekly queue windows.',
       callNext: 'Call next',
       markDone: 'Done',
       markSkip: 'Skip',
@@ -570,9 +601,9 @@ export default {
       recentDismiss: 'Not me',
       findEntry: 'Find my ticket',
       findTitle: 'Find my ticket',
-      findHint: 'Pick a service and enter the last 4 digits of your phone number to recover today’s ticket.',
-      findServiceLabel: 'Service',
-      findServicePlaceholder: 'Select a service',
+      findHint: 'Pick a service item and enter the last 4 digits of your phone number to recover today’s ticket.',
+      findServiceLabel: 'Service Item',
+      findServicePlaceholder: 'Select a service item',
       findPhoneLabel: 'Last 4 digits of phone',
       findPhonePlaceholder: 'e.g. 1234',
       findSubmit: 'Find my ticket',
@@ -625,7 +656,7 @@ export default {
       success: 'Ticket #{ticketNumber} issued',
       printTicket: {
         merchantLabel: 'Merchant',
-        serviceLabel: 'Service',
+        serviceLabel: 'Service Item',
         numberLabel: 'Number',
         timeLabel: 'Issued at'
       }
@@ -661,7 +692,7 @@ export default {
     messages: {
       takeSuccess: 'Ticket issued',
       windowClosed: 'Queue is not open right now',
-      notQueueService: 'Service is not in queue mode',
+      notQueueService: 'Service item is not in queue mode',
       alreadyTaken: 'You already have a ticket today',
       queueFull: 'All tickets issued for today',
       noWaiting: 'No waiting tickets',
@@ -697,7 +728,7 @@ export default {
       capacity: 'This slot is fully booked',
       closed: 'This time period is a break',
       holiday: 'This day is a holiday',
-      inactive: 'This resource is currently inactive'
+      inactive: 'This venue/equipment is currently inactive'
     },
     prefillNotice: 'You selected {time}. Please continue filling in customer information.',
     prefillUnavailable: 'The slot you selected ({time}) is unavailable ({reason}). Please choose another time.'
@@ -746,16 +777,16 @@ export default {
       origin: 'Original',
       success: 'Appointment updated',
       loadingSlots: 'Loading slots…',
-      forceHint: 'Past-slot override enabled: allows selecting past time and skips resource on-duty check; double-booking conflict is still enforced to prevent operational incidents.',
+      forceHint: 'Past-slot override enabled: allows selecting past time and skips venue/equipment on-duty check; double-booking conflict is still enforced to prevent operational incidents.',
       forcePromptOnPastSlot: 'Slot is in the past — please enable "Past-slot override" before submitting',
       fields: {
         date: 'New date',
         time: 'New time',
         timePlaceholder: 'HH:mm',
         timeRequired: 'Please select a time',
-        resource: 'New resource',
+        resource: 'New venue/equipment',
         resourceAny: 'Any (auto assigned)',
-        resourceRequired: 'Please select a resource',
+        resourceRequired: 'Please select a venue or equipment',
         force: 'Past-slot override'
       },
       actions: {
@@ -768,11 +799,11 @@ export default {
     durationLabel: '{n} min',
     edit: {
       queueResourcesLabel: 'Callable rooms / counters / staff (optional)',
-      queueResourcesHint: 'Each bound resource keeps its own queue; leave empty to keep a single queue.',
+      queueResourcesHint: 'Each bound venue/equipment keeps its own queue; leave empty to keep a single queue.',
       requiresProviderLabel: 'Requires {label}',
-      requiresProviderHint: 'When enabled, customers must pick a {label} when booking; bind at least one first.',
+      requiresProviderHint: 'When enabled, customers must pick a {label} when booking this service item; bind at least one first.',
       providersLabel: 'Available {label}s',
-      providersHint: 'Pick which {label}s offer this service; customers will choose from this list.',
+      providersHint: 'Pick which {label}s offer this service item; customers will choose from this list.',
       providersEmptyError: 'Pick at least one {label} when "Requires {label}" is enabled.'
     }
   },
@@ -786,8 +817,8 @@ export default {
       bio: 'Bio',
       displayOrder: 'Order',
       isActive: 'Active',
-      boundServices: 'Services Offered',
-      boundServicesEmpty: '— Not bound to any service'
+      boundServices: 'Service Items Offered',
+      boundServicesEmpty: '— Not bound to any service item'
     },
     placeholders: {
       name: 'e.g. Dr. Smith, Lisa',

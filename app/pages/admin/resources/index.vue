@@ -69,20 +69,20 @@ onMounted(() => {
 
 <template lang="pug">
 .PageAdminResources
-  BizPageHeader(title="資源管理" subtitle="管理技師、座位、設備等可被分配的資源")
+  BizPageHeader(:title="t('admin.resources.listTitle')" :subtitle="t('admin.resources.subtitle')")
     template(#actions)
-      ElButton(type="primary" @click="ClickCreate") + 新增資源
+      ElButton(type="primary" @click="ClickCreate") {{ t('admin.resources.newButton') }}
   ElTable(
     :data="items"
     v-loading="loading"
     style="width: 100%;"
     stripe
   )
-    ElTableColumn(label="名稱" prop="name" min-width="160")
+    ElTableColumn(:label="t('common.col.name')" prop="name" min-width="160")
       template(#default="{ row }")
         span {{ row.name }}
-        span.PageAdminResources__inactive(v-if="!row.isActive")  (停用)
-    ElTableColumn(label="描述" prop="description" min-width="220")
+        span.PageAdminResources__inactive(v-if="!row.isActive") {{ t('common.tagInactive') }}
+    ElTableColumn(:label="t('admin.resources.columns.description')" prop="description" min-width="220")
       template(#default="{ row }")
         span {{ row.description || '—' }}
     ElTableColumn(:label="t('admin.resources.boundServices')" min-width="220" data-testid="resources-bound-services-column")
@@ -101,11 +101,11 @@ onMounted(() => {
           placement="top"
         )
           span.PageAdminResources__unbound(data-testid="resources-unbound-hint") {{ t('admin.resources.boundServicesEmpty') }}
-    ElTableColumn(label="顯示順序" prop="displayOrder" width="100")
-    ElTableColumn(label="操作" width="140" fixed="right")
+    ElTableColumn(:label="t('admin.resources.columns.displayOrder')" prop="displayOrder" width="100")
+    ElTableColumn(:label="t('common.col.actions')" width="140" fixed="right")
       template(#default="{ row }")
-        ElButton(size="small" link type="primary" @click="ClickEdit(row)") 編輯
-        ElButton(size="small" link type="danger" @click="ClickDelete(row)") 刪除
+        ElButton(size="small" link type="primary" @click="ClickEdit(row)") {{ t('common.edit') }}
+        ElButton(size="small" link type="danger" @click="ClickDelete(row)") {{ t('common.delete') }}
 </template>
 
 <style lang="scss" scoped>

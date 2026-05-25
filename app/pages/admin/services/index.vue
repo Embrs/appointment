@@ -8,7 +8,7 @@ definePageMeta({
   middleware: ['merchant']
 });
 
-const { locale } = useI18n();
+const { locale, t } = useI18n();
 const useAsk = UseAsk();
 const items = ref<ServiceItem[]>([]);
 const resources = ref<ResourceItem[]>([]);
@@ -111,31 +111,31 @@ onMounted(() => {
 
 <template lang="pug">
 .PageAdminServices
-  BizPageHeader(title="服務管理" subtitle="管理可被預約的服務項目、模式與時長")
+  BizPageHeader(:title="t('admin.services.listTitle')" :subtitle="t('admin.services.subtitle')")
     template(#actions)
-      ElButton(type="primary" @click="ClickCreate") + 新增服務
+      ElButton(type="primary" @click="ClickCreate") {{ t('admin.services.newButton') }}
   ElTable(
     :data="items"
     v-loading="loading"
     style="width: 100%;"
     stripe
   )
-    ElTableColumn(label="名稱" prop="name" min-width="140")
+    ElTableColumn(:label="t('common.col.name')" prop="name" min-width="140")
       template(#default="{ row }")
         span {{ row.name }}
-        span.PageAdminServices__inactive(v-if="!row.isActive")  (停用)
-    ElTableColumn(label="模式" width="120")
+        span.PageAdminServices__inactive(v-if="!row.isActive") {{ t('common.tagInactive') }}
+    ElTableColumn(:label="t('admin.services.columns.mode')" width="120")
       template(#default="{ row }")
         ElTag(:type="BookingModeTagType(row.bookingMode)" size="small") {{ BookingModeLabel(row.bookingMode) }}
-    ElTableColumn(label="時長 / 間隔" width="120")
+    ElTableColumn(:label="t('admin.services.columns.durationInterval')" width="120")
       template(#default="{ row }")
         span(v-if="row.bookingMode !== 'QUEUE'") {{ row.durationMinutes }}m / {{ row.slotIntervalMinutes }}m
         span(v-else) —
-    ElTableColumn(label="容量" width="80")
+    ElTableColumn(:label="t('admin.services.columns.capacity')" width="80")
       template(#default="{ row }")
         span(v-if="row.bookingMode === 'TIME_CAPACITY'") {{ row.capacityPerSlot }}
         span(v-else) —
-    ElTableColumn(label="資源" min-width="160")
+    ElTableColumn(:label="t('admin.services.columns.resources')" min-width="160")
       template(#default="{ row }")
         template(v-if="row.resourceIds.length")
           ElTag(
@@ -169,10 +169,10 @@ onMounted(() => {
             style="margin-right: 4px;"
           ) {{ providerMap[pid] || pid }}
         span(v-else) —
-    ElTableColumn(label="操作" width="140" fixed="right")
+    ElTableColumn(:label="t('common.col.actions')" width="140" fixed="right")
       template(#default="{ row }")
-        ElButton(size="small" link type="primary" @click="ClickEdit(row)") 編輯
-        ElButton(size="small" link type="danger" @click="ClickDelete(row)") 刪除
+        ElButton(size="small" link type="primary" @click="ClickEdit(row)") {{ t('common.edit') }}
+        ElButton(size="small" link type="danger" @click="ClickDelete(row)") {{ t('common.delete') }}
 </template>
 
 <style lang="scss" scoped>

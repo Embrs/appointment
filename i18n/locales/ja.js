@@ -31,6 +31,11 @@ export default {
     weekdayLong: ['日曜', '月曜', '火曜', '水曜', '木曜', '金曜', '土曜'],
     yes: 'はい',
     no: 'いいえ',
+    tagInactive: '（停止中）',
+    col: {
+      name: '名称',
+      actions: '操作'
+    },
     enabled: '有効',
     disabled: '無効',
     isActive: '有効中',
@@ -51,10 +56,10 @@ export default {
     phone: '電話番号の形式が正しくありません',
     timeFormat: '時刻の形式が正しくありません',
     timeOrder: '開始時刻は終了時刻より前に設定してください',
-    selectService: 'サービスを選択してください',
+    selectService: 'サービス項目を選択してください',
     selectDate: '日付を選択してください',
     selectSlot: '時間枠を選択してください',
-    selectResource: 'リソースを選択してください',
+    selectResource: '場所・設備を選択してください',
     completeFields: '連絡先情報をすべて入力してください',
     completeTriplet: '3 項目をすべて入力してください',
     nameRequired: '名称を入力してください',
@@ -100,12 +105,12 @@ export default {
     dialog: {
       adminEditCreate: '管理者追加',
       adminEditEdit: '管理者編集',
-      staffEditCreate: 'メンバー追加',
-      staffEditEdit: 'メンバー編集',
-      serviceEditCreate: 'サービス追加',
-      serviceEditEdit: 'サービス編集',
-      resourceEditCreate: 'リソース追加',
-      resourceEditEdit: 'リソース編集',
+      staffEditCreate: 'メンバーアカウント追加',
+      staffEditEdit: 'メンバーアカウント編集',
+      serviceEditCreate: 'サービス項目を追加',
+      serviceEditEdit: 'サービス項目を編集',
+      resourceEditCreate: '場所・設備を追加',
+      resourceEditEdit: '場所・設備を編集',
       providerEditCreate: '{label}を追加',
       providerEditEdit: '{label}を編集',
       providerDeleteConfirm: 'この{label}を停止しますか？（ソフト削除で復元可能）',
@@ -141,13 +146,13 @@ export default {
       home: 'ホーム',
       settings: '店舗設定',
       shareLink: '共有リンク',
-      services: 'サービス',
-      resources: 'リソース',
+      services: 'サービス項目',
+      resources: '場所・設備',
       providers: '{label}',
       appointments: '予約管理',
       queue: '呼び出し',
       schedule: 'スケジュール',
-      staff: 'メンバー',
+      staff: 'メンバーアカウント',
       sectionOperate: '運用',
       sectionSchedule: 'スケジュール',
       sectionSettings: '設定',
@@ -165,8 +170,8 @@ export default {
     bookingMode: {
       TIME_SLOT: '固定枠',
       TIME_CAPACITY: '枠+定員',
-      RESOURCE: 'リソース指定',
-      RESOURCE_OPTIONAL: 'リソース選択（任意）',
+      RESOURCE: '場所・設備の指定',
+      RESOURCE_OPTIONAL: '場所・設備（任意）',
       QUEUE: '整理券'
     },
     settings: {
@@ -194,14 +199,22 @@ export default {
       }
     },
     services: {
-      listTitle: 'サービス',
-      nameLabel: 'サービス名',
+      listTitle: 'サービス項目',
+      subtitle: '予約可能なサービス項目・モード・所要時間を管理します',
+      newButton: '+ サービス項目を追加',
+      nameLabel: '項目名',
       bookingModeLabel: '予約モード',
       durationLabel: '所要時間（分）',
       intervalLabel: '枠間隔（分）',
       capacityLabel: '1枠あたり定員',
       priceLabel: '料金（セント）',
-      resourcesLabel: '紐付けリソース',
+      resourcesLabel: '紐付けの場所・設備',
+      columns: {
+        mode: 'モード',
+        durationInterval: '所要時間 / 間隔',
+        capacity: '定員',
+        resources: '場所・設備'
+      },
       avgServiceMinutes: {
         label: '平均対応時間（分）',
         placeholder: '空欄で所要時間を使用',
@@ -209,17 +222,23 @@ export default {
       }
     },
     resources: {
-      listTitle: 'リソース',
-      nameLabel: 'リソース名',
-      boundServices: '紐付けサービス',
+      listTitle: '場所・設備',
+      subtitle: '担当者・席・設備など割り当て可能な場所・設備を管理します',
+      newButton: '+ 場所・設備を追加',
+      nameLabel: '名称',
+      boundServices: '紐付けのサービス項目',
       boundServicesEmpty: '— 紐付け無し',
-      boundServicesHint: 'サービスを編集してこのリソースを選択すると、お客様が指定できるようになります。'
+      boundServicesHint: 'サービス項目を編集してこの場所・設備を選択すると、お客様が指定できるようになります。',
+      columns: {
+        description: '説明',
+        displayOrder: '表示順'
+      }
     },
     schedule: {
       title: 'スケジュール',
       subtitle: '週時間・単日調整・定休日・整理券時間をまとめて管理します',
       scopeMerchant: '店舗全体',
-      scopeResource: 'リソース',
+      scopeResource: '場所・設備',
       scopeProvider: '{label}',
       providerScopeResourceLabel: '優先ルーム（任意）',
       providerScopeResourceHint: 'この時間帯に{label}が使うルーム／席を任意で固定できます。空欄なら人だけを排程します。',
@@ -237,22 +256,22 @@ export default {
       },
       hint: {
         weekly: '毎週の固定営業時間を設定します。特定日のみ時間が違う場合は「🔧 単日調整」タブをご利用ください。',
-        overrides: '特定の日だけ普段と違う時間または休業を設定できます(店舗全体または特定リソースを指定可能)。終日全店休業の場合は「🚫 定休日」タブをお使いください。',
-        holidays: '店舗全体の休業日。お客様の予約ページに祝日名が表示されます。早終いや特定リソースの欠勤は「🔧 単日調整」を使ってください。',
-        queueWindow: 'QUEUE サービスごとに、毎週の整理券発行時間帯と 1 日の上限を設定します。'
+        overrides: '特定の日だけ普段と違う時間または休業を設定できます(店舗全体または特定の場所・設備を指定可能)。終日全店休業の場合は「🚫 定休日」タブをお使いください。',
+        holidays: '店舗全体の休業日。お客様の予約ページに祝日名が表示されます。早終いや特定の場所・設備の欠勤は「🔧 単日調整」を使ってください。',
+        queueWindow: 'QUEUE サービス項目ごとに、毎週の整理券発行時間帯と 1 日の上限を設定します。'
       },
-      affects: '対象サービス:{names}',
-      affectsAll: '対象:店舗全体のサービス',
-      affectsNone: '対象サービスがまだありません',
+      affects: '対象サービス項目:{names}',
+      affectsAll: '対象:店舗全体のサービス項目',
+      affectsNone: '対象サービス項目がまだありません',
       affectsMore: 'ほか {n} 件',
-      affectsCount: '対象 {n} 件のサービス',
+      affectsCount: '対象 {n} 件のサービス項目',
       affectsExpand: '表示',
       unboundResource: {
-        title: 'このリソースは未だどのサービスにも紐付けられていません。お客様予約・代理予約のどちらでも選択できません。',
-        action: 'サービスページで紐付ける →'
+        title: 'この場所・設備はまだどのサービス項目にも紐付けられていません。お客様予約・代理予約のどちらでも選択できません。',
+        action: 'サービス項目ページで紐付ける →'
       },
-      emptyNoService: 'まだサービスがありません。「サービス」ページで作成してください。',
-      goCreateService: 'サービスページへ →',
+      emptyNoService: 'まだサービス項目がありません。「サービス項目」ページで作成してください。',
+      goCreateService: 'サービス項目ページへ →',
       weeklyTitle: '予約時間',
       overridesTitle: '単日調整',
       holidaysTitle: '定休日',
@@ -260,11 +279,11 @@ export default {
     },
     queueWindow: {
       title: '整理券時間',
-      subtitle: '曜日ごとに各 QUEUE サービスの受付時間帯と 1 日の上限を設定します',
+      subtitle: '曜日ごとに各 QUEUE サービス項目の受付時間帯と 1 日の上限を設定します',
       loading: '読み込み中…',
-      serviceLabel: 'サービス',
-      noQueueService: 'QUEUE モードのサービスがありません。先に作成してください。',
-      goCreateService: 'サービス管理へ →',
+      serviceLabel: 'サービス項目',
+      noQueueService: 'QUEUE モードのサービス項目がありません。先に作成してください。',
+      goCreateService: 'サービス項目管理へ →',
       saveSuccess: '受付時間を保存しました',
       maxTicketsHint: '上限 0 = 無制限',
       adminNoWindow: '受付時間が未設定です。お客様は整理券を取得できません。',
@@ -281,18 +300,30 @@ export default {
       addHoliday: '+ 定休日を追加'
     },
     staff: {
-      listTitle: 'メンバー',
+      listTitle: 'メンバーアカウント',
+      subtitle: '店舗のメンバーと権限を管理します',
+      newButton: '+ メンバーアカウント追加',
+      noPermission: 'このページは OWNER のみ利用できます。現在のアカウントは STAFF です。',
       roleLabel: '役割',
       roleOwner: 'オーナー',
       roleStaff: 'スタッフ',
       toggleActive: '有効化 / 無効化',
-      cantToggleSelf: '自分自身を無効化できません'
+      cantToggleSelf: '自分自身を無効化できません',
+      columns: {
+        email: 'メール',
+        status: '状態'
+      }
     },
     shareLink: {
       title: '共有リンク',
+      subtitle: 'リンクをお客様に共有するか、QR コードを店舗に掲示してください',
       hint: '以下のリンクをお客様に共有、または QR コードを店舗に掲示してください',
+      hintWithColon: '以下のリンクをお客様に共有、または QR コードを店舗に掲示してください：',
       copy: 'コピー',
       copied: 'コピーしました',
+      copyFailed: 'コピーに失敗しました。手動で選択してください',
+      empty: 'スラッグが未設定です',
+      goSettings: '店舗設定へ',
       merchantNotConfigured: 'スラッグが未設定です。店舗設定でご確認ください'
     },
     errors: {
@@ -371,9 +402,9 @@ export default {
       bookNow: '今すぐ予約'
     },
     steps: {
-      service: 'サービス',
+      service: 'サービス項目',
       provider: '{label}',
-      resource: 'リソース',
+      resource: '場所・設備',
       datetime: '日付と時間帯',
       // @deprecated datetime に置換済み
       date: '日付',
@@ -396,14 +427,14 @@ export default {
       noteOptional: '備考（任意）'
     },
     panel: {
-      pickService: 'サービスを選択',
+      pickService: 'サービス項目を選択',
       pickProvider: '{label}を選択',
-      pickResource: 'リソースを選択',
+      pickResource: '場所・設備を選択',
       pickDateTime: '日付と時間を選択'
     },
     resource: {
       anyLabel: '指定なし（自動割り当て）',
-      anyDescription: 'システムが空きリソースから自動で選択します'
+      anyDescription: 'システムが空いている場所・設備から自動で選択します'
     },
     provider: {
       cardTitleFallback: 'この{label}',
@@ -413,9 +444,9 @@ export default {
     },
     fields: {
       date: '日付',
-      resource: 'リソース',
+      resource: '場所・設備',
       note: '備考',
-      service: 'サービス',
+      service: 'サービス項目',
       time: '時間帯',
       customer: 'お客様'
     },
@@ -477,7 +508,7 @@ export default {
       limitExceededHint: '「マイ予約」で不要な予約をキャンセルできます',
       goMyBookings: 'マイ予約へ',
       providerRequired: '{label}を選択してください',
-      providerNotForService: 'この{label}はこのサービスを提供していません',
+      providerNotForService: 'この{label}はこのサービス項目を提供していません',
       providerInactive: 'この{label}は現在停止中です',
       providerTaken: 'この{label}はこの時間帯すでに予約済みです'
     },
@@ -515,14 +546,14 @@ export default {
     estimate: '予想待ち時間',
     minutes: '{n}分',
     minutesShort: '1分未満',
-    noService: '現在ご利用できるサービスはありません',
+    noService: '現在ご利用できるサービス項目はありません',
     allDone: '本日の整理券はすべて終了しました',
-    pickService: 'サービスを選択',
+    pickService: 'サービス項目を選択',
     openDisplay: '表示画面を開く',
     copyLink: 'リンクをコピー',
     linkCopied: '表示画面のリンクをコピーしました',
     linkCopyFailed: '自動コピーに失敗しました。手動でコピーしてください：',
-    needQueueService: '先に QUEUE モードのサービスを作成してください',
+    needQueueService: '先に QUEUE モードのサービス項目を作成してください',
     gotoRoom: '{room} へお進みください',
     tts: {
       toggle: '音声呼び出し',
@@ -538,7 +569,7 @@ export default {
     page: {
       landingEyebrow: '整理券サービス',
       landingTitle: '整理券を取る',
-      landingHint: '下のサービスを選んで連絡先を入力すると、本日の整理券を発行します。',
+      landingHint: '下のサービス項目を選んで連絡先を入力すると、本日の整理券を発行します。',
       statusYourNumber: 'お持ちの番号',
       statusServing: '現在の受付番号',
       statusLastIssued: '最新発行番号',
@@ -547,8 +578,8 @@ export default {
       statusSkippedHint: '不在として処理されました。カウンターへお越しください。',
       statusAheadHint: 'あと {n} 人お待ちです',
       adminTitle: '整理券コール台',
-      adminEmpty: '整理券サービスがありません',
-      adminEmptyHint: '「サービス」ページで bookingMode=QUEUE のサービスと毎週の受付時間帯を追加してください。',
+      adminEmpty: '整理券のサービス項目がありません',
+      adminEmptyHint: '「サービス項目」ページで bookingMode=QUEUE の項目と毎週の受付時間帯を追加してください。',
       callNext: '次の番号を呼ぶ',
       markDone: '完了',
       markSkip: 'パス',
@@ -570,9 +601,9 @@ export default {
       recentDismiss: '自分ではない',
       findEntry: '整理券を探す',
       findTitle: '整理券を探す',
-      findHint: 'サービスを選び、電話番号の下 4 桁を入力して本日の整理券を呼び戻します。',
-      findServiceLabel: 'サービス',
-      findServicePlaceholder: 'サービスを選択',
+      findHint: 'サービス項目を選び、電話番号の下 4 桁を入力して本日の整理券を呼び戻します。',
+      findServiceLabel: 'サービス項目',
+      findServicePlaceholder: 'サービス項目を選択',
       findPhoneLabel: '電話番号の下 4 桁',
       findPhonePlaceholder: '例：1234',
       findSubmit: '整理券を探す',
@@ -625,7 +656,7 @@ export default {
       success: '{ticketNumber} 番を発行しました',
       printTicket: {
         merchantLabel: '店舗',
-        serviceLabel: 'サービス',
+        serviceLabel: 'サービス項目',
         numberLabel: '番号',
         timeLabel: '発行時刻'
       }
@@ -661,7 +692,7 @@ export default {
     messages: {
       takeSuccess: '整理券を発行しました',
       windowClosed: '現在は受付時間外です',
-      notQueueService: 'このサービスは整理券モードではありません',
+      notQueueService: 'このサービス項目は整理券モードではありません',
       alreadyTaken: '本日すでに整理券をお持ちです',
       queueFull: '本日の整理券は配布終了しました',
       noWaiting: 'お待ちの整理券はありません',
@@ -689,7 +720,7 @@ export default {
       capacity: '満員',
       closed: '休憩中',
       holiday: '休業日',
-      inactive: 'リソース停止中'
+      inactive: '場所・設備の停止中'
     },
     reasonTooltip: {
       past: 'この時間帯は既に過ぎており、予約できません',
@@ -697,7 +728,7 @@ export default {
       capacity: 'この時間帯は満員です',
       closed: 'この時間帯は休憩時間です',
       holiday: '本日は休業日です',
-      inactive: 'このリソースは現在停止中です'
+      inactive: 'この場所・設備は現在停止中です'
     },
     prefillNotice: '{time} を選択しました。お客様情報の入力を続けてください。',
     prefillUnavailable: '選択した {time} は利用できません（{reason}）。他の時間帯をお選びください。'
@@ -746,16 +777,16 @@ export default {
       origin: '元の予約',
       success: '予約を更新しました',
       loadingSlots: '時間帯を読み込み中…',
-      forceHint: '過去時間補登が有効：過去の時間帯を選択でき、リソースのシフトチェックをスキップします。ダブルブッキング防止は引き続き有効です。',
+      forceHint: '過去時間補登が有効：過去の時間帯を選択でき、場所・設備のシフトチェックをスキップします。ダブルブッキング防止は引き続き有効です。',
       forcePromptOnPastSlot: '選択した時間は過去のため、「過去時間補登」を有効にしてから送信してください',
       fields: {
         date: '新しい日付',
         time: '新しい時間',
         timePlaceholder: 'HH:mm',
         timeRequired: '時間を選択してください',
-        resource: '新しいリソース',
+        resource: '新しい場所・設備',
         resourceAny: '指定しない（自動割り当て）',
-        resourceRequired: 'リソースを選択してください',
+        resourceRequired: '場所・設備を選択してください',
         force: '過去時間補登（過去時間帯を許可）'
       },
       actions: {
@@ -768,11 +799,11 @@ export default {
     durationLabel: '{n} 分',
     edit: {
       queueResourcesLabel: '呼び出し可能な診察室／カウンター／スタッフ（任意）',
-      queueResourcesHint: '紐付けた各リソースが独立した整理券列を持ちます。空欄なら単一の整理券プールのままです。',
+      queueResourcesHint: '紐付けた各場所・設備が独立した整理券列を持ちます。空欄なら単一の整理券プールのままです。',
       requiresProviderLabel: '{label}指定',
-      requiresProviderHint: '有効にすると、お客様はこのサービスを予約する際に{label}を選ぶ必要があります。先に少なくとも 1 名紐付けてください。',
+      requiresProviderHint: '有効にすると、お客様はこのサービス項目を予約する際に{label}を選ぶ必要があります。先に少なくとも 1 名紐付けてください。',
       providersLabel: '対応する{label}',
-      providersHint: 'このサービスを提供する{label}を選択してください。お客様はこのリストから選びます。',
+      providersHint: 'このサービス項目を提供する{label}を選択してください。お客様はこのリストから選びます。',
       providersEmptyError: '「{label}指定」を有効にする場合、少なくとも 1 名選択してください。'
     }
   },
@@ -786,8 +817,8 @@ export default {
       bio: '紹介',
       displayOrder: '順序',
       isActive: '有効',
-      boundServices: '提供サービス',
-      boundServicesEmpty: '— サービス未紐付け'
+      boundServices: '提供サービス項目',
+      boundServicesEmpty: '— サービス項目未紐付け'
     },
     placeholders: {
       name: '例：田中医師、Lisa 先生',

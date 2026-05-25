@@ -34,7 +34,12 @@ export default {
     enabled: '啟用',
     disabled: '停用',
     isActive: '啟用中',
-    isInactive: '已停用'
+    isInactive: '已停用',
+    tagInactive: ' (停用)',
+    col: {
+      name: '名稱',
+      actions: '操作'
+    }
   },
   validation: {
     required: '此欄位為必填',
@@ -51,10 +56,10 @@ export default {
     phone: '手機格式錯誤',
     timeFormat: '時間格式錯誤',
     timeOrder: '起始時間需早於結束時間',
-    selectService: '請選擇服務',
+    selectService: '請選擇服務項目',
     selectDate: '請選擇日期',
     selectSlot: '請選擇時段',
-    selectResource: '請選擇資源',
+    selectResource: '請選擇場所或設備',
     completeFields: '請完整填寫聯絡資訊',
     completeTriplet: '請完整填寫三元組',
     nameRequired: '請輸入名稱',
@@ -100,12 +105,12 @@ export default {
     dialog: {
       adminEditCreate: '新增管理員',
       adminEditEdit: '編輯管理員',
-      staffEditCreate: '新增成員',
-      staffEditEdit: '編輯成員',
-      serviceEditCreate: '新增服務',
-      serviceEditEdit: '編輯服務',
-      resourceEditCreate: '新增資源',
-      resourceEditEdit: '編輯資源',
+      staffEditCreate: '新增成員帳號',
+      staffEditEdit: '編輯成員帳號',
+      serviceEditCreate: '新增項目',
+      serviceEditEdit: '編輯項目',
+      resourceEditCreate: '新增場所或設備',
+      resourceEditEdit: '編輯場所或設備',
       providerEditCreate: '新增{label}',
       providerEditEdit: '編輯{label}',
       providerDeleteConfirm: '確定停用此{label}？此操作可復原（軟刪除）',
@@ -141,13 +146,13 @@ export default {
       home: '首頁',
       settings: '商家設定',
       shareLink: '對外連結',
-      services: '服務',
-      resources: '資源',
+      services: '服務項目',
+      resources: '場所或設備',
       providers: '{label}',
       appointments: '預約管理',
       queue: '叫號',
       schedule: '排班',
-      staff: '成員',
+      staff: '成員帳號',
       sectionOperate: '營運',
       sectionSchedule: '排班',
       sectionSettings: '設定',
@@ -165,8 +170,8 @@ export default {
     bookingMode: {
       TIME_SLOT: '固定時段',
       TIME_CAPACITY: '時段+人數',
-      RESOURCE: '指定資源',
-      RESOURCE_OPTIONAL: '可選資源',
+      RESOURCE: '場所或設備指定',
+      RESOURCE_OPTIONAL: '可選場所或設備',
       QUEUE: '號碼牌'
     },
     settings: {
@@ -194,32 +199,46 @@ export default {
       }
     },
     services: {
-      listTitle: '服務管理',
-      nameLabel: '服務名稱',
+      listTitle: '服務項目管理',
+      subtitle: '管理可被預約的服務項目、模式與時長',
+      newButton: '+ 新增項目',
+      nameLabel: '項目名稱',
       bookingModeLabel: '預約模式',
-      durationLabel: '服務時長（分鐘）',
+      durationLabel: '項目時長（分鐘）',
       intervalLabel: '時段間隔（分鐘）',
       capacityLabel: '每時段容量',
       priceLabel: '價格（分）',
-      resourcesLabel: '綁定資源',
+      resourcesLabel: '綁定場所或設備',
+      columns: {
+        mode: '模式',
+        durationInterval: '時長 / 間隔',
+        capacity: '容量',
+        resources: '場所或設備'
+      },
       avgServiceMinutes: {
-        label: '平均服務時長（分鐘）',
-        placeholder: '留空自動沿用服務時長',
+        label: '平均項目時長（分鐘）',
+        placeholder: '留空自動沿用項目時長',
         help: '實際每位顧客的平均處理時間，用於號碼牌「預估等待時間」顯示'
       }
     },
     resources: {
-      listTitle: '資源管理',
-      nameLabel: '資源名稱',
-      boundServices: '已綁服務',
+      listTitle: '場所或設備管理',
+      subtitle: '管理技師、座位、設備等可被分配的場所或設備',
+      newButton: '+ 新增場所或設備',
+      nameLabel: '名稱',
+      boundServices: '已綁服務項目',
       boundServicesEmpty: '— 尚未綁定',
-      boundServicesHint: '請在「服務」頁編輯服務時勾選此資源,顧客才看得到他'
+      boundServicesHint: '請在「服務項目」頁編輯項目時勾選此場所或設備,顧客才看得到他',
+      columns: {
+        description: '描述',
+        displayOrder: '顯示順序'
+      }
     },
     schedule: {
       title: '排班',
       subtitle: '管理每週時段、單日調整、公休日與領號時間',
       scopeMerchant: '整店',
-      scopeResource: '資源',
+      scopeResource: '場所或設備',
       scopeProvider: '{label}',
       providerScopeResourceLabel: '預綁診間（選填）',
       providerScopeResourceHint: '可指定該時段{label}所在的診間／工位；不指定則僅排人不排地',
@@ -237,22 +256,22 @@ export default {
       },
       hint: {
         weekly: '設定每週固定營業時段;若某天時間和平常不一樣,請切換到「🔧 單日調整」tab',
-        overrides: '設定某一天和平常不一樣的時段或休息(可指定整店或單一資源)。整店全日休請改用「🚫 公休日」tab',
-        holidays: '整店休息日,會在顧客訂位頁顯示假日名稱。如果只是某天提早收或某資源請假,請改用「🔧 單日調整」tab',
-        queueWindow: '設定每個 QUEUE 服務每週的領號時段與每日上限'
+        overrides: '設定某一天和平常不一樣的時段或休息(可指定整店或單一場所或設備)。整店全日休請改用「🚫 公休日」tab',
+        holidays: '整店休息日,會在顧客訂位頁顯示假日名稱。如果只是某天提早收或某場所或設備請假,請改用「🔧 單日調整」tab',
+        queueWindow: '設定每個 QUEUE 服務項目每週的領號時段與每日上限'
       },
-      affects: '影響服務:{names}',
-      affectsAll: '影響:整店所有服務',
-      affectsNone: '尚無對應服務',
+      affects: '影響服務項目:{names}',
+      affectsAll: '影響:整店所有服務項目',
+      affectsNone: '尚無對應服務項目',
       affectsMore: '等 {n} 個',
-      affectsCount: '影響 {n} 個服務',
+      affectsCount: '影響 {n} 個服務項目',
       affectsExpand: '查看',
       unboundResource: {
-        title: '此資源尚未被任何服務綁定,顧客在預約頁與後台代客預約都無法選到他',
-        action: '前往服務頁綁定 →'
+        title: '此場所或設備尚未被任何服務項目綁定,顧客在預約頁與後台代客預約都無法選到他',
+        action: '前往服務項目頁綁定 →'
       },
-      emptyNoService: '尚未建立任何服務,請先到「服務」頁建立',
-      goCreateService: '前往服務頁 →',
+      emptyNoService: '尚未建立任何服務項目,請先到「服務項目」頁建立',
+      goCreateService: '前往服務項目頁 →',
       weeklyTitle: '預約時段',
       overridesTitle: '單日調整',
       holidaysTitle: '公休日',
@@ -260,11 +279,11 @@ export default {
     },
     queueWindow: {
       title: '領號時間',
-      subtitle: '依星期設定每個 QUEUE 服務的領號時段與每日上限',
+      subtitle: '依星期設定每個 QUEUE 服務項目的領號時段與每日上限',
       loading: '載入中…',
-      serviceLabel: '服務',
-      noQueueService: '尚無 QUEUE 模式服務，請先建立',
-      goCreateService: '前往服務管理 →',
+      serviceLabel: '服務項目',
+      noQueueService: '尚無 QUEUE 模式服務項目，請先建立',
+      goCreateService: '前往服務項目管理 →',
       saveSuccess: '已儲存領號時間',
       maxTicketsHint: '上限 0 = 無限',
       adminNoWindow: '尚未設定領號時間，顧客將無法領號',
@@ -281,18 +300,30 @@ export default {
       addHoliday: '+ 新增公休日'
     },
     staff: {
-      listTitle: '成員管理',
+      listTitle: '成員帳號管理',
+      subtitle: '管理商家內部員工與權限',
+      newButton: '+ 新增成員帳號',
+      noPermission: '此頁僅限 OWNER 操作；目前帳號為 STAFF。',
       roleLabel: '角色',
       roleOwner: '擁有者',
       roleStaff: '員工',
       toggleActive: '啟用 / 停用',
-      cantToggleSelf: '不能停用自己'
+      cantToggleSelf: '不能停用自己',
+      columns: {
+        email: 'Email',
+        status: '狀態'
+      }
     },
     shareLink: {
       title: '對外連結',
+      subtitle: '把連結傳給顧客，或印 QR code 張貼於店面',
       hint: '把以下連結傳給顧客，或印 QR code 張貼於店面',
+      hintWithColon: '把以下連結傳給顧客，或印 QR code 張貼於店面：',
       copy: '複製',
       copied: '已複製連結',
+      copyFailed: '複製失敗，請手動選取',
+      empty: '尚未設定 slug',
+      goSettings: '前往商家設定',
       merchantNotConfigured: '尚未設定 slug，請先到「商家設定」'
     },
     errors: {
@@ -371,9 +402,9 @@ export default {
       bookNow: '立即預約'
     },
     steps: {
-      service: '服務',
+      service: '服務項目',
       provider: '{label}',
-      resource: '資源',
+      resource: '場所或設備',
       datetime: '日期與時段',
       // @deprecated 由 datetime 取代
       date: '日期',
@@ -396,14 +427,14 @@ export default {
       noteOptional: '備註（選填）'
     },
     panel: {
-      pickService: '選擇服務',
+      pickService: '選擇服務項目',
       pickProvider: '選擇{label}',
-      pickResource: '選擇資源',
+      pickResource: '選擇場所或設備',
       pickDateTime: '選擇日期與時段'
     },
     resource: {
       anyLabel: '不指定（由系統自動分配）',
-      anyDescription: '由系統為您挑選一位可用的資源'
+      anyDescription: '由系統為您挑選一個可用的場所或設備'
     },
     provider: {
       cardTitleFallback: '此{label}',
@@ -413,9 +444,9 @@ export default {
     },
     fields: {
       date: '日期',
-      resource: '資源',
+      resource: '場所或設備',
       note: '備註',
-      service: '服務',
+      service: '服務項目',
       time: '時段',
       customer: '顧客'
     },
@@ -477,7 +508,7 @@ export default {
       limitExceededHint: '您可至「我的預約」取消不需要的預約',
       goMyBookings: '前往我的預約',
       providerRequired: '請先選擇{label}',
-      providerNotForService: '該{label}不提供此服務',
+      providerNotForService: '該{label}不提供此服務項目',
       providerInactive: '該{label}已停用',
       providerTaken: '該{label}此時段已被預約'
     },
@@ -499,7 +530,7 @@ export default {
     page: {
       landingEyebrow: '號碼牌服務',
       landingTitle: '領號排隊',
-      landingHint: '選擇下方服務後填寫聯絡資訊，即可領取今日號碼牌。',
+      landingHint: '選擇下方服務項目後填寫聯絡資訊，即可領取今日號碼牌。',
       statusYourNumber: '您的號碼',
       statusServing: '目前服務中',
       statusLastIssued: '最後發出號碼',
@@ -508,8 +539,8 @@ export default {
       statusSkippedHint: '已被標為過號，如需服務請洽櫃台',
       statusAheadHint: '您前面還有 {n} 人',
       adminTitle: '號碼牌叫號台',
-      adminEmpty: '尚未建立號碼牌服務',
-      adminEmptyHint: '請至「服務」頁新增 bookingMode=QUEUE 的服務並設定每週領號時段。',
+      adminEmpty: '尚未建立號碼牌服務項目',
+      adminEmptyHint: '請至「服務項目」頁新增 bookingMode=QUEUE 的服務項目並設定每週領號時段。',
       callNext: '叫下一號',
       markDone: '完成',
       markSkip: '過號',
@@ -531,9 +562,9 @@ export default {
       recentDismiss: '我不是這個',
       findEntry: '找回我的號碼',
       findTitle: '找回我的號碼',
-      findHint: '請選擇服務並輸入手機末 4 碼，協助你回到今日已領取的號碼牌。',
-      findServiceLabel: '服務',
-      findServicePlaceholder: '請選擇服務',
+      findHint: '請選擇服務項目並輸入手機末 4 碼，協助你回到今日已領取的號碼牌。',
+      findServiceLabel: '服務項目',
+      findServicePlaceholder: '請選擇服務項目',
       findPhoneLabel: '手機末 4 碼',
       findPhonePlaceholder: '例如：1234',
       findSubmit: '找回號碼',
@@ -586,7 +617,7 @@ export default {
       success: '已領號 {ticketNumber}',
       printTicket: {
         merchantLabel: '商家',
-        serviceLabel: '服務',
+        serviceLabel: '服務項目',
         numberLabel: '號碼',
         timeLabel: '領號時間'
       }
@@ -622,7 +653,7 @@ export default {
     messages: {
       takeSuccess: '領號成功',
       windowClosed: '目前不在領號時間',
-      notQueueService: '此服務非號碼牌模式',
+      notQueueService: '此服務項目非號碼牌模式',
       alreadyTaken: '您今日已領過號碼牌',
       queueFull: '今日號碼牌已發完',
       noWaiting: '目前沒有等待中的號碼',
@@ -650,7 +681,7 @@ export default {
       capacity: '已額滿',
       closed: '本時段休息',
       holiday: '本日休假',
-      inactive: '資源停用'
+      inactive: '場所或設備停用'
     },
     reasonTooltip: {
       past: '此時段已過，無法預約',
@@ -658,7 +689,7 @@ export default {
       capacity: '此時段名額已滿',
       closed: '本時段為休息時間',
       holiday: '本日為休假日',
-      inactive: '此資源目前停用'
+      inactive: '此場所或設備目前停用'
     },
     prefillNotice: '您點選的 {time} 已選中，請繼續填寫顧客資訊',
     prefillUnavailable: '您點選的 {time} 目前不可用（{reason}），請選擇其他時段'
@@ -707,16 +738,16 @@ export default {
       origin: '原預約',
       success: '已更新預約',
       loadingSlots: '載入時段中…',
-      forceHint: '已啟用過號補登：允許選擇已過時段、跳過資源排班檢查；仍會檢查雙開衝突，避免造成業務事故。',
+      forceHint: '已啟用過號補登：允許選擇已過時段、跳過場所或設備排班檢查；仍會檢查雙開衝突，避免造成業務事故。',
       forcePromptOnPastSlot: '時段已過，請啟用「過號補登」再送出',
       fields: {
         date: '新日期',
         time: '新時段',
         timePlaceholder: 'HH:mm',
         timeRequired: '請選擇時段',
-        resource: '新資源',
+        resource: '新場所或設備',
         resourceAny: '不指定（由系統自動分配）',
-        resourceRequired: '請選擇資源',
+        resourceRequired: '請選擇場所或設備',
         force: '過號補登（允許過去時段）'
       },
       actions: {
@@ -729,11 +760,11 @@ export default {
     durationLabel: '{n} 分鐘',
     edit: {
       queueResourcesLabel: '可叫號的診間／櫃台／醫師（選填）',
-      queueResourcesHint: '綁定後每個資源獨立一條號碼牌隊列；不綁則維持單一號池',
+      queueResourcesHint: '綁定後每個場所或設備獨立一條號碼牌隊列；不綁則維持單一號池',
       requiresProviderLabel: '需指定{label}',
-      requiresProviderHint: '啟用後，顧客預約此服務時必須選擇一位{label}；需先綁定至少一位',
+      requiresProviderHint: '啟用後，顧客預約此服務項目時必須選擇一位{label}；需先綁定至少一位',
       providersLabel: '可服務的{label}',
-      providersHint: '勾選此服務由哪些{label}提供；顧客預約時將從這份名單挑選',
+      providersHint: '勾選此服務項目由哪些{label}提供；顧客預約時將從這份名單挑選',
       providersEmptyError: '啟用「需指定{label}」時必須選擇至少一位'
     }
   },
@@ -747,8 +778,8 @@ export default {
       bio: '介紹',
       displayOrder: '排序',
       isActive: '啟用',
-      boundServices: '可服務的服務',
-      boundServicesEmpty: '— 尚未綁定服務'
+      boundServices: '可服務的項目',
+      boundServicesEmpty: '— 尚未綁定服務項目'
     },
     placeholders: {
       name: '例：王醫師、Lisa 老師',
@@ -773,14 +804,14 @@ export default {
     estimate: '預估等待',
     minutes: '{n} 分鐘',
     minutesShort: '< 1 分鐘',
-    noService: '目前無服務開放',
+    noService: '目前無服務項目開放',
     allDone: '今日已完成所有號碼',
-    pickService: '請選擇服務',
+    pickService: '請選擇服務項目',
     openDisplay: '開啟顯示頁',
     copyLink: '複製連結',
     linkCopied: '已複製顯示頁連結',
     linkCopyFailed: '無法自動複製，請手動複製：',
-    needQueueService: '請先建立 QUEUE 服務',
+    needQueueService: '請先建立 QUEUE 服務項目',
     gotoRoom: '請至 {room}',
     tts: {
       toggle: '語音廣播',

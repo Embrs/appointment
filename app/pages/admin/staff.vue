@@ -5,6 +5,7 @@ definePageMeta({
   middleware: ['merchant']
 });
 
+const { t } = useI18n();
 const storeSelf = StoreSelf();
 const useAsk = UseAsk();
 const isOwner = computed(() => storeSelf.role === 'OWNER');
@@ -55,11 +56,10 @@ onMounted(() => {
 
 <template lang="pug">
 .PageAdminStaff
-  BizPageHeader(title="成員管理" subtitle="管理商家內部員工與權限")
+  BizPageHeader(:title="t('admin.staff.listTitle')" :subtitle="t('admin.staff.subtitle')")
     template(#actions)
-      ElButton(v-if="isOwner" type="primary" @click="ClickCreate") + 新增成員
-  .PageAdminStaff__noPermission(v-if="!isOwner")
-    | 此頁僅限 OWNER 操作；目前帳號為 STAFF。
+      ElButton(v-if="isOwner" type="primary" @click="ClickCreate") {{ t('admin.staff.newButton') }}
+  .PageAdminStaff__noPermission(v-if="!isOwner") {{ t('admin.staff.noPermission') }}
   ElTable(
     v-else
     :data="items"
@@ -67,23 +67,23 @@ onMounted(() => {
     style="width: 100%;"
     stripe
   )
-    ElTableColumn(label="姓名" prop="name" min-width="120")
-    ElTableColumn(label="Email" prop="email" min-width="200")
-    ElTableColumn(label="角色" width="100")
+    ElTableColumn(:label="t('common.col.name')" prop="name" min-width="120")
+    ElTableColumn(:label="t('admin.staff.columns.email')" prop="email" min-width="200")
+    ElTableColumn(:label="t('admin.staff.roleLabel')" width="100")
       template(#default="{ row }")
         ElTag(:type="row.role === 'OWNER' ? 'success' : 'info'" size="small") {{ row.role }}
-    ElTableColumn(label="狀態" width="100")
+    ElTableColumn(:label="t('admin.staff.columns.status')" width="100")
       template(#default="{ row }")
-        ElTag(:type="row.isActive ? 'success' : 'info'" size="small") {{ row.isActive ? '啟用' : '停用' }}
-    ElTableColumn(label="操作" width="180" fixed="right")
+        ElTag(:type="row.isActive ? 'success' : 'info'" size="small") {{ row.isActive ? t('common.enabled') : t('common.disabled') }}
+    ElTableColumn(:label="t('common.col.actions')" width="180" fixed="right")
       template(#default="{ row }")
-        ElButton(size="small" link type="primary" @click="ClickEdit(row)") 編輯
+        ElButton(size="small" link type="primary" @click="ClickEdit(row)") {{ t('common.edit') }}
         ElButton(
           size="small"
           link
           :type="row.isActive ? 'danger' : 'success'"
           @click="ClickToggle(row)"
-        ) {{ row.isActive ? '停用' : '啟用' }}
+        ) {{ row.isActive ? t('common.disabled') : t('common.enabled') }}
 </template>
 
 <style lang="scss" scoped>
