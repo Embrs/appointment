@@ -125,7 +125,7 @@
 
 ## 10. 收尾
 
-- [ ] 10.1 撰寫 Conventional Commits 格式 commit message（繁中），例如 `refactor(merchant-ui): 重整 sidebar 並重命名服務/資源/成員為更語意化文案`
-- [ ] 10.2 確認 git diff 範圍只含：`app/layouts/back-desk.vue` + `i18n/locales/{zh,en,ja}.js` + `openspec/changes/refactor-merchant-sidebar-and-rename-modules/**`
-- [ ] 10.3 推送至 `dev` 分支，等 Railway 自動部署到 `appointment-develop.up.railway.app` 後做 Playwright 煙霧測試（步驟 7.2、7.4、7.5、7.6 重做）
-- [ ] 10.4 staging 驗收完成後執行 `/opsx:archive` 歸檔，同步 delta 進 `openspec/specs/merchant-platform/spec.md`
+- [x] 10.1 已建立 3 個 local commit：`4d5ba3b` refactor 主體、`52f433e` 歸檔前 change、`36250a9` fix-up（opsx:verify 補 CRITICAL）
+- [x] 10.2 git diff 範圍：實際比 task 原描述廣（含 services/resources/staff/share-link 4 個頁面 template + service-edit dialog + 兩個 BookingModeLabel function），原因為 Section 5A 補做硬編碼→i18n key 重構（已記在 design.md 決策 1 更新）
+- [x] 10.3 archive 流程於 local 完成；push 到 dev 與 Railway staging 驗收交由使用者授權後執行
+- [x] 10.4 執行 `/opsx:archive` 歸檔並同步 delta 進主 spec

@@ -350,7 +350,7 @@ TBD - created by archiving change merchant-config. Update Purpose after archive.
 
 ### Requirement: 商家後台配置頁面
 
-系統 SHALL 提供 `back-desk` layout + `merchant` middleware 保護的商家後台頁面;sidebar 導覽 SHALL 以三個語意分群呈現:「營運」、「排班」、「設定」。「排班」分群下的 `/admin/schedule` SHALL 為四 tab 容器頁,內含「📅 預約時段」、「🔧 單日調整」、「🚫 公休日」、「🎟 現場領號時段」四個 tab,tab 顯示性依商家服務的 bookingMode 構成動態決定。原 `/admin/holidays` 與 `/admin/queue-window` SHALL 保留為 redirect 路由。當商家 `providerModeEnabled=true` 時，「營運」分群 SHALL 額外顯示「服務人員」項目連到 `/admin/providers`（顯示文字採用 `providerLabel` fallback 鏈解析），「排班」分群下的「📅 預約時段」與「🔧 單日調整」tab SHALL 額外提供 PROVIDER scope 切換器。
+系統 SHALL 提供 `back-desk` layout + `merchant` middleware 保護的商家後台頁面;sidebar 導覽 SHALL 以三個語意分群呈現:「營運」、「排班」、「設定」。「排班」分群下的 `/admin/schedule` SHALL 為四 tab 容器頁,內含「📅 預約時段」、「🔧 單日調整」、「🚫 公休日」、「🎟 現場領號時段」四個 tab,tab 顯示性依商家服務的 bookingMode 構成動態決定。原 `/admin/holidays` 與 `/admin/queue-window` SHALL 保留為 redirect 路由。當商家 `providerModeEnabled=true` 時，「**設定**」分群 SHALL 額外顯示「服務人員」項目連到 `/admin/providers`（顯示文字採用 `providerLabel` fallback 鏈解析），「排班」分群下的「📅 預約時段」與「🔧 單日調整」tab SHALL 額外提供 PROVIDER scope 切換器。Sidebar 中「服務」「資源」「成員」三個導覽項目的顯示文字 SHALL 為「服務項目」/「場所或設備」/「成員帳號」（三語同步），URL 路徑仍維持 `/admin/services` / `/admin/resources` / `/admin/staff` 不變。
 
 #### Scenario: Dashboard /admin
 
@@ -371,12 +371,12 @@ TBD - created by archiving change merchant-config. Update Purpose after archive.
 #### Scenario: 服務 /admin/services
 
 - **WHEN** 訪 `/admin/services`
-- **THEN** 渲染表格 + 新增 / 編輯彈窗;bookingMode 切換時對應欄位動態顯示；商家 `providerModeEnabled=true` 時，編輯彈窗額外顯示「需指定服務人員」開關 + Provider 多選器
+- **THEN** 渲染表格 + 新增 / 編輯彈窗;bookingMode 切換時對應欄位動態顯示；商家 `providerModeEnabled=true` 時，編輯彈窗額外顯示「需指定服務人員」開關 + Provider 多選器；頁面標題、副標、新增按鈕、表格表頭、編輯/刪除按鈕、停用後綴等使用者可見文案 SHALL 全部透過 i18n key 渲染（不得硬編碼）；中文 locale 下 listTitle = "服務項目管理"、英文 locale = "Service Items"、日文 locale = "サービス項目"，並隨切換 locale 即時生效
 
 #### Scenario: 資源 /admin/resources
 
 - **WHEN** 訪 `/admin/resources`
-- **THEN** 渲染表格 + 新增 / 編輯彈窗;表格 SHALL 包含「已綁服務」column(詳見「資源頁顯示綁定服務」requirement)
+- **THEN** 渲染表格 + 新增 / 編輯彈窗;表格 SHALL 包含「已綁服務」column(詳見「資源頁顯示綁定服務」requirement)；頁面標題、副標、新增按鈕、表格表頭、編輯/刪除按鈕、停用後綴等使用者可見文案 SHALL 全部透過 i18n key 渲染（不得硬編碼）；中文 locale 下 listTitle = "場所或設備管理"、英文 = "Venues or Equipment"、日文 = "場所・設備"，並隨切換 locale 即時生效
 
 #### Scenario: 服務人員 /admin/providers（啟用後）
 
@@ -475,8 +475,8 @@ TBD - created by archiving change merchant-config. Update Purpose after archive.
 - **THEN** 顯示 3 個分群區塊,每塊含小標題:
   - 「營運」:首頁 / 預約管理 / 叫號
   - 「排班」:排班(連到 `/admin/schedule`)
-  - 「設定」:商家設定 / 對外連結 / 服務 / 資源 / 成員
-  順序固定如上;`商家設定` 與 `成員` 依 `HasRule` 條件顯示(維持既有行為)
+  - 「設定」:商家設定 / 對外連結 / 服務人員（providerModeEnabled=true 時）/ 服務項目 / 場所或設備 / 成員帳號
+  順序固定如上;`商家設定` 依 `HasRule('merchant.settings.update')`、`服務人員` 依 `providerModeEnabled=true`、`成員帳號` 依 `HasRule('merchant.staff.manage')` 條件顯示
 
 #### Scenario: Sidebar 平台管理員視角
 
@@ -488,7 +488,7 @@ TBD - created by archiving change merchant-config. Update Purpose after archive.
 
 - **GIVEN** 當前用戶 role='OWNER'
 - **WHEN** 訪 `/admin/staff`
-- **THEN** 渲染員工表格 + 新增 / 編輯 / 啟用切換
+- **THEN** 渲染員工表格 + 新增 / 編輯 / 啟用切換；頁面標題、副標、新增按鈕、表格表頭（姓名 / Email / 角色 / 狀態 / 操作）、編輯按鈕、啟用/停用按鈕、權限封鎖訊息等使用者可見文案 SHALL 全部透過 i18n key 渲染（不得硬編碼）；中文 locale 下 listTitle = "成員帳號管理"、英文 = "Member Accounts"、日文 = "メンバーアカウント"，並隨切換 locale 即時生效
 
 #### Scenario: 員工頁 STAFF 訪問
 
@@ -501,6 +501,23 @@ TBD - created by archiving change merchant-config. Update Purpose after archive.
 - **GIVEN** 未登入或 selfType !== 'merchant'
 - **WHEN** 訪 `/admin/*`(含 redirect 舊路由)
 - **THEN** middleware 跳轉到 `/sign-in`
+
+### Requirement: BookingMode UI 文案使用「場所或設備」術語
+
+商家後台所有顯示 BookingMode 文案的位置（服務管理頁的 bookingMode 選擇器、服務列表的 bookingMode 標籤、相關 hint）SHALL 將 `RESOURCE` enum 顯示為「場所或設備指定」/「Venue or Equipment Required」/「場所・設備の指定」三語；`RESOURCE_OPTIONAL` enum 顯示為「可選場所或設備」/「Venue or Equipment Optional」/「場所・設備（任意）」三語。Prisma BookingMode enum 字串值與後端 API contract 中的 enum 字串 SHALL 維持為 `RESOURCE` / `RESOURCE_OPTIONAL` 不變。
+
+#### Scenario: 服務編輯 bookingMode 選擇器顯示新文案
+
+- **GIVEN** 商家進入 `/admin/services` 並點「新增服務」
+- **WHEN** 展開 bookingMode 下拉
+- **THEN** 看到的選項文案為「固定時段 / 時段+人數 / 場所或設備指定 / 可選場所或設備 / 號碼牌」
+- **AND** 選定「場所或設備指定」後送出，API 收到的 `bookingMode` 仍為字串 `'RESOURCE'`
+
+#### Scenario: 服務列表標籤顯示新文案
+
+- **GIVEN** 商家已建立一個 bookingMode=RESOURCE 的服務
+- **WHEN** 訪 `/admin/services`
+- **THEN** 該服務 row 的 bookingMode 欄位顯示「場所或設備指定」（中文）/ "Venue or Equipment Required"（英文）/「場所・設備の指定」（日文）
 
 ### Requirement: SchedulerWeeklyEditor 元件
 
